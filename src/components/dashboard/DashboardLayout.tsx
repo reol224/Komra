@@ -59,6 +59,13 @@ export default function DashboardLayout() {
                 <FileText className="mr-2 h-4 w-4" />
                 Generate Report
               </Button>
+              <Button 
+                variant="outline"
+                onClick={() => window.open('/tempobook/storyboards/d726f1cf-4100-4c94-ac04-5ad66980807b', '_blank')}
+              >
+                <Shield className="mr-2 h-4 w-4" />
+                Audit Dashboard
+              </Button>
               <Button variant="outline">
                 <Settings className="mr-2 h-4 w-4" />
                 Settings
