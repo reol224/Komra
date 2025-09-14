@@ -67,7 +67,6 @@ export default function DashboardLayout() {
           </div>
         </div>
       </div>
-
       <div className="container mx-auto px-6 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-5">
@@ -75,7 +74,10 @@ export default function DashboardLayout() {
               <TrendingUp className="h-4 w-4" />
               Overview
             </TabsTrigger>
-            <TabsTrigger value="vulnerabilities" className="flex items-center gap-2">
+            <TabsTrigger
+              value="vulnerabilities"
+              className="flex items-center gap-2"
+            >
               <AlertTriangle className="h-4 w-4" />
               Vulnerabilities
             </TabsTrigger>
@@ -104,7 +106,9 @@ export default function DashboardLayout() {
                   <Server className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{dashboardStats.totalEndpoints}</div>
+                  <div className="text-2xl font-bold">
+                    {dashboardStats.totalEndpoints}
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     Monitored systems
                   </p>
@@ -119,7 +123,9 @@ export default function DashboardLayout() {
                   <AlertTriangle className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{dashboardStats.totalVulnerabilities}</div>
+                  <div className="text-2xl font-bold">
+                    {dashboardStats.totalVulnerabilities}
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     Identified CVEs
                   </p>
@@ -151,7 +157,9 @@ export default function DashboardLayout() {
                   <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{dashboardStats.openTriageItems}</div>
+                  <div className="text-2xl font-bold">
+                    {dashboardStats.openTriageItems}
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     Awaiting review
                   </p>
@@ -169,9 +177,7 @@ export default function DashboardLayout() {
                   <div className="text-2xl font-bold text-green-600">
                     {dashboardStats.remediationProgress}%
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    CVEs resolved
-                  </p>
+                  <p className="text-xs text-muted-foreground">CVEs resolved</p>
                 </CardContent>
               </Card>
             </div>
@@ -276,11 +282,10 @@ export default function DashboardLayout() {
           </TabsContent>
         </Tabs>
       </div>
-
       {/* Report Generator Dialog */}
-      <ReportGenerator 
-        isOpen={isReportDialogOpen} 
-        onClose={() => setIsReportDialogOpen(false)} 
+      <ReportGenerator
+        isOpen={isReportDialogOpen}
+        onClose={() => setIsReportDialogOpen(false)}
       />
     </div>
   );
