@@ -2,298 +2,398 @@
 
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Shield,
-  Server,
-  AlertTriangle,
-  TrendingUp,
-  FileText,
   Users,
+  Activity,
+  AlertTriangle,
+  Server,
+  FileText,
   Settings,
+  Eye,
+  Search,
+  Bell,
+  CheckCircle,
+  TrendingUp,
+  Database,
+  Lock,
+  UserCheck,
+  BarChart3,
+  Clock,
 } from "lucide-react";
 
-import VulnerabilitySummary from "./VulnerabilitySummary";
-import EndpointInventory from "./EndpointInventory";
-import RiskAssessment from "./RiskAssessment";
-import TriageInterface from "./TriageInterface";
-import ReportGenerator from "./ReportGenerator";
+// Import role-specific components
+import AdminUserManagement from "./admin/AdminUserManagement";
+import AdminSystemHealth from "./admin/AdminSystemHealth";
+import AdminThreatSummary from "./admin/AdminThreatSummary";
+import AdminAuditTrail from "./admin/AdminAuditTrail";
+
+import AnalystThreatFeed from "./analyst/AnalystThreatFeed";
+import AnalystIncidentResponse from "./analyst/AnalystIncidentResponse";
+import AnalystInvestigation from "./analyst/AnalystInvestigation";
+import AnalystReports from "./analyst/AnalystReports";
+
+import ViewerSystemStatus from "./viewer/ViewerSystemStatus";
+import ViewerAlerts from "./viewer/ViewerAlerts";
+import ViewerCompliance from "./viewer/ViewerCompliance";
+
+// Mock user data - in real app this would come from auth context
+const mockUser = {
+  id: "1",
+  email: "admin@company.com",
+  role: "admin" as "admin" | "analyst" | "viewer",
+  name: "John Admin",
+};
+
+interface DashboardStats {
+  totalEndpoints: number;
+  criticalVulns: number;
+  activeIncidents: number;
+  complianceScore: number;
+}
+
+const mockStats: DashboardStats = {
+  totalEndpoints: 127,
+  criticalVulns: 12,
+  activeIncidents: 3,
+  complianceScore: 87,
+};
 
 export default function DashboardLayout() {
-  const [activeTab, setActiveTab] = useState("overview");
-  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+  const [currentUser] = useState(mockUser);
+  const [selectedTab, setSelectedTab] = useState("overview");
 
-  // Mock dashboard statistics
-  const dashboardStats = {
-    totalEndpoints: 5,
-    totalVulnerabilities: 21,
-    criticalVulnerabilities: 2,
-    openTriageItems: 15,
-    remediationProgress: 9.5,
+  const renderAdminDashboard = () => (
+    <div className="space-y-6">
+      {/* Admin Overview Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Total Endpoints
+            </CardTitle>
+            <Server className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{mockStats.totalEndpoints}</div>
+            <p className="text-xs text-muted-foreground">
+              +12% from last month
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Critical Vulnerabilities
+            </CardTitle>
+            <AlertTriangle className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">
+              {mockStats.criticalVulns}
+            </div>
+            <p className="text-xs text-muted-foreground">-3 from last week</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Active Incidents
+            </CardTitle>
+            <Activity className="h-4 w-4 text-orange-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">
+              {mockStats.activeIncidents}
+            </div>
+            <p className="text-xs text-muted-foreground">2 resolved today</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Compliance Score
+            </CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {mockStats.complianceScore}%
+            </div>
+            <p className="text-xs text-muted-foreground">+5% improvement</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Admin Tabs */}
+      <Tabs value={selectedTab} onValueChange={setSelectedTab}>
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="users">User Management</TabsTrigger>
+          <TabsTrigger value="system">System Health</TabsTrigger>
+          <TabsTrigger value="audit">Audit Trail</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <AdminThreatSummary />
+            <AdminSystemHealth />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="users">
+          <AdminUserManagement />
+        </TabsContent>
+
+        <TabsContent value="system">
+          <AdminSystemHealth />
+        </TabsContent>
+
+        <TabsContent value="audit">
+          <AdminAuditTrail />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+
+  const renderAnalystDashboard = () => (
+    <div className="space-y-6">
+      {/* Analyst Overview Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Active Threats
+            </CardTitle>
+            <Shield className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">24</div>
+            <p className="text-xs text-muted-foreground">+6 new today</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Open Investigations
+            </CardTitle>
+            <Search className="h-4 w-4 text-orange-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">8</div>
+            <p className="text-xs text-muted-foreground">3 high priority</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Reports Generated
+            </CardTitle>
+            <FileText className="h-4 w-4 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">15</div>
+            <p className="text-xs text-muted-foreground">This month</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Response Time</CardTitle>
+            <Clock className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">2.4h</div>
+            <p className="text-xs text-muted-foreground">Average response</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Analyst Tabs */}
+      <Tabs value={selectedTab} onValueChange={setSelectedTab}>
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="threats">Threat Feed</TabsTrigger>
+          <TabsTrigger value="incidents">Incident Response</TabsTrigger>
+          <TabsTrigger value="investigation">Investigation</TabsTrigger>
+          <TabsTrigger value="reports">Reports</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="threats">
+          <AnalystThreatFeed />
+        </TabsContent>
+
+        <TabsContent value="incidents">
+          <AnalystIncidentResponse />
+        </TabsContent>
+
+        <TabsContent value="investigation">
+          <AnalystInvestigation />
+        </TabsContent>
+
+        <TabsContent value="reports">
+          <AnalystReports />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+
+  const renderViewerDashboard = () => (
+    <div className="space-y-6">
+      {/* Viewer Overview Stats - Read-only */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">System Status</CardTitle>
+            <Activity className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">Healthy</div>
+            <p className="text-xs text-muted-foreground">
+              All systems operational
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Alerts</CardTitle>
+            <Bell className="h-4 w-4 text-yellow-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-600">7</div>
+            <p className="text-xs text-muted-foreground">2 require attention</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Compliance Status
+            </CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">87%</div>
+            <p className="text-xs text-muted-foreground">
+              Within acceptable range
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Last Updated</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">2m ago</div>
+            <p className="text-xs text-muted-foreground">
+              Auto-refresh enabled
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Viewer Tabs - Read-only views */}
+      <Tabs value={selectedTab} onValueChange={setSelectedTab}>
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="status">System Status</TabsTrigger>
+          <TabsTrigger value="alerts">Alerts</TabsTrigger>
+          <TabsTrigger value="compliance">Compliance</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="status">
+          <ViewerSystemStatus />
+        </TabsContent>
+
+        <TabsContent value="alerts">
+          <ViewerAlerts />
+        </TabsContent>
+
+        <TabsContent value="compliance">
+          <ViewerCompliance />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+
+  const getRoleIcon = (role: string) => {
+    switch (role) {
+      case "admin":
+        return <Settings className="h-4 w-4" />;
+      case "analyst":
+        return <Search className="h-4 w-4" />;
+      case "viewer":
+        return <Eye className="h-4 w-4" />;
+      default:
+        return <Users className="h-4 w-4" />;
+    }
+  };
+
+  const getRoleBadge = (role: string) => {
+    switch (role) {
+      case "admin":
+        return <Badge className="bg-red-600">Administrator</Badge>;
+      case "analyst":
+        return <Badge className="bg-blue-600">Security Analyst</Badge>;
+      case "viewer":
+        return <Badge className="bg-green-600">Viewer</Badge>;
+      default:
+        return <Badge variant="outline">{role}</Badge>;
+    }
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background p-6">
       {/* Header */}
-      <div className="border-b bg-card">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <Shield className="h-8 w-8 text-primary" />
-                <div>
-                  <h1 className="text-2xl font-bold">Koma Security Audit</h1>
-                  <p className="text-sm text-muted-foreground">
-                    Comprehensive vulnerability assessment dashboard
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                onClick={() => setIsReportDialogOpen(true)}
-              >
-                <FileText className="mr-2 h-4 w-4" />
-                Generate Report
-              </Button>
-              <Button 
-                variant="outline"
-                onClick={() => window.open('/tempobook/storyboards/d726f1cf-4100-4c94-ac04-5ad66980807b', '_blank')}
-              >
-                <Shield className="mr-2 h-4 w-4" />
-                Audit Dashboard
-              </Button>
-              <Button variant="outline">
-                <Settings className="mr-2 h-4 w-4" />
-                Settings
-              </Button>
-            </div>
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-3xl font-bold">Koma Security Dashboard</h1>
+          <p className="text-muted-foreground">
+            Comprehensive security monitoring and vulnerability management
+          </p>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <p className="text-sm font-medium">{currentUser.name}</p>
+            <p className="text-xs text-muted-foreground">{currentUser.email}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {getRoleIcon(currentUser.role)}
+            {getRoleBadge(currentUser.role)}
           </div>
         </div>
       </div>
-      <div className="container mx-auto px-6 py-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="overview" className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger
-              value="vulnerabilities"
-              className="flex items-center gap-2"
-            >
-              <AlertTriangle className="h-4 w-4" />
-              Vulnerabilities
-            </TabsTrigger>
-            <TabsTrigger value="endpoints" className="flex items-center gap-2">
-              <Server className="h-4 w-4" />
-              Endpoints
-            </TabsTrigger>
-            <TabsTrigger value="triage" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Triage
-            </TabsTrigger>
-            <TabsTrigger value="risk" className="flex items-center gap-2">
-              <Shield className="h-4 w-4" />
-              Risk Assessment
-            </TabsTrigger>
-          </TabsList>
 
-          <TabsContent value="overview" className="space-y-6 mt-6">
-            {/* Overview Dashboard */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    Total Endpoints
-                  </CardTitle>
-                  <Server className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {dashboardStats.totalEndpoints}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Monitored systems
-                  </p>
-                </CardContent>
-              </Card>
+      {/* Role-based Dashboard Content */}
+      {currentUser.role === "admin" && renderAdminDashboard()}
+      {currentUser.role === "analyst" && renderAnalystDashboard()}
+      {currentUser.role === "viewer" && renderViewerDashboard()}
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    Total Vulnerabilities
-                  </CardTitle>
-                  <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {dashboardStats.totalVulnerabilities}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Identified CVEs
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    Critical Issues
-                  </CardTitle>
-                  <Shield className="h-4 w-4 text-red-500" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-red-600">
-                    {dashboardStats.criticalVulnerabilities}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Require immediate attention
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    Open Triage Items
-                  </CardTitle>
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {dashboardStats.openTriageItems}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Awaiting review
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    Remediation Progress
-                  </CardTitle>
-                  <TrendingUp className="h-4 w-4 text-green-500" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-green-600">
-                    {dashboardStats.remediationProgress}%
-                  </div>
-                  <p className="text-xs text-muted-foreground">CVEs resolved</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Quick Actions */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Button
-                    variant="outline"
-                    className="h-20 flex flex-col items-center justify-center space-y-2"
-                    onClick={() => setActiveTab("vulnerabilities")}
-                  >
-                    <AlertTriangle className="h-6 w-6" />
-                    <span>View Vulnerabilities</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="h-20 flex flex-col items-center justify-center space-y-2"
-                    onClick={() => setActiveTab("triage")}
-                  >
-                    <Users className="h-6 w-6" />
-                    <span>Triage CVEs</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="h-20 flex flex-col items-center justify-center space-y-2"
-                    onClick={() => setIsReportDialogOpen(true)}
-                  >
-                    <FileText className="h-6 w-6" />
-                    <span>Generate Report</span>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Recent Activity */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Activity</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">
-                        Critical vulnerability detected in OpenSSL
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        CVE-2023-1234 affects 2 endpoints • 2 hours ago
-                      </p>
-                    </div>
-                    <Badge className="bg-red-600">Critical</Badge>
-                  </div>
-                  <div className="flex items-center space-x-4">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">
-                        Vulnerability resolved in jQuery
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        CVE-2023-9012 marked as resolved • 1 day ago
-                      </p>
-                    </div>
-                    <Badge className="bg-green-500">Resolved</Badge>
-                  </div>
-                  <div className="flex items-center space-x-4">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">
-                        New endpoint added to monitoring
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Log Server (192.168.1.105) • 2 days ago
-                      </p>
-                    </div>
-                    <Badge variant="outline">Info</Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="vulnerabilities">
-            <VulnerabilitySummary />
-          </TabsContent>
-
-          <TabsContent value="endpoints">
-            <EndpointInventory />
-          </TabsContent>
-
-          <TabsContent value="triage">
-            <TriageInterface />
-          </TabsContent>
-
-          <TabsContent value="risk">
-            <RiskAssessment />
-          </TabsContent>
-        </Tabs>
+      {/* Role Access Notice */}
+      <div className="mt-8 p-4 bg-muted/50 rounded-lg border">
+        <div className="flex items-center gap-2 text-sm">
+          <Lock className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium">Role-Based Access Control Active</span>
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          Dashboard content is customized based on your role permissions.
+          {currentUser.role === "admin" &&
+            " You have full administrative access to all features."}
+          {currentUser.role === "analyst" &&
+            " You have access to investigation and analysis tools."}
+          {currentUser.role === "viewer" &&
+            " You have read-only access to system status and reports."}
+        </p>
       </div>
-      {/* Report Generator Dialog */}
-      <ReportGenerator
-        isOpen={isReportDialogOpen}
-        onClose={() => setIsReportDialogOpen(false)}
-      />
     </div>
   );
 }
