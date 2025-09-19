@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_setup: {
+        Row: {
+          billing_account_id: string | null
+          created_at: string | null
+          id: string
+          mfa_enabled: boolean | null
+          mfa_secret: string | null
+          password_hash: string
+          phone_number: string | null
+          setup_completed: boolean | null
+          updated_at: string | null
+          username: string
+        }
+        Insert: {
+          billing_account_id?: string | null
+          created_at?: string | null
+          id?: string
+          mfa_enabled?: boolean | null
+          mfa_secret?: string | null
+          password_hash: string
+          phone_number?: string | null
+          setup_completed?: boolean | null
+          updated_at?: string | null
+          username: string
+        }
+        Update: {
+          billing_account_id?: string | null
+          created_at?: string | null
+          id?: string
+          mfa_enabled?: boolean | null
+          mfa_secret?: string | null
+          password_hash?: string
+          phone_number?: string | null
+          setup_completed?: boolean | null
+          updated_at?: string | null
+          username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_setup_billing_account_id_fkey"
+            columns: ["billing_account_id"]
+            isOneToOne: false
+            referencedRelation: "billing_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           action: string
@@ -101,6 +148,39 @@ export type Database = {
           session_token?: string
           user_agent?: string | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      billing_accounts: {
+        Row: {
+          created_at: string | null
+          id: string
+          license_key: string
+          plan_type: string
+          status: string
+          stripe_customer_id: string
+          stripe_subscription_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          license_key: string
+          plan_type?: string
+          status?: string
+          stripe_customer_id: string
+          stripe_subscription_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          license_key?: string
+          plan_type?: string
+          status?: string
+          stripe_customer_id?: string
+          stripe_subscription_id?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -220,6 +300,44 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      environment_provisioning: {
+        Row: {
+          billing_account_id: string | null
+          created_at: string | null
+          environment_id: string
+          id: string
+          provisioned_at: string | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          billing_account_id?: string | null
+          created_at?: string | null
+          environment_id: string
+          id?: string
+          provisioned_at?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          billing_account_id?: string | null
+          created_at?: string | null
+          environment_id?: string
+          id?: string
+          provisioned_at?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "environment_provisioning_billing_account_id_fkey"
+            columns: ["billing_account_id"]
+            isOneToOne: false
+            referencedRelation: "billing_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mfa_secrets: {
         Row: {
