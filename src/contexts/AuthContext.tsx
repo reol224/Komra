@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
@@ -15,6 +15,9 @@ export interface User {
   email: string;
   full_name?: string;
   role: UserRole;
+  mfa_enabled?: boolean;
+  last_activity?: string;
+  session_timeout?: number;
 }
 
 interface AuthContextType {
@@ -104,6 +107,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: data.email,
         full_name: data.full_name,
         role: data.role as UserRole,
+        mfa_enabled: data.mfa_enabled || false,
+        last_activity: data.last_activity,
+        session_timeout: getSessionTimeoutByRole(data.role),
       });
     } catch (error) {
       console.error('Error fetching user profile:', error);
@@ -116,6 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             id: authUser.user.id,
             email: authUser.user.email!,
             role: 'analyst', // Default role
+            mfa_enabled: false,
           })
           .select()
           .single();
@@ -126,11 +133,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             email: data.email,
             full_name: data.full_name,
             role: data.role as UserRole,
+            mfa_enabled: false,
+            session_timeout: getSessionTimeoutByRole(data.role),
           });
         }
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const getSessionTimeoutByRole = (role: UserRole): number => {
+    switch (role) {
+      case 'admin':
+        return 15 * 60 * 1000; // 15 minutes for admin
+      case 'analyst':
+        return 30 * 60 * 1000; // 30 minutes for analyst
+      case 'viewer':
+        return 30 * 60 * 1000; // 30 minutes for viewer
+      default:
+        return 30 * 60 * 1000;
     }
   };
 
@@ -140,11 +162,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       password,
     });
     if (error) throw error;
+
+    // Update last activity
+    await updateLastActivity();
   };
 
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+  };
+
+  const updateLastActivity = async () => {
+    if (!user) return;
+    
+    try {
+      await supabase
+        .from('users')
+        .update({ last_activity: new Date().toISOString() })
+        .eq('id', user.id);
+    } catch (error) {
+      console.error('Error updating last activity:', error);
+    }
   };
 
   const hasPermission = (requiredRole: UserRole): boolean => {
@@ -166,6 +204,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signOut,
     hasPermission,
     canAccess,
+    updateLastActivity,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

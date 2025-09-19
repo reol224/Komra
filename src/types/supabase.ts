@@ -68,6 +68,42 @@ export type Database = {
         }
         Relationships: []
       }
+      auth_sessions: {
+        Row: {
+          created_at: string | null
+          expires_at: string
+          id: string
+          ip_address: unknown | null
+          is_active: boolean | null
+          last_activity: string | null
+          session_token: string
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          ip_address?: unknown | null
+          is_active?: boolean | null
+          last_activity?: string | null
+          session_token: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          ip_address?: unknown | null
+          is_active?: boolean | null
+          last_activity?: string | null
+          session_token?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       cves: {
         Row: {
           created_at: string | null
@@ -182,6 +218,36 @@ export type Database = {
           os_version?: string | null
           status?: string | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      mfa_secrets: {
+        Row: {
+          backup_codes: string[] | null
+          created_at: string | null
+          enabled: boolean | null
+          id: string
+          last_used: string | null
+          secret: string
+          user_id: string | null
+        }
+        Insert: {
+          backup_codes?: string[] | null
+          created_at?: string | null
+          enabled?: boolean | null
+          id?: string
+          last_used?: string | null
+          secret: string
+          user_id?: string | null
+        }
+        Update: {
+          backup_codes?: string[] | null
+          created_at?: string | null
+          enabled?: boolean | null
+          id?: string
+          last_used?: string | null
+          secret?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -386,29 +452,71 @@ export type Database = {
           },
         ]
       }
+      user_passwords: {
+        Row: {
+          created_at: string | null
+          id: string
+          password_hash: string
+          salt: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          password_hash: string
+          salt: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          password_hash?: string
+          salt?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       users: {
         Row: {
           created_at: string | null
           email: string
+          failed_login_attempts: number | null
           full_name: string | null
           id: string
+          last_activity: string | null
+          locked_until: string | null
+          mfa_enabled: boolean | null
           role: string | null
+          session_timeout: number | null
           updated_at: string | null
         }
         Insert: {
           created_at?: string | null
           email: string
+          failed_login_attempts?: number | null
           full_name?: string | null
           id?: string
+          last_activity?: string | null
+          locked_until?: string | null
+          mfa_enabled?: boolean | null
           role?: string | null
+          session_timeout?: number | null
           updated_at?: string | null
         }
         Update: {
           created_at?: string | null
           email?: string
+          failed_login_attempts?: number | null
           full_name?: string | null
           id?: string
+          last_activity?: string | null
+          locked_until?: string | null
+          mfa_enabled?: boolean | null
           role?: string | null
+          session_timeout?: number | null
           updated_at?: string | null
         }
         Relationships: []
@@ -418,7 +526,21 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      hash_password: {
+        Args: { password: string }
+        Returns: {
+          hash: string
+          salt: string
+        }[]
+      }
+      update_user_password: {
+        Args: { password: string; user_id: string }
+        Returns: boolean
+      }
+      verify_user_password: {
+        Args: { password: string; user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
