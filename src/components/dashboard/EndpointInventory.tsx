@@ -161,7 +161,7 @@ const mockPackages: Record<string, Package[]> = {
       name: "OpenSSH",
       version: "7.4p1",
       vulnerabilities: 4,
-      severity: "Critical",
+      severity: "High",
     },
     {
       id: "p8",
@@ -370,7 +370,12 @@ const EndpointInventory = () => {
       <div className="flex flex-col space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold text-white">Endpoint Inventory</h1>
-          <Button variant="outline" className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white">Scan Endpoints</Button>
+          <Button
+            variant="outline"
+            className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+          >
+            Scan Endpoints
+          </Button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -393,7 +398,9 @@ const EndpointInventory = () => {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-300">OS Type</label>
+                <label className="text-sm font-medium text-slate-300">
+                  OS Type
+                </label>
                 <Select value={osTypeFilter} onValueChange={setOsTypeFilter}>
                   <SelectTrigger className="bg-slate-600 border-slate-500 text-white">
                     <SelectValue placeholder="All OS Types" />
@@ -410,7 +417,9 @@ const EndpointInventory = () => {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-300">Status</label>
+                <label className="text-sm font-medium text-slate-300">
+                  Status
+                </label>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="bg-slate-600 border-slate-500 text-white">
                     <SelectValue placeholder="All Statuses" />
@@ -428,7 +437,9 @@ const EndpointInventory = () => {
 
           <Card className="md:col-span-2 bg-slate-700 border-slate-600">
             <CardHeader>
-              <CardTitle className="text-white">Endpoints ({filteredEndpoints.length})</CardTitle>
+              <CardTitle className="text-white">
+                Endpoints ({filteredEndpoints.length})
+              </CardTitle>
               <CardDescription className="text-slate-300">
                 Select an endpoint to view details
               </CardDescription>
@@ -439,10 +450,14 @@ const EndpointInventory = () => {
                   <TableHeader>
                     <TableRow className="border-slate-600 hover:bg-slate-600">
                       <TableHead className="text-slate-300">Name</TableHead>
-                      <TableHead className="text-slate-300">IP Address</TableHead>
+                      <TableHead className="text-slate-300">
+                        IP Address
+                      </TableHead>
                       <TableHead className="text-slate-300">OS Type</TableHead>
                       <TableHead className="text-slate-300">Status</TableHead>
-                      <TableHead className="text-slate-300">Last Scan</TableHead>
+                      <TableHead className="text-slate-300">
+                        Last Scan
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -456,17 +471,23 @@ const EndpointInventory = () => {
                           <TableCell className="font-medium text-white">
                             {endpoint.name}
                           </TableCell>
-                          <TableCell className="text-slate-300">{endpoint.ipAddress}</TableCell>
+                          <TableCell className="text-slate-300">
+                            {endpoint.ipAddress}
+                          </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
                               {getOsIcon(endpoint.osType)}
-                              <span className="text-slate-300">{endpoint.osType}</span>
+                              <span className="text-slate-300">
+                                {endpoint.osType}
+                              </span>
                             </div>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
                               {getStatusIcon(endpoint.status)}
-                              <span className="text-slate-300">{endpoint.status}</span>
+                              <span className="text-slate-300">
+                                {endpoint.status}
+                              </span>
                             </div>
                           </TableCell>
                           <TableCell className="text-slate-300">
@@ -476,7 +497,10 @@ const EndpointInventory = () => {
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-4 text-slate-400">
+                        <TableCell
+                          colSpan={5}
+                          className="text-center py-4 text-slate-400"
+                        >
                           No endpoints found
                         </TableCell>
                       </TableRow>
@@ -496,7 +520,10 @@ const EndpointInventory = () => {
                   <CardTitle className="flex items-center gap-2 text-white">
                     {getOsIcon(selectedEndpoint.osType)}
                     {selectedEndpoint.name}
-                    <Badge variant="outline" className="ml-2 border-slate-500 text-slate-300">
+                    <Badge
+                      variant="outline"
+                      className="ml-2 border-slate-500 text-slate-300"
+                    >
                       {selectedEndpoint.ipAddress}
                     </Badge>
                   </CardTitle>
@@ -519,9 +546,22 @@ const EndpointInventory = () => {
             <CardContent>
               <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <TabsList className="grid w-full grid-cols-3 bg-slate-600">
-                  <TabsTrigger value="overview" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white">Overview</TabsTrigger>
-                  <TabsTrigger value="packages" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white">Installed Packages</TabsTrigger>
-                  <TabsTrigger value="vulnerabilities" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white">
+                  <TabsTrigger
+                    value="overview"
+                    className="data-[state=active]:bg-slate-800 data-[state=active]:text-white"
+                  >
+                    Overview
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="packages"
+                    className="data-[state=active]:bg-slate-800 data-[state=active]:text-white"
+                  >
+                    Installed Packages
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="vulnerabilities"
+                    className="data-[state=active]:bg-slate-800 data-[state=active]:text-white"
+                  >
                     Vulnerabilities
                   </TabsTrigger>
                 </TabsList>
@@ -575,20 +615,35 @@ const EndpointInventory = () => {
                     <Table>
                       <TableHeader>
                         <TableRow className="border-slate-600 hover:bg-slate-600">
-                          <TableHead className="text-slate-300">Package Name</TableHead>
-                          <TableHead className="text-slate-300">Version</TableHead>
-                          <TableHead className="text-slate-300">Vulnerabilities</TableHead>
-                          <TableHead className="text-slate-300">Severity</TableHead>
+                          <TableHead className="text-slate-300">
+                            Package Name
+                          </TableHead>
+                          <TableHead className="text-slate-300">
+                            Version
+                          </TableHead>
+                          <TableHead className="text-slate-300">
+                            Vulnerabilities
+                          </TableHead>
+                          <TableHead className="text-slate-300">
+                            Severity
+                          </TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {mockPackages[selectedEndpoint.id]?.map((pkg) => (
-                          <TableRow key={pkg.id} className="border-slate-600 hover:bg-slate-600">
+                          <TableRow
+                            key={pkg.id}
+                            className="border-slate-600 hover:bg-slate-600"
+                          >
                             <TableCell className="font-medium text-white">
                               {pkg.name}
                             </TableCell>
-                            <TableCell className="text-slate-300">{pkg.version}</TableCell>
-                            <TableCell className="text-slate-300">{pkg.vulnerabilities}</TableCell>
+                            <TableCell className="text-slate-300">
+                              {pkg.version}
+                            </TableCell>
+                            <TableCell className="text-slate-300">
+                              {pkg.vulnerabilities}
+                            </TableCell>
                             <TableCell>
                               <Badge className={getSeverityColor(pkg.severity)}>
                                 {pkg.severity}
@@ -605,10 +660,18 @@ const EndpointInventory = () => {
                     <Table>
                       <TableHeader>
                         <TableRow className="border-slate-600 hover:bg-slate-600">
-                          <TableHead className="text-slate-300">Package</TableHead>
-                          <TableHead className="text-slate-300">CVE ID</TableHead>
-                          <TableHead className="text-slate-300">Severity</TableHead>
-                          <TableHead className="text-slate-300">Description</TableHead>
+                          <TableHead className="text-slate-300">
+                            Package
+                          </TableHead>
+                          <TableHead className="text-slate-300">
+                            CVE ID
+                          </TableHead>
+                          <TableHead className="text-slate-300">
+                            Severity
+                          </TableHead>
+                          <TableHead className="text-slate-300">
+                            Description
+                          </TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -618,7 +681,10 @@ const EndpointInventory = () => {
                           mockPackages[selectedEndpoint.id]
                             ?.filter((pkg) => pkg.vulnerabilities > 0)
                             .map((pkg) => (
-                              <TableRow key={`vuln-${pkg.id}`} className="border-slate-600 hover:bg-slate-600">
+                              <TableRow
+                                key={`vuln-${pkg.id}`}
+                                className="border-slate-600 hover:bg-slate-600"
+                              >
                                 <TableCell className="font-medium text-white">
                                   {pkg.name} {pkg.version}
                                 </TableCell>
@@ -640,7 +706,10 @@ const EndpointInventory = () => {
                             ))
                         ) : (
                           <TableRow>
-                            <TableCell colSpan={4} className="text-center py-4 text-slate-400">
+                            <TableCell
+                              colSpan={4}
+                              className="text-center py-4 text-slate-400"
+                            >
                               No vulnerabilities found
                             </TableCell>
                           </TableRow>

@@ -201,7 +201,7 @@ export default function AuditLogViewer({ isOpen, onClose }: AuditLogViewerProps)
     window.URL.revokeObjectURL(url);
   };
 
-  const uniqueActions = [...new Set(auditLogs.map((log) => log.action))];
+  const uniqueActions = Array.from(new Set(auditLogs.map((log) => log.action)));
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

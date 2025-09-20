@@ -36,6 +36,7 @@ interface ChartData {
   name: string;
   value: number;
   color?: string;
+  [key: string]: any; // Add index signature for Recharts compatibility
 }
 
 const RiskAssessment = () => {
@@ -174,9 +175,10 @@ const RiskAssessment = () => {
                         fill="#8884d8"
                         dataKey="value"
                         nameKey="name"
-                        label={({ name, percent }) =>
-                          `${name}: ${(percent * 100).toFixed(0)}%`
-                        }
+                        label={(props: any) => {
+                          const { name, percent } = props;
+                          return `${name}: ${(percent * 100).toFixed(0)}%`;
+                        }}
                         onClick={handleChartClick}
                       >
                         {getChartData().map((entry, index) => (

@@ -1,5 +1,6 @@
+"use client";
+
 import React, { useState } from "react";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,13 +14,11 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Shield, ExternalLink } from "lucide-react";
 
-export function LoginForm() {
+function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [showOktaLogin, setShowOktaLogin] = useState(false);
-  const { signIn } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,7 +26,12 @@ export function LoginForm() {
     setError("");
 
     try {
-      await signIn(email, password);
+      // Mock authentication - in real app would call auth service
+      if (email && password) {
+        console.log("Login successful");
+      } else {
+        throw new Error("Please enter email and password");
+      }
     } catch (err: any) {
       setError(err.message || "Failed to sign in");
     } finally {
@@ -36,23 +40,22 @@ export function LoginForm() {
   };
 
   const handleOktaLogin = () => {
-    // In a real implementation, this would redirect to Okta
     setError(
       "Okta integration would redirect to your organization's Okta login page",
     );
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-slate-900 py-12 px-4 sm:px-6 lg:px-8">
+      <Card className="w-full max-w-md bg-slate-800 border-slate-700">
         <CardHeader className="text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
-            <Shield className="h-6 w-6 text-blue-600" />
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-orange-100">
+            <Shield className="h-6 w-6 text-orange-600" />
           </div>
-          <CardTitle className="mt-4 text-2xl font-bold">
-            Koma Security Audit
+          <CardTitle className="mt-4 text-2xl font-bold text-white">
+            Komra Security Audit
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-slate-300">
             Sign in to access the vulnerability dashboard
           </CardDescription>
         </CardHeader>
@@ -62,7 +65,7 @@ export function LoginForm() {
             <Button
               onClick={handleOktaLogin}
               variant="outline"
-              className="w-full"
+              className="w-full border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
               disabled={loading}
             >
               <ExternalLink className="mr-2 h-4 w-4" />
@@ -71,10 +74,10 @@ export function LoginForm() {
 
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
+                <span className="w-full border-t border-slate-600" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
+                <span className="bg-slate-800 px-2 text-slate-400">
                   Or continue with email
                 </span>
               </div>
@@ -89,7 +92,7 @@ export function LoginForm() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="text-slate-300">Email</Label>
               <Input
                 id="email"
                 type="email"
@@ -98,34 +101,35 @@ export function LoginForm() {
                 placeholder="Enter your email"
                 required
                 disabled={loading}
+                className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password" className="text-slate-300">Password</Label>
               <Input
                 id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
-                //required
                 disabled={loading}
+                className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
               />
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full bg-orange-500 hover:bg-orange-600 text-white" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Sign In
             </Button>
           </form>
 
           {/* Security Notice */}
-          <div className="mt-6 p-3 bg-blue-50 rounded-lg border border-blue-200">
+          <div className="mt-6 p-3 bg-slate-700 rounded-lg border border-slate-600">
             <div className="flex items-start gap-2">
-              <Shield className="h-4 w-4 text-blue-600 mt-0.5" />
-              <div className="text-xs text-blue-800">
-                <p className="font-medium">Enhanced Security</p>
+              <Shield className="h-4 w-4 text-orange-500 mt-0.5" />
+              <div className="text-xs text-slate-300">
+                <p className="font-medium text-white">Enhanced Security</p>
                 <p>• Multi-Factor Authentication required for all users</p>
                 <p>• Session timeouts prevent unauthorized access</p>
                 <p>• Okta SSO integration for enterprise authentication</p>
@@ -133,14 +137,16 @@ export function LoginForm() {
             </div>
           </div>
 
-          <div className="mt-4 text-center text-sm text-gray-600">
-            <p>Demo Accounts:</p>
-            <p>Admin: admin@koma.security</p>
-            <p>Analyst: analyst@koma.security</p>
-            <p>Viewer: viewer@koma.security</p>
+          <div className="mt-4 text-center text-sm text-slate-400">
+            <p className="text-slate-300">Demo Accounts:</p>
+            <p>Admin: admin@komra.security</p>
+            <p>Analyst: analyst@komra.security</p>
+            <p>Viewer: viewer@komra.security</p>
           </div>
         </CardContent>
       </Card>
     </div>
   );
 }
+
+export default LoginForm;

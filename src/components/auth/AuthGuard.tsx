@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { LoginForm } from "@/components/auth/LoginForm";
+import LoginForm from "@/components/auth/LoginForm";
 import { Loader2 } from "lucide-react";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -27,3 +27,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   // Show authenticated content
   return <>{children}</>;
 }
+
+// Also export as default for flexibility
+export default AuthGuard;

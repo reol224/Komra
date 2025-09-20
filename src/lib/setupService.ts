@@ -129,7 +129,7 @@ export class SetupService {
     // Generate MFA secret if enabled
     let mfaSecret: string | undefined;
     if (mfaEnabled) {
-      mfaSecret = randomBytes(20).toString('base32');
+      mfaSecret = randomBytes(20).toString('hex');
     }
 
     const { data, error } = await supabase

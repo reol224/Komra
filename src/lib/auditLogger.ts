@@ -382,9 +382,9 @@ export class AuditLogger {
       }, {} as Record<string, number>);
 
       const topActions = Object.entries(actionCounts)
-        .sort(([, a], [, b]) => b - a)
+        .sort(([, a], [, b]) => (b as number) - (a as number))
         .slice(0, 5)
-        .map(([action, count]) => ({ action, count }));
+        .map(([action, count]) => ({ action, count: count as number }));
 
       const securityEvents = data.filter(log => 
         log.action.startsWith('SECURITY_') || 
