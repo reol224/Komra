@@ -8,14 +8,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { AlertTriangle, Shield, TrendingUp, Clock, Eye, ExternalLink, Users, Calendar, UserCheck } from 'lucide-react';
+import { AlertTriangle, Shield, TrendingUp, Clock, Eye, ExternalLink, Users, Calendar, UserCheck, AlertCircle } from 'lucide-react';
 
 export default function AdminThreatSummary() {
   const [selectedThreat, setSelectedThreat] = useState<any>(null);
   const [assignmentDialog, setAssignmentDialog] = useState(false);
+  const [escalationDialog, setEscalationDialog] = useState(false);
   const [selectedTeamMember, setSelectedTeamMember] = useState('');
   const [assignmentNotes, setAssignmentNotes] = useState('');
   const [priority, setPriority] = useState('');
+  const [escalationReason, setEscalationReason] = useState('');
+  const [escalationLevel, setEscalationLevel] = useState('');
+  const [escalationNotes, setEscalationNotes] = useState('');
 
   const teamMembers = [
     { id: 'john-doe', name: 'John Doe', role: 'Senior Security Analyst', availability: 'available' },
@@ -23,6 +27,24 @@ export default function AdminThreatSummary() {
     { id: 'mike-johnson', name: 'Mike Johnson', role: 'Vulnerability Researcher', availability: 'available' },
     { id: 'sarah-wilson', name: 'Sarah Wilson', role: 'Security Engineer', availability: 'available' },
     { id: 'david-brown', name: 'David Brown', role: 'Threat Hunter', availability: 'offline' }
+  ];
+
+  const escalationLevels = [
+    { id: 'incident-response', name: 'Incident Response Team', description: 'For active security incidents' },
+    { id: 'ciso', name: 'CISO Office', description: 'For strategic security decisions' },
+    { id: 'executive', name: 'Executive Leadership', description: 'For business-critical threats' },
+    { id: 'external', name: 'External Security Firm', description: 'For specialized expertise' }
+  ];
+
+  const escalationReasons = [
+    'Critical vulnerability with active exploitation',
+    'Potential data breach detected',
+    'System compromise confirmed',
+    'Widespread infrastructure impact',
+    'Regulatory compliance violation',
+    'Advanced persistent threat (APT) indicators',
+    'Zero-day vulnerability discovered',
+    'Other (specify in notes)'
   ];
 
   const threatStats = {
@@ -162,9 +184,31 @@ export default function AdminThreatSummary() {
     setSelectedThreat(null);
   };
 
-  const handleEscalateThreat = (threatId: string) => {
-    alert(`Escalating threat ${threatId} to incident response team...`);
-    // In real app, this would trigger escalation workflow
+  const handleEscalateThreat = (threat: any) => {
+    setSelectedThreat(threat);
+    setEscalationDialog(true);
+    setEscalationReason('');
+    setEscalationLevel('');
+    setEscalationNotes('');
+  };
+
+  const handleConfirmEscalation = () => {
+    if (!escalationReason || !escalationLevel) {
+      alert('Please select escalation reason and level');
+      return;
+    }
+
+    const selectedLevel = escalationLevels.find(level => level.id === escalationLevel);
+    
+    // Simulate escalation
+    alert(`Successfully escalated ${selectedThreat?.id} to ${selectedLevel?.name}\nReason: ${escalationReason}`);
+    
+    // Reset form
+    setEscalationDialog(false);
+    setEscalationReason('');
+    setEscalationLevel('');
+    setEscalationNotes('');
+    setSelectedThreat(null);
   };
 
   return (
@@ -262,7 +306,7 @@ export default function AdminThreatSummary() {
         </CardContent>
       </Card>
 
-      {/* Recent High-Priority Threats with Enhanced Assignment */}
+      {/* Recent High-Priority Threats with Enhanced Escalation */}
       <Card>
         <CardHeader>
           <CardTitle>Recent High-Priority Threats</CardTitle>
@@ -370,9 +414,10 @@ export default function AdminThreatSummary() {
                           {threat.severity === 'critical' && (
                             <Button 
                               variant="destructive"
-                              onClick={() => handleEscalateThreat(threat.id)}
+                              onClick={() => handleEscalateThreat(threat)}
                               className="flex-1"
                             >
+                              <AlertCircle className="h-4 w-4 mr-2" />
                               Escalate
                             </Button>
                           )}
@@ -464,6 +509,99 @@ export default function AdminThreatSummary() {
                 Confirm Assignment
               </Button>
               <Button variant="outline" onClick={() => setAssignmentDialog(false)} className="flex-1">
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Threat Escalation Dialog */}
+      <Dialog open={escalationDialog} onOpenChange={setEscalationDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <AlertCircle className="h-5 w-5 text-red-600" />
+              <span>Escalate Critical Threat</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-sm font-medium">Threat</Label>
+              <div className="mt-1 p-2 rounded border text-sm text-white" style={{ backgroundColor: '#344256' }}>
+                {selectedThreat?.title} ({selectedThreat?.id})
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="escalation-reason" className="text-sm font-medium">Escalation Reason</Label>
+              <Select value={escalationReason} onValueChange={setEscalationReason}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select escalation reason" />
+                </SelectTrigger>
+                <SelectContent>
+                  {escalationReasons.map((reason, index) => (
+                    <SelectItem key={index} value={reason}>
+                      {reason}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="escalation-level" className="text-sm font-medium">Escalate To</Label>
+              <Select value={escalationLevel} onValueChange={setEscalationLevel}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select escalation level" />
+                </SelectTrigger>
+                <SelectContent>
+                  {escalationLevels.map((level) => (
+                    <SelectItem key={level.id} value={level.id}>
+                      <div>
+                        <div className="font-medium">{level.name}</div>
+                        <div className="text-xs text-gray-500">{level.description}</div>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="escalation-notes" className="text-sm font-medium">Escalation Details</Label>
+              <Textarea
+                id="escalation-notes"
+                value={escalationNotes}
+                onChange={(e) => setEscalationNotes(e.target.value)}
+                placeholder="Provide detailed context for the escalation, including immediate actions taken and business impact..."
+                className="mt-1"
+                rows={4}
+              />
+            </div>
+
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <div className="flex items-start space-x-2">
+                <AlertCircle className="h-4 w-4 text-red-600 mt-0.5" />
+                <div className="text-sm">
+                  <div className="font-medium text-red-800">Critical Escalation</div>
+                  <div className="text-red-700">
+                    This will immediately notify the selected team and trigger emergency response protocols.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex space-x-2 pt-4">
+              <Button 
+                onClick={handleConfirmEscalation} 
+                variant="destructive"
+                className="flex-1"
+              >
+                <AlertCircle className="h-4 w-4 mr-2" />
+                Confirm Escalation
+              </Button>
+              <Button variant="outline" onClick={() => setEscalationDialog(false)} className="flex-1">
                 Cancel
               </Button>
             </div>
