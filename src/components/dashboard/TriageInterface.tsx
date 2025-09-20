@@ -421,10 +421,8 @@ export default function TriageInterface() {
                     <Badge 
                       className={
                         plan.status === "Active" ? "bg-blue-700 text-white" :
-                        plan.status === "Investigating" ? "bg-orange-700 text-white" :
-                        plan.status === "Mitigating" ? "bg-purple-700 text-white" :
-                        plan.status === "Resolved" ? "bg-green-700 text-white" :
-                        plan.status === "Completed" ? "bg-green-700 text-white" : "bg-gray-700 text-white"
+                        plan.status === "Completed" ? "bg-green-700 text-white" : 
+                        plan.status === "Cancelled" ? "bg-red-700 text-white" : "bg-gray-700 text-white"
                       }
                     >
                       {plan.status}

@@ -121,7 +121,7 @@ export default function AdminThreatSummary() {
       case 'high': return 'bg-red-700 text-white border-red-800';
       case 'medium': return 'bg-orange-700 text-white border-orange-800';
       case 'low': return 'bg-green-700 text-white border-green-800';
-      default: return 'outline';
+      default: return 'bg-gray-700 text-white border-gray-800';
     }
   };
 
@@ -131,7 +131,7 @@ export default function AdminThreatSummary() {
       case 'investigating': return 'bg-blue-700 text-white border-blue-800';
       case 'mitigating': return 'bg-purple-700 text-white border-purple-800';
       case 'resolved': return 'bg-green-700 text-white border-green-800';
-      default: return 'outline';
+      default: return 'bg-gray-700 text-white border-gray-800';
     }
   };
 
@@ -340,10 +340,10 @@ export default function AdminThreatSummary() {
                   </div>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <Badge className={`capitalize ${getSeverityColor(threat.severity)}`}>
+                  <Badge className={getSeverityColor(threat.severity) + " capitalize"}>
                     {threat.severity}
                   </Badge>
-                  <Badge className={`capitalize ${getStatusColor(threat.status)}`}>
+                  <Badge className={getStatusColor(threat.status) + " capitalize"}>
                     {threat.status}
                   </Badge>
                   <Dialog>
@@ -369,10 +369,10 @@ export default function AdminThreatSummary() {
                       </DialogHeader>
                       <div className="space-y-4">
                         <div className="flex items-center space-x-4">
-                          <Badge variant={getSeverityColor(threat.severity)} className="capitalize">
+                          <Badge className={getSeverityColor(threat.severity) + " capitalize"}>
                             {threat.severity}
                           </Badge>
-                          <Badge variant={getStatusColor(threat.status)} className="capitalize">
+                          <Badge className={getStatusColor(threat.status) + " capitalize"}>
                             {threat.status}
                           </Badge>
                           <span className="text-sm text-gray-500">{threat.id}</span>
