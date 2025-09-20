@@ -65,7 +65,14 @@ export default function AdminUserManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState<string>('all');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editForm, setEditForm] = useState({
+    email: '',
+    full_name: '',
+    role: '' as UserRole,
+    status: '' as 'active' | 'inactive' | 'suspended'
+  });
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -100,6 +107,27 @@ export default function AdminUserManagement() {
 
   const handleEditUser = (user: User) => {
     setEditingUser(user);
+    setEditForm({
+      email: user.email,
+      full_name: user.full_name,
+      role: user.role,
+      status: user.status
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateUser = () => {
+    if (!editingUser) return;
+
+    setUsers(users.map(user => 
+      user.id === editingUser.id 
+        ? { ...user, ...editForm }
+        : user
+    ));
+
+    setIsEditDialogOpen(false);
+    setEditingUser(null);
+    setEditForm({ email: '', full_name: '', role: 'viewer', status: 'active' });
   };
 
   const handleDeleteUser = (userId: string) => {
@@ -274,6 +302,68 @@ export default function AdminUserManagement() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Edit User Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-email">Email</Label>
+              <Input 
+                id="edit-email" 
+                type="email" 
+                value={editForm.email}
+                onChange={(e) => setEditForm({...editForm, email: e.target.value})}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-fullName">Full Name</Label>
+              <Input 
+                id="edit-fullName" 
+                value={editForm.full_name}
+                onChange={(e) => setEditForm({...editForm, full_name: e.target.value})}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-role">Role</Label>
+              <Select value={editForm.role} onValueChange={(value: UserRole) => setEditForm({...editForm, role: value})}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="viewer">Viewer</SelectItem>
+                  <SelectItem value="analyst">Analyst</SelectItem>
+                  <SelectItem value="admin">Administrator</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="edit-status">Status</Label>
+              <Select value={editForm.status} onValueChange={(value: 'active' | 'inactive' | 'suspended') => setEditForm({...editForm, status: value})}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="suspended">Suspended</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex space-x-2 pt-4">
+              <Button onClick={handleUpdateUser} className="flex-1">
+                Update User
+              </Button>
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="flex-1">
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
