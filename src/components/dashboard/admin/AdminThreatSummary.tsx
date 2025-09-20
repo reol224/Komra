@@ -1,12 +1,30 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, Shield, TrendingUp, Clock, Eye } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { AlertTriangle, Shield, TrendingUp, Clock, Eye, ExternalLink, Users, Calendar, UserCheck } from 'lucide-react';
 
 export default function AdminThreatSummary() {
+  const [selectedThreat, setSelectedThreat] = useState<any>(null);
+  const [assignmentDialog, setAssignmentDialog] = useState(false);
+  const [selectedTeamMember, setSelectedTeamMember] = useState('');
+  const [assignmentNotes, setAssignmentNotes] = useState('');
+  const [priority, setPriority] = useState('');
+
+  const teamMembers = [
+    { id: 'john-doe', name: 'John Doe', role: 'Senior Security Analyst', availability: 'available' },
+    { id: 'jane-smith', name: 'Jane Smith', role: 'Incident Response Lead', availability: 'busy' },
+    { id: 'mike-johnson', name: 'Mike Johnson', role: 'Vulnerability Researcher', availability: 'available' },
+    { id: 'sarah-wilson', name: 'Sarah Wilson', role: 'Security Engineer', availability: 'available' },
+    { id: 'david-brown', name: 'David Brown', role: 'Threat Hunter', availability: 'offline' }
+  ];
+
   const threatStats = {
     totalThreats: 1247,
     criticalThreats: 23,
@@ -25,7 +43,11 @@ export default function AdminThreatSummary() {
       title: 'Remote Code Execution in Apache Struts',
       affectedSystems: 15,
       detectedAt: '2024-03-22T14:30:00Z',
-      status: 'active'
+      status: 'active',
+      description: 'A critical vulnerability in Apache Struts allows remote code execution through malicious HTTP requests.',
+      impact: 'Complete system compromise possible',
+      recommendation: 'Immediately update Apache Struts to version 2.5.30 or later',
+      affectedEndpoints: ['web-server-01', 'web-server-02', 'api-gateway-01']
     },
     {
       id: 'CVE-2024-5678',
@@ -33,7 +55,11 @@ export default function AdminThreatSummary() {
       title: 'SQL Injection in Custom Application',
       affectedSystems: 8,
       detectedAt: '2024-03-22T13:45:00Z',
-      status: 'investigating'
+      status: 'investigating',
+      description: 'SQL injection vulnerability found in user authentication module.',
+      impact: 'Potential data breach and unauthorized access',
+      recommendation: 'Apply input validation patches and review database permissions',
+      affectedEndpoints: ['app-server-01', 'app-server-02']
     },
     {
       id: 'CVE-2024-9012',
@@ -41,7 +67,11 @@ export default function AdminThreatSummary() {
       title: 'Privilege Escalation in Windows Service',
       affectedSystems: 23,
       detectedAt: '2024-03-22T12:15:00Z',
-      status: 'mitigating'
+      status: 'mitigating',
+      description: 'Local privilege escalation vulnerability in Windows Print Spooler service.',
+      impact: 'Local users can gain SYSTEM privileges',
+      recommendation: 'Install Windows security update KB5012345',
+      affectedEndpoints: ['win-server-01', 'win-server-02', 'win-workstation-*']
     },
     {
       id: 'CVE-2024-3456',
@@ -49,7 +79,11 @@ export default function AdminThreatSummary() {
       title: 'Cross-Site Scripting in Web Portal',
       affectedSystems: 5,
       detectedAt: '2024-03-22T11:30:00Z',
-      status: 'resolved'
+      status: 'resolved',
+      description: 'Stored XSS vulnerability in user profile comments section.',
+      impact: 'Session hijacking and data theft possible',
+      recommendation: 'Input sanitization has been implemented',
+      affectedEndpoints: ['web-portal-01']
     }
   ];
 
@@ -86,6 +120,51 @@ export default function AdminThreatSummary() {
       case 'stable': return <div className="h-4 w-4 bg-gray-400 rounded-full" />;
       default: return null;
     }
+  };
+
+  const getAvailabilityColor = (availability: string) => {
+    switch (availability) {
+      case 'available': return 'text-green-600';
+      case 'busy': return 'text-yellow-600';
+      case 'offline': return 'text-gray-400';
+      default: return 'text-gray-600';
+    }
+  };
+
+  const handleViewThreatDetails = (threat: any) => {
+    setSelectedThreat(threat);
+  };
+
+  const handleAssignThreat = (threat: any) => {
+    setSelectedThreat(threat);
+    setAssignmentDialog(true);
+    setSelectedTeamMember('');
+    setAssignmentNotes('');
+    setPriority('');
+  };
+
+  const handleConfirmAssignment = () => {
+    if (!selectedTeamMember || !priority) {
+      alert('Please select a team member and priority level');
+      return;
+    }
+
+    const assignedMember = teamMembers.find(member => member.id === selectedTeamMember);
+    
+    // Simulate assignment
+    alert(`Successfully assigned ${selectedThreat?.id} to ${assignedMember?.name} with ${priority} priority`);
+    
+    // Reset form
+    setAssignmentDialog(false);
+    setSelectedTeamMember('');
+    setAssignmentNotes('');
+    setPriority('');
+    setSelectedThreat(null);
+  };
+
+  const handleEscalateThreat = (threatId: string) => {
+    alert(`Escalating threat ${threatId} to incident response team...`);
+    // In real app, this would trigger escalation workflow
   };
 
   return (
@@ -183,7 +262,7 @@ export default function AdminThreatSummary() {
         </CardContent>
       </Card>
 
-      {/* Recent High-Priority Threats */}
+      {/* Recent High-Priority Threats with Enhanced Assignment */}
       <Card>
         <CardHeader>
           <CardTitle>Recent High-Priority Threats</CardTitle>
@@ -214,15 +293,183 @@ export default function AdminThreatSummary() {
                   <Badge variant={getStatusColor(threat.status)} className="capitalize">
                     {threat.status}
                   </Badge>
-                  <Button variant="outline" size="sm">
-                    <Eye className="h-4 w-4" />
-                  </Button>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleViewThreatDetails(threat)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center space-x-2">
+                          <AlertTriangle className={`h-5 w-5 ${
+                            threat.severity === 'critical' ? 'text-red-600' : 
+                            threat.severity === 'high' ? 'text-orange-600' : 
+                            'text-yellow-600'
+                          }`} />
+                          <span>{threat.title}</span>
+                        </DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="flex items-center space-x-4">
+                          <Badge variant={getSeverityColor(threat.severity)} className="capitalize">
+                            {threat.severity}
+                          </Badge>
+                          <Badge variant={getStatusColor(threat.status)} className="capitalize">
+                            {threat.status}
+                          </Badge>
+                          <span className="text-sm text-gray-500">{threat.id}</span>
+                        </div>
+                        
+                        <div>
+                          <h4 className="font-semibold mb-2">Description</h4>
+                          <p className="text-sm text-gray-600">{threat.description}</p>
+                        </div>
+                        
+                        <div>
+                          <h4 className="font-semibold mb-2">Impact</h4>
+                          <p className="text-sm text-gray-600">{threat.impact}</p>
+                        </div>
+                        
+                        <div>
+                          <h4 className="font-semibold mb-2">Recommendation</h4>
+                          <p className="text-sm text-gray-600">{threat.recommendation}</p>
+                        </div>
+                        
+                        <div>
+                          <h4 className="font-semibold mb-2 flex items-center space-x-2">
+                            <Users className="h-4 w-4" />
+                            <span>Affected Endpoints ({threat.affectedSystems})</span>
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {threat.affectedEndpoints.map((endpoint, index) => (
+                              <Badge key={index} variant="outline" className="text-xs">
+                                {endpoint}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2 text-sm text-gray-500">
+                          <Calendar className="h-4 w-4" />
+                          <span>Detected: {new Date(threat.detectedAt).toLocaleString()}</span>
+                        </div>
+                        
+                        <div className="flex space-x-2 pt-4">
+                          <Button 
+                            onClick={() => handleAssignThreat(threat)}
+                            className="flex-1"
+                          >
+                            <UserCheck className="h-4 w-4 mr-2" />
+                            Assign to Team
+                          </Button>
+                          {threat.severity === 'critical' && (
+                            <Button 
+                              variant="destructive"
+                              onClick={() => handleEscalateThreat(threat.id)}
+                              className="flex-1"
+                            >
+                              Escalate
+                            </Button>
+                          )}
+                          <Button variant="outline" className="flex items-center space-x-2">
+                            <ExternalLink className="h-4 w-4" />
+                            <span>View CVE</span>
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               </div>
             ))}
           </div>
         </CardContent>
       </Card>
+
+      {/* Team Assignment Dialog */}
+      <Dialog open={assignmentDialog} onOpenChange={setAssignmentDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <UserCheck className="h-5 w-5" />
+              <span>Assign Threat to Team</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-sm font-medium">Threat</Label>
+              <div className="mt-1 p-2 rounded border text-sm text-white" style={{ backgroundColor: '#344256' }}>
+                {selectedThreat?.title} ({selectedThreat?.id})
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="team-member" className="text-sm font-medium">Assign to Team Member</Label>
+              <Select value={selectedTeamMember} onValueChange={setSelectedTeamMember}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select team member" />
+                </SelectTrigger>
+                <SelectContent>
+                  {teamMembers.map((member) => (
+                    <SelectItem key={member.id} value={member.id} disabled={member.availability === 'offline'}>
+                      <div className="flex items-center justify-between w-full">
+                        <div>
+                          <div className="font-medium">{member.name}</div>
+                          <div className="text-xs text-gray-500">{member.role}</div>
+                        </div>
+                        <div className={`text-xs ml-2 ${getAvailabilityColor(member.availability)}`}>
+                          {member.availability}
+                        </div>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="priority" className="text-sm font-medium">Priority Level</Label>
+              <Select value={priority} onValueChange={setPriority}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="urgent">Urgent - Immediate attention required</SelectItem>
+                  <SelectItem value="high">High - Address within 4 hours</SelectItem>
+                  <SelectItem value="medium">Medium - Address within 24 hours</SelectItem>
+                  <SelectItem value="low">Low - Address within 72 hours</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="notes" className="text-sm font-medium">Assignment Notes (Optional)</Label>
+              <Textarea
+                id="notes"
+                value={assignmentNotes}
+                onChange={(e) => setAssignmentNotes(e.target.value)}
+                placeholder="Add any specific instructions or context..."
+                className="mt-1"
+                rows={3}
+              />
+            </div>
+
+            <div className="flex space-x-2 pt-4">
+              <Button onClick={handleConfirmAssignment} className="flex-1">
+                Confirm Assignment
+              </Button>
+              <Button variant="outline" onClick={() => setAssignmentDialog(false)} className="flex-1">
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Threat Trends */}
       <Card>
