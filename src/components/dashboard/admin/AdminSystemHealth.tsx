@@ -46,9 +46,9 @@ export default function AdminSystemHealth() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'healthy': return 'default';
-      case 'warning': return 'secondary';
-      case 'error': return 'destructive';
+      case 'healthy': return 'bg-green-100 text-green-800 border-green-200';
+      case 'warning': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'error': return 'bg-red-100 text-red-800 border-red-200';
       default: return 'outline';
     }
   };
@@ -169,7 +169,7 @@ export default function AdminSystemHealth() {
                   </div>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <Badge variant={getStatusColor(service.status)} className="capitalize">
+                  <Badge className={`capitalize ${getStatusColor(service.status)}`}>
                     {service.status}
                   </Badge>
                   <span className="text-sm text-gray-500">{service.lastCheck}</span>

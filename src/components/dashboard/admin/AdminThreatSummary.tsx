@@ -117,20 +117,20 @@ export default function AdminThreatSummary() {
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
-      case 'critical': return 'destructive';
-      case 'high': return 'destructive';
-      case 'medium': return 'secondary';
-      case 'low': return 'outline';
+      case 'critical': return 'bg-violet-900 text-violet-100 border-violet-800';
+      case 'high': return 'bg-red-100 text-red-800 border-red-200';
+      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'low': return 'bg-green-100 text-green-800 border-green-200';
       default: return 'outline';
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': return 'destructive';
-      case 'investigating': return 'secondary';
-      case 'mitigating': return 'default';
-      case 'resolved': return 'default';
+      case 'active': return 'bg-red-100 text-red-800 border-red-200';
+      case 'investigating': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'mitigating': return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'resolved': return 'bg-green-100 text-green-800 border-green-200';
       default: return 'outline';
     }
   };
@@ -340,10 +340,10 @@ export default function AdminThreatSummary() {
                   </div>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <Badge variant={getSeverityColor(threat.severity)} className="capitalize">
+                  <Badge className={`capitalize ${getSeverityColor(threat.severity)}`}>
                     {threat.severity}
                   </Badge>
-                  <Badge variant={getStatusColor(threat.status)} className="capitalize">
+                  <Badge className={`capitalize ${getStatusColor(threat.status)}`}>
                     {threat.status}
                   </Badge>
                   <Dialog>
