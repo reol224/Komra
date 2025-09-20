@@ -353,15 +353,17 @@ const EndpointInventory = () => {
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
+      case "Critical":
+        return "bg-violet-800 text-white";
       case "High":
-        return "bg-red-100 text-red-800";
+        return "bg-red-600 text-white";
       case "Medium":
-        return "bg-amber-100 text-amber-800";
+        return "bg-orange-600 text-white";
       case "Low":
-        return "bg-yellow-100 text-yellow-800";
+        return "bg-green-600 text-white";
       case "None":
       default:
-        return "bg-green-100 text-green-800";
+        return "bg-slate-600 text-white";
     }
   };
 
@@ -534,9 +536,9 @@ const EndpointInventory = () => {
                 </div>
                 <Badge
                   className={`
-                    ${selectedEndpoint.status === "Healthy" ? "bg-green-100 text-green-800 border-green-200" : ""}
-                    ${selectedEndpoint.status === "Vulnerable" ? "bg-amber-100 text-amber-800 border-amber-200" : ""}
-                    ${selectedEndpoint.status === "Critical" ? "bg-red-100 text-red-800 border-red-200" : ""}
+                    ${selectedEndpoint.status === "Healthy" ? "bg-green-600 text-white border-green-700" : ""}
+                    ${selectedEndpoint.status === "Vulnerable" ? "bg-orange-600 text-white border-orange-700" : ""}
+                    ${selectedEndpoint.status === "Critical" ? "bg-violet-800 text-white border-violet-900" : ""}
                   `}
                 >
                   {selectedEndpoint.status}

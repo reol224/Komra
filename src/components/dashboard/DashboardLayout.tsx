@@ -472,11 +472,11 @@ export default function DashboardLayout() {
   const getRoleBadge = (role: string) => {
     switch (role) {
       case "admin":
-        return <Badge className="bg-red-600">Administrator</Badge>;
+        return <Badge className="bg-red-700 text-white">Administrator</Badge>;
       case "analyst":
-        return <Badge className="bg-blue-600">Security Analyst</Badge>;
+        return <Badge className="bg-blue-700 text-white">Security Analyst</Badge>;
       case "viewer":
-        return <Badge className="bg-green-600">Viewer</Badge>;
+        return <Badge className="bg-green-700 text-white">Viewer</Badge>;
       default:
         return <Badge variant="outline">{role}</Badge>;
     }

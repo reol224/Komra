@@ -148,20 +148,20 @@ export default function AdminAuditTrail() {
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
-      case 'critical': return 'destructive';
-      case 'high': return 'destructive';
-      case 'medium': return 'secondary';
-      case 'low': return 'outline';
-      default: return 'outline';
+      case 'critical': return 'bg-violet-800 text-white border-violet-900';
+      case 'high': return 'bg-red-600 text-white border-red-700';
+      case 'medium': return 'bg-orange-600 text-white border-orange-700';
+      case 'low': return 'bg-green-600 text-white border-green-700';
+      default: return '';
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'success': return 'default';
-      case 'failure': return 'destructive';
-      case 'warning': return 'secondary';
-      default: return 'outline';
+      case 'success': return 'bg-green-600 text-white border-green-700';
+      case 'failure': return 'bg-red-600 text-white border-red-700';
+      case 'warning': return 'bg-orange-600 text-white border-orange-700';
+      default: return '';
     }
   };
 
@@ -311,12 +311,12 @@ export default function AdminAuditTrail() {
                     <div className="text-sm font-mono">{log.resource}</div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={getSeverityColor(log.severity)} className="capitalize">
+                    <Badge className={`capitalize ${getSeverityColor(log.severity)}`}>
                       {log.severity}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={getStatusColor(log.status)} className="capitalize">
+                    <Badge className={`capitalize ${getStatusColor(log.status)}`}>
                       {log.status}
                     </Badge>
                   </TableCell>
@@ -387,7 +387,7 @@ export default function AdminAuditTrail() {
                               <div>
                                 <label className="text-sm font-medium text-gray-500">Severity</label>
                                 <div className="mt-1">
-                                  <Badge variant={getSeverityColor(selectedLog.severity)} className="capitalize">
+                                  <Badge className={`capitalize ${getSeverityColor(selectedLog.severity)}`}>
                                     {selectedLog.severity}
                                   </Badge>
                                 </div>
@@ -395,7 +395,7 @@ export default function AdminAuditTrail() {
                               <div>
                                 <label className="text-sm font-medium text-gray-500">Status</label>
                                 <div className="mt-1">
-                                  <Badge variant={getStatusColor(selectedLog.status)} className="capitalize">
+                                  <Badge className={`capitalize ${getStatusColor(selectedLog.status)}`}>
                                     {selectedLog.status}
                                   </Badge>
                                 </div>

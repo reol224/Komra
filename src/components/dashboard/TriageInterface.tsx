@@ -210,15 +210,15 @@ export default function TriageInterface() {
   const getSeverityBadge = (severity: string) => {
     switch (severity) {
       case "Critical":
-        return <Badge className="bg-red-600">{severity}</Badge>;
+        return <Badge className="bg-violet-800 text-white">{severity}</Badge>;
       case "High":
-        return <Badge className="bg-orange-500">{severity}</Badge>;
+        return <Badge className="bg-red-600 text-white">{severity}</Badge>;
       case "Medium":
-        return <Badge className="bg-yellow-500">{severity}</Badge>;
+        return <Badge className="bg-orange-600 text-white">{severity}</Badge>;
       case "Low":
-        return <Badge className="bg-blue-500">{severity}</Badge>;
+        return <Badge className="bg-green-600 text-white">{severity}</Badge>;
       default:
-        return <Badge>{severity}</Badge>;
+        return <Badge className="bg-slate-600 text-white">{severity}</Badge>;
     }
   };
 
@@ -240,15 +240,15 @@ export default function TriageInterface() {
   const getPriorityBadge = (priority: string) => {
     switch (priority) {
       case "Critical":
-        return <Badge className="bg-red-600">{priority}</Badge>;
+        return <Badge className="bg-violet-800 text-white">{priority}</Badge>;
       case "High":
-        return <Badge className="bg-orange-500">{priority}</Badge>;
+        return <Badge className="bg-red-600 text-white">{priority}</Badge>;
       case "Medium":
-        return <Badge className="bg-yellow-500">{priority}</Badge>;
+        return <Badge className="bg-orange-600 text-white">{priority}</Badge>;
       case "Low":
-        return <Badge className="bg-blue-500">{priority}</Badge>;
+        return <Badge className="bg-green-600 text-white">{priority}</Badge>;
       default:
-        return <Badge variant="outline">{priority}</Badge>;
+        return <Badge variant="outline" className="border-slate-600 text-slate-600">{priority}</Badge>;
     }
   };
 
@@ -420,8 +420,11 @@ export default function TriageInterface() {
                     <span className="truncate">{plan.name}</span>
                     <Badge 
                       className={
-                        plan.status === "Active" ? "bg-green-500 text-white" :
-                        plan.status === "Completed" ? "bg-blue-500 text-white" : "bg-gray-500 text-white"
+                        plan.status === "Active" ? "bg-blue-700 text-white" :
+                        plan.status === "Investigating" ? "bg-orange-700 text-white" :
+                        plan.status === "Mitigating" ? "bg-purple-700 text-white" :
+                        plan.status === "Resolved" ? "bg-green-700 text-white" :
+                        plan.status === "Completed" ? "bg-green-700 text-white" : "bg-gray-700 text-white"
                       }
                     >
                       {plan.status}

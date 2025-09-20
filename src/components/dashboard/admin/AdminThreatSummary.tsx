@@ -117,20 +117,20 @@ export default function AdminThreatSummary() {
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
-      case 'critical': return 'bg-violet-900 text-violet-100 border-violet-800';
-      case 'high': return 'bg-red-100 text-red-800 border-red-200';
-      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'low': return 'bg-green-100 text-green-800 border-green-200';
+      case 'critical': return 'bg-violet-800 text-white border-violet-900';
+      case 'high': return 'bg-red-700 text-white border-red-800';
+      case 'medium': return 'bg-orange-700 text-white border-orange-800';
+      case 'low': return 'bg-green-700 text-white border-green-800';
       default: return 'outline';
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': return 'bg-red-100 text-red-800 border-red-200';
-      case 'investigating': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'mitigating': return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'resolved': return 'bg-green-100 text-green-800 border-green-200';
+      case 'active': return 'bg-red-700 text-white border-red-800';
+      case 'investigating': return 'bg-blue-700 text-white border-blue-800';
+      case 'mitigating': return 'bg-purple-700 text-white border-purple-800';
+      case 'resolved': return 'bg-green-700 text-white border-green-800';
       default: return 'outline';
     }
   };
