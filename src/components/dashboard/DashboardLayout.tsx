@@ -352,7 +352,7 @@ export default function DashboardLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-6">
+    <div className="bg-background p-6 w-[2956px] h-[1959px]">
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
@@ -372,12 +372,10 @@ export default function DashboardLayout() {
           </div>
         </div>
       </div>
-
       {/* Role-based Dashboard Content */}
       {currentUser.role === "admin" && renderAdminDashboard()}
       {currentUser.role === "analyst" && renderAnalystDashboard()}
       {currentUser.role === "viewer" && renderViewerDashboard()}
-
       {/* Role Access Notice */}
       <div className="mt-8 p-4 bg-muted/50 rounded-lg border">
         <div className="flex items-center gap-2 text-sm">
