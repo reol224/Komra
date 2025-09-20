@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { FileText, Search, Download, Filter, Eye, Calendar } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
 
 interface AuditLog {
   id: string;
@@ -27,6 +29,8 @@ export default function AdminAuditTrail() {
   const [selectedSeverity, setSelectedSeverity] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedTimeRange, setSelectedTimeRange] = useState<string>('24h');
+  const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
 
   const auditLogs: AuditLog[] = [
     {
@@ -136,6 +140,11 @@ export default function AdminAuditTrail() {
     const matchesStatus = selectedStatus === 'all' || log.status === selectedStatus;
     return matchesSearch && matchesSeverity && matchesStatus;
   });
+
+  const handleViewDetails = (log: AuditLog) => {
+    setSelectedLog(log);
+    setIsDetailDialogOpen(true);
+  };
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -315,9 +324,116 @@ export default function AdminAuditTrail() {
                     <div className="text-sm font-mono">{log.ip_address}</div>
                   </TableCell>
                   <TableCell>
-                    <Button variant="outline" size="sm">
-                      <Eye className="h-4 w-4" />
-                    </Button>
+                    <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleViewDetails(log)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-2xl">
+                        <DialogHeader>
+                          <DialogTitle>Audit Log Details</DialogTitle>
+                        </DialogHeader>
+                        {selectedLog && (
+                          <div className="space-y-6">
+                            {/* Basic Information */}
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="text-sm font-medium text-gray-500">Event ID</label>
+                                <div className="font-mono text-sm">{selectedLog.id}</div>
+                              </div>
+                              <div>
+                                <label className="text-sm font-medium text-gray-500">Timestamp</label>
+                                <div className="text-sm">
+                                  {new Date(selectedLog.timestamp).toLocaleString()}
+                                </div>
+                              </div>
+                            </div>
+
+                            <Separator />
+
+                            {/* User & Action Information */}
+                            <div className="space-y-4">
+                              <div>
+                                <label className="text-sm font-medium text-gray-500">User</label>
+                                <div className="font-medium">{selectedLog.user}</div>
+                              </div>
+                              <div>
+                                <label className="text-sm font-medium text-gray-500">Action</label>
+                                <div className="font-medium">{selectedLog.action.replace(/_/g, ' ')}</div>
+                              </div>
+                              <div>
+                                <label className="text-sm font-medium text-gray-500">Resource</label>
+                                <div className="font-mono text-sm p-2 rounded" style={{backgroundColor: '#344256'}}>
+                                  {selectedLog.resource}
+                                </div>
+                              </div>
+                              <div>
+                                <label className="text-sm font-medium text-gray-500">Details</label>
+                                <div className="text-sm p-3 rounded" style={{backgroundColor: '#344256'}}>
+                                  {selectedLog.details}
+                                </div>
+                              </div>
+                            </div>
+
+                            <Separator />
+
+                            {/* Status & Severity */}
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="text-sm font-medium text-gray-500">Severity</label>
+                                <div className="mt-1">
+                                  <Badge variant={getSeverityColor(selectedLog.severity)} className="capitalize">
+                                    {selectedLog.severity}
+                                  </Badge>
+                                </div>
+                              </div>
+                              <div>
+                                <label className="text-sm font-medium text-gray-500">Status</label>
+                                <div className="mt-1">
+                                  <Badge variant={getStatusColor(selectedLog.status)} className="capitalize">
+                                    {selectedLog.status}
+                                  </Badge>
+                                </div>
+                              </div>
+                            </div>
+
+                            <Separator />
+
+                            {/* Technical Information */}
+                            <div className="space-y-4">
+                              <div>
+                                <label className="text-sm font-medium text-gray-500">IP Address</label>
+                                <div className="font-mono text-sm">{selectedLog.ip_address}</div>
+                              </div>
+                              <div>
+                                <label className="text-sm font-medium text-gray-500">User Agent</label>
+                                <div className="text-sm p-2 rounded break-all" style={{backgroundColor: '#344256'}}>
+                                  {selectedLog.user_agent}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex justify-end space-x-2 pt-4 border-t">
+                              <Button variant="outline" onClick={() => setIsDetailDialogOpen(false)}>
+                                Close
+                              </Button>
+                              <Button onClick={() => {
+                                // In real implementation, this would export individual log
+                                console.log('Exporting log:', selectedLog.id);
+                              }}>
+                                Export This Log
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </DialogContent>
+                    </Dialog>
                   </TableCell>
                 </TableRow>
               ))}
