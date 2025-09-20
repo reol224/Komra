@@ -24,6 +24,10 @@ import {
   BarChart3,
   Clock,
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Import role-specific components
 import AdminUserManagement from "./admin/AdminUserManagement";
@@ -65,6 +69,19 @@ const mockStats: DashboardStats = {
 export default function DashboardLayout() {
   const [currentUser] = useState(mockUser);
   const [selectedTab, setSelectedTab] = useState("overview");
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settings, setSettings] = useState({
+    autoRefresh: true,
+    refreshInterval: "30",
+    notifications: true,
+    darkMode: false,
+    compactView: false,
+    showAdvancedMetrics: true
+  });
+
+  const handleSettingsChange = (key: string, value: boolean | string) => {
+    setSettings(prev => ({ ...prev, [key]: value }));
+  };
 
   const renderAdminDashboard = () => (
     <div className="space-y-6">
@@ -328,7 +345,121 @@ export default function DashboardLayout() {
   const getRoleIcon = (role: string) => {
     switch (role) {
       case "admin":
-        return <Settings className="h-4 w-4" />;
+        return (
+          <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="sm" className="p-1">
+                <Settings className="h-4 w-4" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Dashboard Settings</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-6">
+                {/* Auto Refresh */}
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Auto Refresh</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Automatically refresh dashboard data
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.autoRefresh}
+                    onCheckedChange={(checked) => handleSettingsChange('autoRefresh', checked)}
+                  />
+                </div>
+
+                {/* Refresh Interval */}
+                {settings.autoRefresh && (
+                  <div className="space-y-2">
+                    <Label>Refresh Interval</Label>
+                    <Select 
+                      value={settings.refreshInterval} 
+                      onValueChange={(value) => handleSettingsChange('refreshInterval', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="15">15 seconds</SelectItem>
+                        <SelectItem value="30">30 seconds</SelectItem>
+                        <SelectItem value="60">1 minute</SelectItem>
+                        <SelectItem value="300">5 minutes</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Notifications */}
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Push Notifications</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Receive alerts for critical events
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.notifications}
+                    onCheckedChange={(checked) => handleSettingsChange('notifications', checked)}
+                  />
+                </div>
+
+                {/* Dark Mode */}
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Dark Mode</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Switch to dark theme
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.darkMode}
+                    onCheckedChange={(checked) => handleSettingsChange('darkMode', checked)}
+                  />
+                </div>
+
+                {/* Compact View */}
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Compact View</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Show more data in less space
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.compactView}
+                    onCheckedChange={(checked) => handleSettingsChange('compactView', checked)}
+                  />
+                </div>
+
+                {/* Advanced Metrics */}
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Advanced Metrics</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Display detailed performance data
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.showAdvancedMetrics}
+                    onCheckedChange={(checked) => handleSettingsChange('showAdvancedMetrics', checked)}
+                  />
+                </div>
+
+                <div className="pt-4 border-t">
+                  <Button 
+                    onClick={() => setIsSettingsOpen(false)} 
+                    className="w-full"
+                  >
+                    Save Settings
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        );
       case "analyst":
         return <Search className="h-4 w-4" />;
       case "viewer":
