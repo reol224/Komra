@@ -4,55 +4,55 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
+    --background: 215 28% 17%;
+    --foreground: 0 0% 98%;
+    --card: 215 25% 27%;
+    --card-foreground: 0 0% 98%;
+    --popover: 215 25% 27%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 24 95% 53%;
     --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
+    --secondary: 215 25% 27%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 215 25% 27%;
+    --muted-foreground: 217 10% 64%;
+    --accent: 24 95% 53%;
+    --accent-foreground: 0 0% 98%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
+    --border: 215 25% 27%;
+    --input: 215 25% 27%;
+    --ring: 24 95% 53%;
     --radius: 0.5rem;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
+    --chart-1: 24 95% 53%;
+    --chart-2: 217 10% 64%;
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
   }
 
   .dark {
-    --background: 0 0% 3.9%;
+    --background: 215 28% 17%;
     --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
+    --card: 215 25% 27%;
     --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
+    --popover: 215 25% 27%;
     --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
+    --primary: 24 95% 53%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 215 25% 27%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
+    --muted: 215 25% 27%;
+    --muted-foreground: 217 10% 64%;
+    --accent: 24 95% 53%;
     --accent-foreground: 0 0% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
+    --border: 215 25% 27%;
+    --input: 215 25% 27%;
+    --ring: 24 95% 53%;
+    --chart-1: 24 95% 53%;
+    --chart-2: 217 10% 64%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
@@ -65,5 +65,27 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* Komra Security Brand Colors */
+@layer components {
+  .bg-brand-primary {
+    @apply bg-slate-900;
+  }
+  .bg-brand-accent {
+    @apply bg-orange-500;
+  }
+  .text-brand-primary {
+    @apply text-slate-900;
+  }
+  .text-brand-accent {
+    @apply text-orange-500;
+  }
+  .border-brand-primary {
+    @apply border-slate-900;
+  }
+  .border-brand-accent {
+    @apply border-orange-500;
   }
 }

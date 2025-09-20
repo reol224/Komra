@@ -43,31 +43,31 @@ const RiskAssessment = () => {
   const [selectedChart, setSelectedChart] = useState<string>("severity");
   const [selectedCVE, setSelectedCVE] = useState<string | null>(null);
 
-  // Mock data for different chart types
+  // Mock data for different chart types with updated colors
   const severityData: ChartData[] = [
-    { name: "Critical", value: 12, color: "#FF4842" },
-    { name: "High", value: 24, color: "#FFA726" },
-    { name: "Medium", value: 47, color: "#FFCD38" },
-    { name: "Low", value: 31, color: "#54D62C" },
-    { name: "Info", value: 18, color: "#2196F3" },
+    { name: "Critical", value: 12, color: "#DC2626" },
+    { name: "High", value: 24, color: "#F97316" },
+    { name: "Medium", value: 47, color: "#EAB308" },
+    { name: "Low", value: 31, color: "#3B82F6" },
+    { name: "Info", value: 18, color: "#64748B" },
   ];
 
   const environmentData: ChartData[] = [
-    { name: "Production", value: 42, color: "#FF4842" },
-    { name: "Testing", value: 28, color: "#FFCD38" },
-    { name: "Development", value: 62, color: "#54D62C" },
+    { name: "Production", value: 42, color: "#DC2626" },
+    { name: "Testing", value: 28, color: "#EAB308" },
+    { name: "Development", value: 62, color: "#3B82F6" },
   ];
 
   const osTypeData: ChartData[] = [
-    { name: "Windows 10", value: 35, color: "#2196F3" },
-    { name: "Windows Server", value: 48, color: "#673AB7" },
-    { name: "Red Hat Linux", value: 49, color: "#FF4842" },
+    { name: "Windows 10", value: 35, color: "#3B82F6" },
+    { name: "Windows Server", value: 48, color: "#64748B" },
+    { name: "Red Hat Linux", value: 49, color: "#DC2626" },
   ];
 
   const statusData: ChartData[] = [
-    { name: "Open", value: 65, color: "#FF4842" },
-    { name: "In Progress", value: 32, color: "#FFCD38" },
-    { name: "Resolved", value: 43, color: "#54D62C" },
+    { name: "Open", value: 65, color: "#DC2626" },
+    { name: "In Progress", value: 32, color: "#EAB308" },
+    { name: "Resolved", value: 43, color: "#16A34A" },
   ];
 
   const remediationProgressData = [
@@ -103,14 +103,14 @@ const RiskAssessment = () => {
   };
 
   return (
-    <div className="w-full h-full p-6 bg-background">
+    <div className="w-full h-full p-6 bg-slate-800 rounded-lg border border-slate-700">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Risk Assessment</h1>
+        <h1 className="text-2xl font-bold text-white">Risk Assessment</h1>
         <Select value={timeRange} onValueChange={setTimeRange}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-[180px] bg-slate-700 border-slate-600 text-white">
             <SelectValue placeholder="Select time range" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="bg-slate-700 border-slate-600">
             <SelectItem value="7days">Last 7 days</SelectItem>
             <SelectItem value="30days">Last 30 days</SelectItem>
             <SelectItem value="90days">Last 90 days</SelectItem>
@@ -120,27 +120,27 @@ const RiskAssessment = () => {
       </div>
 
       <Tabs defaultValue="distribution" className="w-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="distribution">
+        <TabsList className="mb-4 bg-slate-600">
+          <TabsTrigger value="distribution" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white">
             Vulnerability Distribution
           </TabsTrigger>
-          <TabsTrigger value="trends">Remediation Trends</TabsTrigger>
+          <TabsTrigger value="trends" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white">Remediation Trends</TabsTrigger>
         </TabsList>
 
         <TabsContent value="distribution" className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
+            <Card className="bg-slate-700 border-slate-600">
               <CardHeader>
                 <div className="flex justify-between items-center">
-                  <CardTitle>Vulnerability Distribution</CardTitle>
+                  <CardTitle className="text-white">Vulnerability Distribution</CardTitle>
                   <Select
                     value={selectedChart}
                     onValueChange={setSelectedChart}
                   >
-                    <SelectTrigger className="w-[180px]">
+                    <SelectTrigger className="w-[180px] bg-slate-600 border-slate-500 text-white">
                       <SelectValue placeholder="Select chart type" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-slate-700 border-slate-600">
                       <SelectItem value="severity">By Severity</SelectItem>
                       <SelectItem value="environment">
                         By Environment
@@ -150,7 +150,7 @@ const RiskAssessment = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <CardDescription>
+                <CardDescription className="text-slate-300">
                   {selectedChart === "severity" &&
                     "Distribution of vulnerabilities by severity level"}
                   {selectedChart === "environment" &&
@@ -191,6 +191,12 @@ const RiskAssessment = () => {
                           `${value} vulnerabilities`,
                           "Count",
                         ]}
+                        contentStyle={{
+                          backgroundColor: '#334155',
+                          border: '1px solid #475569',
+                          borderRadius: '6px',
+                          color: 'white'
+                        }}
                       />
                       <Legend />
                     </PieChart>
@@ -199,10 +205,10 @@ const RiskAssessment = () => {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="bg-slate-700 border-slate-600">
               <CardHeader>
-                <CardTitle>Vulnerability Count by Category</CardTitle>
-                <CardDescription>
+                <CardTitle className="text-white">Vulnerability Count by Category</CardTitle>
+                <CardDescription className="text-slate-300">
                   Comparison of vulnerability counts across categories
                 </CardDescription>
               </CardHeader>
@@ -210,14 +216,20 @@ const RiskAssessment = () => {
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={getChartData()} barSize={40}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
+                      <XAxis dataKey="name" tick={{ fill: '#CBD5E1' }} />
+                      <YAxis tick={{ fill: '#CBD5E1' }} />
                       <Tooltip
                         formatter={(value) => [
                           `${value} vulnerabilities`,
                           "Count",
                         ]}
+                        contentStyle={{
+                          backgroundColor: '#334155',
+                          border: '1px solid #475569',
+                          borderRadius: '6px',
+                          color: 'white'
+                        }}
                       />
                       <Legend />
                       <Bar
@@ -241,22 +253,22 @@ const RiskAssessment = () => {
           </div>
 
           {selectedCVE && (
-            <Card>
+            <Card className="bg-slate-700 border-slate-600">
               <CardHeader>
-                <CardTitle>Vulnerabilities for {selectedCVE}</CardTitle>
-                <CardDescription>
+                <CardTitle className="text-white">Vulnerabilities for {selectedCVE}</CardTitle>
+                <CardDescription className="text-slate-300">
                   Detailed list of CVEs in this category
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="border rounded-md p-4">
-                  <p className="text-muted-foreground">
+                <div className="border border-slate-600 rounded-md p-4 bg-slate-600">
+                  <p className="text-slate-300">
                     In a real implementation, this would show a table of CVEs
                     related to the selected category.
                   </p>
-                  <p className="mt-2">
+                  <p className="mt-2 text-slate-200">
                     Selected category:{" "}
-                    <span className="font-medium">{selectedCVE}</span>
+                    <span className="font-medium text-white">{selectedCVE}</span>
                   </p>
                 </div>
               </CardContent>
@@ -265,10 +277,10 @@ const RiskAssessment = () => {
         </TabsContent>
 
         <TabsContent value="trends">
-          <Card>
+          <Card className="bg-slate-700 border-slate-600">
             <CardHeader>
-              <CardTitle>Remediation Progress Over Time</CardTitle>
-              <CardDescription>
+              <CardTitle className="text-white">Remediation Progress Over Time</CardTitle>
+              <CardDescription className="text-slate-300">
                 Tracking open vs. resolved vulnerabilities
               </CardDescription>
             </CardHeader>
@@ -279,22 +291,29 @@ const RiskAssessment = () => {
                     data={remediationProgressData}
                     margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
+                    <XAxis dataKey="name" tick={{ fill: '#CBD5E1' }} />
+                    <YAxis tick={{ fill: '#CBD5E1' }} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#334155',
+                        border: '1px solid #475569',
+                        borderRadius: '6px',
+                        color: 'white'
+                      }}
+                    />
                     <Legend />
                     <Bar
                       dataKey="open"
                       name="Open Vulnerabilities"
                       stackId="a"
-                      fill="#FF4842"
+                      fill="#DC2626"
                     />
                     <Bar
                       dataKey="resolved"
                       name="Resolved Vulnerabilities"
                       stackId="a"
-                      fill="#54D62C"
+                      fill="#16A34A"
                     />
                   </BarChart>
                 </ResponsiveContainer>
