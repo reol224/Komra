@@ -166,8 +166,57 @@ export default function AdminAuditTrail() {
   };
 
   const exportAuditLogs = () => {
-    // In real implementation, this would generate and download a CSV/PDF
-    console.log('Exporting audit logs...');
+    const csvContent = [
+      ['ID', 'Timestamp', 'User', 'Action', 'Resource', 'Details', 'Severity', 'Status', 'IP Address', 'User Agent'],
+      ...filteredLogs.map(log => [
+        log.id,
+        log.timestamp,
+        log.user,
+        log.action,
+        log.resource,
+        log.details,
+        log.severity,
+        log.status,
+        log.ip_address,
+        log.user_agent
+      ])
+    ].map(row => row.map(field => `"${field}"`).join(',')).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `audit-logs-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const exportSingleLog = (log: AuditLog) => {
+    const logData = {
+      'Event ID': log.id,
+      'Timestamp': new Date(log.timestamp).toLocaleString(),
+      'User': log.user,
+      'Action': log.action.replace(/_/g, ' '),
+      'Resource': log.resource,
+      'Details': log.details,
+      'Severity': log.severity,
+      'Status': log.status,
+      'IP Address': log.ip_address,
+      'User Agent': log.user_agent
+    };
+
+    const jsonContent = JSON.stringify(logData, null, 2);
+    const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `audit-log-${log.id}-${new Date().toISOString().split('T')[0]}.json`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -424,8 +473,8 @@ export default function AdminAuditTrail() {
                                 Close
                               </Button>
                               <Button onClick={() => {
-                                // In real implementation, this would export individual log
-                                console.log('Exporting log:', selectedLog.id);
+                                exportSingleLog(selectedLog);
+                                setIsDetailDialogOpen(false);
                               }}>
                                 Export This Log
                               </Button>
