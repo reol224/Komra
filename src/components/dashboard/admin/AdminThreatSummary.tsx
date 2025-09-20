@@ -153,6 +153,15 @@ export default function AdminThreatSummary() {
     }
   };
 
+  const handleViewCVE = (threatId: string) => {
+    // Extract CVE ID from threat ID (e.g., CVE-2024-1234)
+    const cveId = threatId;
+    
+    // Open CVE in NIST National Vulnerability Database
+    const cveUrl = `https://nvd.nist.gov/vuln/detail/${cveId}`;
+    window.open(cveUrl, '_blank', 'noopener,noreferrer');
+  };
+
   const handleViewThreatDetails = (threat: any) => {
     setSelectedThreat(threat);
   };
@@ -421,7 +430,11 @@ export default function AdminThreatSummary() {
                               Escalate
                             </Button>
                           )}
-                          <Button variant="outline" className="flex items-center space-x-2">
+                          <Button 
+                            variant="outline" 
+                            className="flex items-center space-x-2"
+                            onClick={() => handleViewCVE(threat.id)}
+                          >
                             <ExternalLink className="h-4 w-4" />
                             <span>View CVE</span>
                           </Button>
