@@ -25,9 +25,7 @@ export default function HomePage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Shield className="h-8 w-8 text-orange-500" />
-              <span className="text-xl font-bold text-white">
-                Komra Security
-              </span>
+              <span className="text-xl font-bold text-white">Komra</span>
             </div>
             <div className="flex items-center gap-4">
               <Link href="/dashboard">
