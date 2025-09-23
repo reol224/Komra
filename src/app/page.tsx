@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import ContactSalesModal from "@/components/ContactSalesModal";
 import {
   Shield,
   ArrowRight,
@@ -17,6 +19,8 @@ import {
 import Link from "next/link";
 
 export default function HomePage() {
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
       {/* Navigation */}
@@ -354,6 +358,7 @@ export default function HomePage() {
               <Button
                 variant="outline"
                 className="w-full border-slate-300 text-slate-700 hover:bg-slate-50"
+                onClick={() => setIsContactModalOpen(true)}
               >
                 Contact Sales
               </Button>
@@ -383,6 +388,7 @@ export default function HomePage() {
               size="lg"
               variant="outline"
               className="px-8 py-3 border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white"
+              onClick={() => setIsContactModalOpen(true)}
             >
               Contact Sales
             </Button>
@@ -557,6 +563,12 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
+
+      {/* Contact Sales Modal */}
+      <ContactSalesModal 
+        isOpen={isContactModalOpen} 
+        onClose={() => setIsContactModalOpen(false)} 
+      />
     </div>
   );
 }
