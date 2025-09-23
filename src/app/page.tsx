@@ -2,12 +2,12 @@
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Shield, ArrowRight, CheckCircle, Users, Server, AlertTriangle, BarChart3, Lock, Zap } from "lucide-react";
+import { Shield, ArrowRight, CheckCircle, Users, Server, AlertTriangle, BarChart3, Lock, Zap, Eye } from "lucide-react";
 import Link from "next/link";
 
-export default function Home() {
+export default function HomePage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
       {/* Navigation */}
       <nav className="bg-slate-900 border-b border-slate-800">
         <div className="container mx-auto px-4 py-4">
@@ -239,6 +239,92 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* Footer with Privacy and Security Disclaimers */}
+      <footer className="bg-slate-900 border-t border-slate-700 py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            {/* Company Info */}
+            <div className="col-span-1 md:col-span-2">
+              <div className="flex items-center space-x-2 mb-4">
+                <Shield className="h-8 w-8 text-blue-400" />
+                <span className="text-xl font-bold text-white">Komra Audit</span>
+              </div>
+              <p className="text-gray-400 mb-4">
+                Enterprise-grade security auditing platform for comprehensive vulnerability assessment and infrastructure monitoring.
+              </p>
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-white mb-2 flex items-center">
+                  <Lock className="h-4 w-4 mr-2 text-green-400" />
+                  Security Notice
+                </h4>
+                <p className="text-xs text-gray-400">
+                  All data is encrypted in transit and at rest. We follow SOC 2 Type II compliance standards and maintain zero-trust architecture.
+                </p>
+              </div>
+            </div>
+
+            {/* Legal Links */}
+            <div>
+              <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">Legal</h3>
+              <ul className="space-y-2">
+                <li><a href="/privacy" className="text-gray-400 hover:text-white transition-colors">Privacy Policy</a></li>
+                <li><a href="/terms" className="text-gray-400 hover:text-white transition-colors">Terms of Service</a></li>
+                <li><a href="/security" className="text-gray-400 hover:text-white transition-colors">Security Policy</a></li>
+                <li><a href="/compliance" className="text-gray-400 hover:text-white transition-colors">Compliance</a></li>
+                <li><a href="/cookies" className="text-gray-400 hover:text-white transition-colors">Cookie Policy</a></li>
+              </ul>
+            </div>
+
+            {/* Support */}
+            <div>
+              <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">Support</h3>
+              <ul className="space-y-2">
+                <li><a href="/docs" className="text-gray-400 hover:text-white transition-colors">Documentation</a></li>
+                <li><a href="/support" className="text-gray-400 hover:text-white transition-colors">Contact Support</a></li>
+                <li><a href="/status" className="text-gray-400 hover:text-white transition-colors">System Status</a></li>
+                <li><a href="/security-report" className="text-gray-400 hover:text-white transition-colors">Report Security Issue</a></li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Bottom Section */}
+          <div className="mt-8 pt-8 border-t border-slate-700">
+            <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+              <div className="text-sm text-gray-400">
+                © 2024 Komra Audit. All rights reserved.
+              </div>
+              
+              {/* Security Badges */}
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2 text-xs text-gray-400">
+                  <Shield className="h-4 w-4 text-green-400" />
+                  <span>SOC 2 Compliant</span>
+                </div>
+                <div className="flex items-center space-x-2 text-xs text-gray-400">
+                  <Lock className="h-4 w-4 text-blue-400" />
+                  <span>ISO 27001</span>
+                </div>
+                <div className="flex items-center space-x-2 text-xs text-gray-400">
+                  <Eye className="h-4 w-4 text-purple-400" />
+                  <span>GDPR Ready</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Data Handling Disclaimer */}
+            <div className="mt-6 p-4 bg-slate-800 border border-slate-700 rounded-lg">
+              <h4 className="text-sm font-semibold text-white mb-2">Data Handling & Privacy</h4>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                Komra Audit processes security data to provide vulnerability assessments. We collect only necessary system information for audit purposes. 
+                All data is encrypted, access-controlled, and retained according to your organization's data retention policies. 
+                We do not share, sell, or use your security data for any purpose other than providing our auditing services. 
+                For detailed information about data processing, please review our <a href="/privacy" className="text-blue-400 hover:text-blue-300">Privacy Policy</a>.
+              </p>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
