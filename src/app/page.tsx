@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import ContactSalesModal from "@/components/ContactSalesModal";
@@ -277,7 +277,7 @@ export default function HomePage() {
               <div className="text-3xl font-bold text-slate-900 mb-4">
                 $99<span className="text-lg text-slate-500">/month</span>
               </div>
-              <ul className="space-y-3 mb-6">
+              <ul className="space-y-3 mb-6 text-slate-600">
                 <li className="flex items-center gap-2">
                   <CheckCircle className="h-4 w-4 text-orange-500" /> Up to 50
                   endpoints
@@ -293,7 +293,7 @@ export default function HomePage() {
               </ul>
               <Button
                 variant="outline"
-                className="w-full border-slate-300 text-slate-700 hover:bg-slate-50"
+                className="w-full border-slate-300 text-slate-700 text-white"
               >
                 Get Started
               </Button>
@@ -337,7 +337,7 @@ export default function HomePage() {
               <div className="text-3xl font-bold text-slate-900 mb-4">
                 Custom
               </div>
-              <ul className="space-y-3 mb-6">
+              <ul className="space-y-3 mb-6 text-slate-600">
                 <li className="flex items-center gap-2">
                   <CheckCircle className="h-4 w-4 text-orange-500" /> Unlimited
                   endpoints
@@ -357,7 +357,7 @@ export default function HomePage() {
               </ul>
               <Button
                 variant="outline"
-                className="w-full border-slate-300 text-slate-700 hover:bg-slate-50"
+                className="w-full border-slate-300 text-slate-700 text-white"
                 onClick={() => setIsContactModalOpen(true)}
               >
                 Contact Sales
@@ -565,9 +565,9 @@ export default function HomePage() {
       </footer>
 
       {/* Contact Sales Modal */}
-      <ContactSalesModal 
-        isOpen={isContactModalOpen} 
-        onClose={() => setIsContactModalOpen(false)} 
+      <ContactSalesModal
+        isOpen={isContactModalOpen}
+        onClose={() => setIsContactModalOpen(false)}
       />
     </div>
   );
