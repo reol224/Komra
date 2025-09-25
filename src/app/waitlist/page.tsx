@@ -1,19 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from '@supabase/supabase-js';
+import Image from 'next/image';
 import {
   Shield,
   ArrowRight,
@@ -32,7 +27,7 @@ import {
   TrendingUp,
   Globe,
   Clock,
-  Send,
+  Send
 } from "lucide-react";
 
 const supabase = createClient(
@@ -140,7 +135,13 @@ export default function PreLaunchPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-center">
             <div className="flex items-center space-x-2">
-              <Shield className="h-8 w-8 text-orange-500" />
+              <Image 
+                src="/images/icon rounded corners.png" 
+                alt="Komra Logo" 
+                width={32} 
+                height={32}
+                className="rounded-lg"
+              />
               <span className="text-xl font-bold text-white">Komra</span>
               <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30 text-xs">
                 Coming Soon
@@ -479,8 +480,14 @@ export default function PreLaunchPage() {
           <Card className="bg-slate-800/30 border-slate-700">
             <CardContent className="p-8">
               <div className="flex flex-col md:flex-row gap-6 items-start">
-                <div className="w-20 h-20 bg-gradient-to-br from-orange-500 to-red-500 rounded-full flex items-center justify-center flex-shrink-0">
-                  <span className="text-white font-bold text-xl">K</span>
+                <div className="w-20 h-20 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden bg-slate-700">
+                  <Image 
+                    src="/images/icon rounded corners.png" 
+                    alt="Komra Logo" 
+                    width={60} 
+                    height={60}
+                    className="rounded-full"
+                  />
                 </div>
                 <div>
                   <h3 className="text-xl font-semibold text-white mb-3">
@@ -518,7 +525,13 @@ export default function PreLaunchPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <div className="flex items-center justify-center space-x-2 mb-4">
-              <Shield className="h-6 w-6 text-orange-500" />
+              <Image 
+                src="/images/icon rounded corners.png" 
+                alt="Komra Logo" 
+                width={24} 
+                height={24}
+                className="rounded"
+              />
               <span className="text-lg font-bold text-white">Komra</span>
             </div>
             <p className="text-gray-400 text-sm mb-4">

@@ -19,10 +19,13 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <Link href="/" className="flex items-center gap-3">
                 <Shield className="h-8 w-8 text-orange-500" />
-                <span className="text-xl font-bold text-white">Komra Security</span>
+                <span className="text-xl font-bold text-white">Komra</span>
               </Link>
               <div className="flex items-center gap-4">
-                <Button variant="outline" className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white">
+                <Button
+                  variant="outline"
+                  className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+                >
                   Settings
                 </Button>
                 <Button className="bg-orange-500 hover:bg-orange-600 text-white">

@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function HomePage() {
   const router = useRouter();
 
   useEffect(() => {
     // Redirect to waitlist page immediately
-    router.replace('/waitlist');
+    router.replace("/waitlist");
   }, [router]);
 
   // Show loading state while redirecting
