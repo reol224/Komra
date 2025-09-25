@@ -114,12 +114,30 @@ export default function AdminUserManagement() {
     }
   };
 
+  const getRoleBadgeClassName = (role: UserRole) => {
+    switch (role) {
+      case 'admin': return '';
+      case 'analyst': return '';
+      case 'viewer': return 'bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-200';
+      default: return '';
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': return 'default';
       case 'inactive': return 'secondary';
       case 'suspended': return 'destructive';
       default: return 'default';
+    }
+  };
+
+  const getStatusBadgeClassName = (status: string) => {
+    switch (status) {
+      case 'active': return '';
+      case 'inactive': return 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200';
+      case 'suspended': return '';
+      default: return '';
     }
   };
 
@@ -358,17 +376,16 @@ export default function AdminUserManagement() {
               
               <div>
                 <Label htmlFor="email">Email *</Label>
-                <Input 
-                  id="email" 
-                  type="email" 
+                <Input
+                  id="email"
+                  type="email"
                   placeholder="user@company.com"
                   value={createForm.email}
                   onChange={(e) => {
                     setCreateForm({...createForm, email: e.target.value});
                     if (formErrors.email) setFormErrors(prev => ({...prev, email: ''}));
                   }}
-                  className={formErrors.email ? 'border-red-500' : ''}
-                />
+                  className={formErrors.email ? 'border-red-500' : ''} />
                 {formErrors.email && (
                   <p className="text-red-400 text-xs mt-1">{formErrors.email}</p>
                 )}
@@ -376,16 +393,15 @@ export default function AdminUserManagement() {
               
               <div>
                 <Label htmlFor="fullName">Full Name *</Label>
-                <Input 
-                  id="fullName" 
+                <Input
+                  id="fullName"
                   placeholder="John Doe"
                   value={createForm.full_name}
                   onChange={(e) => {
                     setCreateForm({...createForm, full_name: e.target.value});
                     if (formErrors.full_name) setFormErrors(prev => ({...prev, full_name: ''}));
                   }}
-                  className={formErrors.full_name ? 'border-red-500' : ''}
-                />
+                  className={formErrors.full_name ? 'border-red-500' : ''} />
                 {formErrors.full_name && (
                   <p className="text-red-400 text-xs mt-1">{formErrors.full_name}</p>
                 )}
@@ -393,10 +409,9 @@ export default function AdminUserManagement() {
               
               <div>
                 <Label htmlFor="role">Role *</Label>
-                <Select 
-                  value={createForm.role} 
-                  onValueChange={(value: UserRole) => setCreateForm({...createForm, role: value})}
-                >
+                <Select
+                  value={createForm.role}
+                  onValueChange={(value: UserRole) => setCreateForm({...createForm, role: value})}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
@@ -408,14 +423,11 @@ export default function AdminUserManagement() {
                 </Select>
               </div>
               
-              <Button 
-                onClick={handleCreateUser} 
-                className="w-full"
-                disabled={isSubmitting}
-              >
+              <Button onClick={handleCreateUser} className="w-full" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    <div
+                      className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                     Creating User...
                   </>
                 ) : (
@@ -426,7 +438,6 @@ export default function AdminUserManagement() {
           </DialogContent>
         </Dialog>
       </div>
-
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
@@ -438,8 +449,7 @@ export default function AdminUserManagement() {
                   placeholder="Search users..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
+                  className="pl-10" />
               </div>
             </div>
             <Select value={selectedRole} onValueChange={setSelectedRole}>
@@ -456,7 +466,6 @@ export default function AdminUserManagement() {
           </div>
         </CardContent>
       </Card>
-
       {/* Users Table */}
       <Card>
         <CardHeader>
@@ -484,13 +493,18 @@ export default function AdminUserManagement() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={getRoleColor(user.role)} className="capitalize">
+                    <Badge 
+                      variant={getRoleColor(user.role)} 
+                      className={`capitalize ${getRoleBadgeClassName(user.role)}`}
+                    >
                       {user.role}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={getStatusColor(user.status)} className="capitalize">
-                      {user.status}
+                    <Badge
+                      variant={getStatusColor(user.status)}
+                      className={getStatusBadgeClassName(user.status)}>
+                      {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -504,11 +518,7 @@ export default function AdminUserManagement() {
                   </TableCell>
                   <TableCell>
                     <div className="flex space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEditUser(user)}
-                      >
+                      <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}>
                         <Edit className="h-4 w-4" />
                       </Button>
                       <AlertDialog>
@@ -528,14 +538,14 @@ export default function AdminUserManagement() {
                             <AlertDialogCancel disabled={isDeleting === user.id}>
                               Cancel
                             </AlertDialogCancel>
-                            <AlertDialogAction 
+                            <AlertDialogAction
                               onClick={() => handleDeleteUser(user.id)}
                               disabled={isDeleting === user.id}
-                              className="bg-red-600 hover:bg-red-700"
-                            >
+                              className="bg-red-600 hover:bg-red-700">
                               {isDeleting === user.id ? (
                                 <>
-                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                  <div
+                                    className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                                   Deleting...
                                 </>
                               ) : (
@@ -553,7 +563,6 @@ export default function AdminUserManagement() {
           </Table>
         </CardContent>
       </Card>
-
       {/* Edit User Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
@@ -569,16 +578,15 @@ export default function AdminUserManagement() {
             
             <div>
               <Label htmlFor="edit-email">Email *</Label>
-              <Input 
-                id="edit-email" 
-                type="email" 
+              <Input
+                id="edit-email"
+                type="email"
                 value={editForm.email}
                 onChange={(e) => {
                   setEditForm({...editForm, email: e.target.value});
                   if (formErrors.email) setFormErrors(prev => ({...prev, email: ''}));
                 }}
-                className={formErrors.email ? 'border-red-500' : ''}
-              />
+                className={formErrors.email ? 'border-red-500' : ''} />
               {formErrors.email && (
                 <p className="text-red-400 text-xs mt-1">{formErrors.email}</p>
               )}
@@ -586,15 +594,14 @@ export default function AdminUserManagement() {
             
             <div>
               <Label htmlFor="edit-fullName">Full Name *</Label>
-              <Input 
-                id="edit-fullName" 
+              <Input
+                id="edit-fullName"
                 value={editForm.full_name}
                 onChange={(e) => {
                   setEditForm({...editForm, full_name: e.target.value});
                   if (formErrors.full_name) setFormErrors(prev => ({...prev, full_name: ''}));
                 }}
-                className={formErrors.full_name ? 'border-red-500' : ''}
-              />
+                className={formErrors.full_name ? 'border-red-500' : ''} />
               {formErrors.full_name && (
                 <p className="text-red-400 text-xs mt-1">{formErrors.full_name}</p>
               )}
@@ -602,7 +609,9 @@ export default function AdminUserManagement() {
             
             <div>
               <Label htmlFor="edit-role">Role *</Label>
-              <Select value={editForm.role} onValueChange={(value: UserRole) => setEditForm({...editForm, role: value})}>
+              <Select
+                value={editForm.role}
+                onValueChange={(value: UserRole) => setEditForm({...editForm, role: value})}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -616,7 +625,9 @@ export default function AdminUserManagement() {
             
             <div>
               <Label htmlFor="edit-status">Status *</Label>
-              <Select value={editForm.status} onValueChange={(value: 'active' | 'inactive' | 'suspended') => setEditForm({...editForm, status: value})}>
+              <Select
+                value={editForm.status}
+                onValueChange={(value: 'active' | 'inactive' | 'suspended') => setEditForm({...editForm, status: value})}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -629,36 +640,31 @@ export default function AdminUserManagement() {
             </div>
             
             <div className="flex space-x-2 pt-4">
-              <Button 
-                onClick={handleUpdateUser} 
-                className="flex-1"
-                disabled={isSubmitting}
-              >
+              <Button onClick={handleUpdateUser} className="flex-1" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    <div
+                      className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                     Updating User...
                   </>
                 ) : (
                   'Update User'
                 )}
               </Button>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => {
                   setIsEditDialogOpen(false);
                   setFormErrors({});
-                }} 
+                }}
                 className="flex-1"
-                disabled={isSubmitting}
-              >
+                disabled={isSubmitting}>
                 Cancel
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
-
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
