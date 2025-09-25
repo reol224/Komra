@@ -609,6 +609,7 @@ export type Database = {
           mfa_enabled: boolean | null
           role: string | null
           session_timeout: number | null
+          status: string | null
           updated_at: string | null
         }
         Insert: {
@@ -622,6 +623,7 @@ export type Database = {
           mfa_enabled?: boolean | null
           role?: string | null
           session_timeout?: number | null
+          status?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -635,6 +637,7 @@ export type Database = {
           mfa_enabled?: boolean | null
           role?: string | null
           session_timeout?: number | null
+          status?: string | null
           updated_at?: string | null
         }
         Relationships: []

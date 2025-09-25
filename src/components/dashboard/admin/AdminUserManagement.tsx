@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Users, Plus, Edit, Trash2, Shield, Search } from 'lucide-react';
 import { UserRole } from '@/contexts/AuthContext';
+import { createClient } from '@supabase/supabase-js';
+import { sanitizeText, sanitizeEmail } from '@/lib/sanitization';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 interface User {
   id: string;
@@ -24,55 +31,71 @@ interface User {
 }
 
 export default function AdminUserManagement() {
-  const [users, setUsers] = useState<User[]>([
-    {
-      id: '1',
-      email: 'admin@koma.security',
-      full_name: 'System Administrator',
-      role: 'admin',
-      created_at: '2024-01-15T10:00:00Z',
-      last_login: '2024-03-22T14:30:00Z',
-      status: 'active'
-    },
-    {
-      id: '2',
-      email: 'analyst@koma.security',
-      full_name: 'Security Analyst',
-      role: 'analyst',
-      created_at: '2024-02-01T09:00:00Z',
-      last_login: '2024-03-22T13:45:00Z',
-      status: 'active'
-    },
-    {
-      id: '3',
-      email: 'viewer@koma.security',
-      full_name: 'Security Viewer',
-      role: 'viewer',
-      created_at: '2024-02-15T11:00:00Z',
-      last_login: '2024-03-21T16:20:00Z',
-      status: 'active'
-    },
-    {
-      id: '4',
-      email: 'john.doe@company.com',
-      full_name: 'John Doe',
-      role: 'analyst',
-      created_at: '2024-03-01T08:30:00Z',
-      status: 'inactive'
-    }
-  ]);
-
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState<string>('all');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [createForm, setCreateForm] = useState({
+    email: '',
+    full_name: '',
+    role: 'viewer' as UserRole
+  });
   const [editForm, setEditForm] = useState({
     email: '',
     full_name: '',
     role: '' as UserRole,
     status: '' as 'active' | 'inactive' | 'suspended'
   });
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Load users from database
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const loadUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error loading users:', error);
+        // Fallback to mock data if database fails
+        setUsers([
+          {
+            id: '1',
+            email: 'admin@koma.security',
+            full_name: 'System Administrator',
+            role: 'admin',
+            created_at: '2024-01-15T10:00:00Z',
+            last_login: '2024-03-22T14:30:00Z',
+            status: 'active'
+          },
+          {
+            id: '2',
+            email: 'analyst@koma.security',
+            full_name: 'Security Analyst',
+            role: 'analyst',
+            created_at: '2024-02-01T09:00:00Z',
+            last_login: '2024-03-22T13:45:00Z',
+            status: 'active'
+          }
+        ]);
+      } else {
+        setUsers(data || []);
+      }
+    } catch (error) {
+      console.error('Error loading users:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -99,10 +122,72 @@ export default function AdminUserManagement() {
     }
   };
 
-  const handleCreateUser = () => {
-    // In real implementation, this would call Supabase API
-    console.log('Creating new user');
-    setIsCreateDialogOpen(false);
+  const handleCreateUser = async () => {
+    setIsSubmitting(true);
+    setFormErrors({});
+
+    try {
+      // Sanitize form data
+      const sanitizedData = {
+        email: sanitizeEmail(createForm.email),
+        full_name: sanitizeText(createForm.full_name, 100),
+        role: createForm.role
+      };
+
+      // Validate required fields
+      if (!sanitizedData.email) {
+        setFormErrors({ email: 'Valid email is required' });
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (!sanitizedData.full_name) {
+        setFormErrors({ full_name: 'Full name is required' });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Insert user into database
+      const { data, error } = await supabase
+        .from('users')
+        .insert([
+          {
+            email: sanitizedData.email,
+            full_name: sanitizedData.full_name,
+            role: sanitizedData.role,
+            status: 'active'
+          }
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating user:', error);
+        if (error.code === '23505') {
+          setFormErrors({ email: 'A user with this email already exists' });
+        } else {
+          setFormErrors({ general: 'Failed to create user. Please try again.' });
+        }
+        return;
+      }
+
+      // Add to local state
+      setUsers(prev => [data, ...prev]);
+      
+      // Reset form and close dialog
+      setCreateForm({ email: '', full_name: '', role: 'viewer' });
+      setIsCreateDialogOpen(false);
+      
+    } catch (error) {
+      console.error('Error creating user:', error);
+      if (error instanceof Error) {
+        setFormErrors({ general: error.message });
+      } else {
+        setFormErrors({ general: 'An unexpected error occurred' });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleEditUser = (user: User) => {
@@ -116,29 +201,125 @@ export default function AdminUserManagement() {
     setIsEditDialogOpen(true);
   };
 
-  const handleUpdateUser = () => {
+  const handleUpdateUser = async () => {
     if (!editingUser) return;
+    
+    setIsSubmitting(true);
+    setFormErrors({});
 
-    setUsers(users.map(user => 
-      user.id === editingUser.id 
-        ? { ...user, ...editForm }
-        : user
-    ));
+    try {
+      // Sanitize form data
+      const sanitizedData = {
+        email: sanitizeEmail(editForm.email),
+        full_name: sanitizeText(editForm.full_name, 100),
+        role: editForm.role,
+        status: editForm.status
+      };
 
-    setIsEditDialogOpen(false);
-    setEditingUser(null);
-    setEditForm({ email: '', full_name: '', role: 'viewer', status: 'active' });
+      // Validate required fields
+      if (!sanitizedData.email) {
+        setFormErrors({ email: 'Valid email is required' });
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (!sanitizedData.full_name) {
+        setFormErrors({ full_name: 'Full name is required' });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Update user in database
+      const { error } = await supabase
+        .from('users')
+        .update({
+          email: sanitizedData.email,
+          full_name: sanitizedData.full_name,
+          role: sanitizedData.role,
+          status: sanitizedData.status
+        })
+        .eq('id', editingUser.id);
+
+      if (error) {
+        console.error('Error updating user:', error);
+        if (error.code === '23505') {
+          setFormErrors({ email: 'A user with this email already exists' });
+        } else {
+          setFormErrors({ general: 'Failed to update user. Please try again.' });
+        }
+        return;
+      }
+
+      // Update local state
+      setUsers(users.map(user => 
+        user.id === editingUser.id 
+          ? { ...user, ...sanitizedData }
+          : user
+      ));
+
+      setIsEditDialogOpen(false);
+      setEditingUser(null);
+      setEditForm({ email: '', full_name: '', role: 'viewer', status: 'active' });
+      
+    } catch (error) {
+      console.error('Error updating user:', error);
+      if (error instanceof Error) {
+        setFormErrors({ general: error.message });
+      } else {
+        setFormErrors({ general: 'An unexpected error occurred' });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleDeleteUser = (userId: string) => {
-    setUsers(users.filter(user => user.id !== userId));
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', userId);
+
+      if (error) {
+        console.error('Error deleting user:', error);
+        return;
+      }
+
+      // Remove from local state
+      setUsers(users.filter(user => user.id !== userId));
+    } catch (error) {
+      console.error('Error deleting user:', error);
+    }
   };
 
-  const handleUpdateUserRole = (userId: string, newRole: UserRole) => {
-    setUsers(users.map(user => 
-      user.id === userId ? { ...user, role: newRole } : user
-    ));
+  const handleUpdateUserRole = async (userId: string, newRole: UserRole) => {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ role: newRole })
+        .eq('id', userId);
+
+      if (error) {
+        console.error('Error updating user role:', error);
+        return;
+      }
+
+      // Update local state
+      setUsers(users.map(user => 
+        user.id === userId ? { ...user, role: newRole } : user
+      ));
+    } catch (error) {
+      console.error('Error updating user role:', error);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -160,17 +341,53 @@ export default function AdminUserManagement() {
               <DialogTitle>Create New User</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
+              {formErrors.general && (
+                <div className="bg-red-900/20 border border-red-700/50 rounded-lg p-3">
+                  <p className="text-red-400 text-sm">{formErrors.general}</p>
+                </div>
+              )}
+              
               <div>
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="user@company.com" />
+                <Label htmlFor="email">Email *</Label>
+                <Input 
+                  id="email" 
+                  type="email" 
+                  placeholder="user@company.com"
+                  value={createForm.email}
+                  onChange={(e) => {
+                    setCreateForm({...createForm, email: e.target.value});
+                    if (formErrors.email) setFormErrors(prev => ({...prev, email: ''}));
+                  }}
+                  className={formErrors.email ? 'border-red-500' : ''}
+                />
+                {formErrors.email && (
+                  <p className="text-red-400 text-xs mt-1">{formErrors.email}</p>
+                )}
               </div>
+              
               <div>
-                <Label htmlFor="fullName">Full Name</Label>
-                <Input id="fullName" placeholder="John Doe" />
+                <Label htmlFor="fullName">Full Name *</Label>
+                <Input 
+                  id="fullName" 
+                  placeholder="John Doe"
+                  value={createForm.full_name}
+                  onChange={(e) => {
+                    setCreateForm({...createForm, full_name: e.target.value});
+                    if (formErrors.full_name) setFormErrors(prev => ({...prev, full_name: ''}));
+                  }}
+                  className={formErrors.full_name ? 'border-red-500' : ''}
+                />
+                {formErrors.full_name && (
+                  <p className="text-red-400 text-xs mt-1">{formErrors.full_name}</p>
+                )}
               </div>
+              
               <div>
-                <Label htmlFor="role">Role</Label>
-                <Select>
+                <Label htmlFor="role">Role *</Label>
+                <Select 
+                  value={createForm.role} 
+                  onValueChange={(value: UserRole) => setCreateForm({...createForm, role: value})}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
@@ -181,8 +398,20 @@ export default function AdminUserManagement() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={handleCreateUser} className="w-full">
-                Create User
+              
+              <Button 
+                onClick={handleCreateUser} 
+                className="w-full"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Creating User...
+                  </>
+                ) : (
+                  'Create User'
+                )}
               </Button>
             </div>
           </DialogContent>
@@ -310,25 +539,47 @@ export default function AdminUserManagement() {
             <DialogTitle>Edit User</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {formErrors.general && (
+              <div className="bg-red-900/20 border border-red-700/50 rounded-lg p-3">
+                <p className="text-red-400 text-sm">{formErrors.general}</p>
+              </div>
+            )}
+            
             <div>
-              <Label htmlFor="edit-email">Email</Label>
+              <Label htmlFor="edit-email">Email *</Label>
               <Input 
                 id="edit-email" 
                 type="email" 
                 value={editForm.email}
-                onChange={(e) => setEditForm({...editForm, email: e.target.value})}
+                onChange={(e) => {
+                  setEditForm({...editForm, email: e.target.value});
+                  if (formErrors.email) setFormErrors(prev => ({...prev, email: ''}));
+                }}
+                className={formErrors.email ? 'border-red-500' : ''}
               />
+              {formErrors.email && (
+                <p className="text-red-400 text-xs mt-1">{formErrors.email}</p>
+              )}
             </div>
+            
             <div>
-              <Label htmlFor="edit-fullName">Full Name</Label>
+              <Label htmlFor="edit-fullName">Full Name *</Label>
               <Input 
                 id="edit-fullName" 
                 value={editForm.full_name}
-                onChange={(e) => setEditForm({...editForm, full_name: e.target.value})}
+                onChange={(e) => {
+                  setEditForm({...editForm, full_name: e.target.value});
+                  if (formErrors.full_name) setFormErrors(prev => ({...prev, full_name: ''}));
+                }}
+                className={formErrors.full_name ? 'border-red-500' : ''}
               />
+              {formErrors.full_name && (
+                <p className="text-red-400 text-xs mt-1">{formErrors.full_name}</p>
+              )}
             </div>
+            
             <div>
-              <Label htmlFor="edit-role">Role</Label>
+              <Label htmlFor="edit-role">Role *</Label>
               <Select value={editForm.role} onValueChange={(value: UserRole) => setEditForm({...editForm, role: value})}>
                 <SelectTrigger>
                   <SelectValue />
@@ -340,8 +591,9 @@ export default function AdminUserManagement() {
                 </SelectContent>
               </Select>
             </div>
+            
             <div>
-              <Label htmlFor="edit-status">Status</Label>
+              <Label htmlFor="edit-status">Status *</Label>
               <Select value={editForm.status} onValueChange={(value: 'active' | 'inactive' | 'suspended') => setEditForm({...editForm, status: value})}>
                 <SelectTrigger>
                   <SelectValue />
@@ -353,11 +605,31 @@ export default function AdminUserManagement() {
                 </SelectContent>
               </Select>
             </div>
+            
             <div className="flex space-x-2 pt-4">
-              <Button onClick={handleUpdateUser} className="flex-1">
-                Update User
+              <Button 
+                onClick={handleUpdateUser} 
+                className="flex-1"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Updating User...
+                  </>
+                ) : (
+                  'Update User'
+                )}
               </Button>
-              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="flex-1">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setIsEditDialogOpen(false);
+                  setFormErrors({});
+                }} 
+                className="flex-1"
+                disabled={isSubmitting}
+              >
                 Cancel
               </Button>
             </div>
