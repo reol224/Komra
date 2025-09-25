@@ -51,6 +51,7 @@ export default function AdminUserManagement() {
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
 
   // Load users from database
   useEffect(() => {
@@ -274,6 +275,8 @@ export default function AdminUserManagement() {
   };
 
   const handleDeleteUser = async (userId: string) => {
+    setIsDeleting(userId);
+    
     try {
       const { error } = await supabase
         .from('users')
@@ -282,13 +285,19 @@ export default function AdminUserManagement() {
 
       if (error) {
         console.error('Error deleting user:', error);
+        // You could add a toast notification here for better UX
+        alert('Failed to delete user. Please try again.');
         return;
       }
 
-      // Remove from local state
+      // Remove from local state only after successful database deletion
       setUsers(users.filter(user => user.id !== userId));
+      
     } catch (error) {
       console.error('Error deleting user:', error);
+      alert('An unexpected error occurred while deleting the user.');
+    } finally {
+      setIsDeleting(null);
     }
   };
 
@@ -512,13 +521,26 @@ export default function AdminUserManagement() {
                           <AlertDialogHeader>
                             <AlertDialogTitle>Delete User</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Are you sure you want to delete {user.full_name}? This action cannot be undone.
+                              Are you sure you want to delete {user.full_name}? This action cannot be undone and will permanently remove the user from the database.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDeleteUser(user.id)}>
-                              Delete
+                            <AlertDialogCancel disabled={isDeleting === user.id}>
+                              Cancel
+                            </AlertDialogCancel>
+                            <AlertDialogAction 
+                              onClick={() => handleDeleteUser(user.id)}
+                              disabled={isDeleting === user.id}
+                              className="bg-red-600 hover:bg-red-700"
+                            >
+                              {isDeleting === user.id ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                  Deleting...
+                                </>
+                              ) : (
+                                'Delete User'
+                              )}
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
