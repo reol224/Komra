@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { createClient } from '@supabase/supabase-js';
 import Image from 'next/image';
+import { sanitizeWaitlistForm, sanitizeText, type WaitlistFormData } from '@/lib/sanitization';
 import {
   Shield,
   ArrowRight,
@@ -39,7 +40,8 @@ export default function PreLaunchPage() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [waitlistPosition, setWaitlistPosition] = useState<number | null>(null);
-  const [formData, setFormData] = useState({
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [formData, setFormData] = useState<WaitlistFormData>({
     email: "",
     firstName: "",
     lastName: "",
@@ -53,18 +55,38 @@ export default function PreLaunchPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setFormErrors({});
 
     try {
+      // Sanitize all form data before processing
+      const sanitizedData = sanitizeWaitlistForm(formData);
+      
+      // Additional validation
+      if (!sanitizedData.email) {
+        setFormErrors({ email: 'Valid email is required' });
+        setIsLoading(false);
+        return;
+      }
+      
+      if (!sanitizedData.firstName || !sanitizedData.lastName) {
+        setFormErrors({ 
+          firstName: !sanitizedData.firstName ? 'First name is required' : '',
+          lastName: !sanitizedData.lastName ? 'Last name is required' : ''
+        });
+        setIsLoading(false);
+        return;
+      }
+
       const { error } = await supabase.from("waitlist").insert([
         {
-          email: formData.email,
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          company: formData.company,
-          job_title: formData.jobTitle,
-          company_size: formData.companySize,
-          use_case: formData.useCase,
-          referral_source: formData.referralSource,
+          email: sanitizedData.email,
+          first_name: sanitizedData.firstName,
+          last_name: sanitizedData.lastName,
+          company: sanitizedData.company,
+          job_title: sanitizedData.jobTitle,
+          company_size: sanitizedData.companySize,
+          use_case: sanitizedData.useCase,
+          referral_source: sanitizedData.referralSource,
         },
       ]);
 
@@ -78,6 +100,8 @@ export default function PreLaunchPage() {
             .select("*", { count: "exact", head: true });
           setWaitlistPosition(count || 1);
           setIsSubmitted(true);
+        } else {
+          setFormErrors({ general: 'An error occurred. Please try again.' });
         }
       } else {
         // Get the current count to show position
@@ -89,13 +113,25 @@ export default function PreLaunchPage() {
       }
     } catch (error) {
       console.error("Error:", error);
+      if (error instanceof Error) {
+        setFormErrors({ general: error.message });
+      } else {
+        setFormErrors({ general: 'An unexpected error occurred. Please try again.' });
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+  const handleInputChange = (field: keyof WaitlistFormData, value: string) => {
+    // Clear any existing error for this field
+    if (formErrors[field]) {
+      setFormErrors(prev => ({ ...prev, [field]: '' }));
+    }
+    
+    // Apply basic sanitization on input (more comprehensive sanitization happens on submit)
+    const sanitizedValue = sanitizeText(value, field === 'useCase' ? 500 : 255);
+    setFormData((prev) => ({ ...prev, [field]: sanitizedValue }));
   };
 
   if (isSubmitted) {
@@ -264,6 +300,12 @@ export default function PreLaunchPage() {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-6">
+                {formErrors.general && (
+                  <div className="bg-red-900/20 border border-red-700/50 rounded-lg p-3">
+                    <p className="text-red-400 text-sm">{formErrors.general}</p>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-white mb-2">
@@ -271,13 +313,19 @@ export default function PreLaunchPage() {
                     </label>
                     <Input
                       required
+                      maxLength={50}
                       value={formData.firstName}
                       onChange={(e) =>
                         handleInputChange("firstName", e.target.value)
                       }
                       placeholder="Enter your first name"
-                      className="bg-slate-700 border-slate-600 text-white placeholder-gray-400"
+                      className={`bg-slate-700 border-slate-600 text-white placeholder-gray-400 ${
+                        formErrors.firstName ? 'border-red-500' : ''
+                      }`}
                     />
+                    {formErrors.firstName && (
+                      <p className="text-red-400 text-xs mt-1">{formErrors.firstName}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-white mb-2">
@@ -285,28 +333,40 @@ export default function PreLaunchPage() {
                     </label>
                     <Input
                       required
+                      maxLength={50}
                       value={formData.lastName}
                       onChange={(e) =>
                         handleInputChange("lastName", e.target.value)
                       }
                       placeholder="Enter your last name"
-                      className="bg-slate-700 border-slate-600 text-white placeholder-gray-400"
+                      className={`bg-slate-700 border-slate-600 text-white placeholder-gray-400 ${
+                        formErrors.lastName ? 'border-red-500' : ''
+                      }`}
                     />
+                    {formErrors.lastName && (
+                      <p className="text-red-400 text-xs mt-1">{formErrors.lastName}</p>
+                    )}
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">
-                    Business Email *
+                    Email *
                   </label>
                   <Input
                     type="email"
                     required
+                    maxLength={255}
                     value={formData.email}
                     onChange={(e) => handleInputChange("email", e.target.value)}
                     placeholder="your.email@company.com"
-                    className="bg-slate-700 border-slate-600 text-white placeholder-gray-400"
+                    className={`bg-slate-700 border-slate-600 text-white placeholder-gray-400 ${
+                      formErrors.email ? 'border-red-500' : ''
+                    }`}
                   />
+                  {formErrors.email && (
+                    <p className="text-red-400 text-xs mt-1">{formErrors.email}</p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -315,6 +375,7 @@ export default function PreLaunchPage() {
                       Company
                     </label>
                     <Input
+                      maxLength={100}
                       value={formData.company}
                       onChange={(e) =>
                         handleInputChange("company", e.target.value)
@@ -328,6 +389,7 @@ export default function PreLaunchPage() {
                       Job Title
                     </label>
                     <Input
+                      maxLength={100}
                       value={formData.jobTitle}
                       onChange={(e) =>
                         handleInputChange("jobTitle", e.target.value)
@@ -397,6 +459,7 @@ export default function PreLaunchPage() {
                     What's your biggest security challenge?
                   </label>
                   <Textarea
+                    maxLength={500}
                     value={formData.useCase}
                     onChange={(e) =>
                       handleInputChange("useCase", e.target.value)
@@ -405,12 +468,15 @@ export default function PreLaunchPage() {
                     rows={3}
                     className="bg-slate-700 border-slate-600 text-white placeholder-gray-400"
                   />
+                  <div className="text-xs text-gray-400 mt-1">
+                    {formData.useCase.length}/500 characters
+                  </div>
                 </div>
 
                 <Button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 text-lg"
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 text-lg disabled:opacity-50"
                 >
                   {isLoading ? (
                     <>
@@ -427,6 +493,11 @@ export default function PreLaunchPage() {
 
                 <p className="text-xs text-gray-400 text-center">
                   We respect your inbox. No spam, ever. Unsubscribe at any time.
+                  <br />
+                  All data is encrypted and handled according to our{" "}
+                  <a href="/privacy" className="text-orange-400 hover:text-orange-300">
+                    Privacy Policy
+                  </a>.
                 </p>
               </form>
             </CardContent>
