@@ -67,7 +67,7 @@ const mockStats: DashboardStats = {
 };
 
 export default function DashboardLayout() {
-  const [currentUser] = useState(mockUser);
+  const [currentUser, setCurrentUser] = useState(mockUser);
   const [selectedTab, setSelectedTab] = useState("overview");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settings, setSettings] = useState({
@@ -78,6 +78,33 @@ export default function DashboardLayout() {
     compactView: false,
     showAdvancedMetrics: true
   });
+
+  // TEMPORARY: Role switcher for testing - DELETE AFTER TESTING
+  const handleRoleChange = (newRole: "admin" | "analyst" | "viewer") => {
+    const roleNames = {
+      admin: "John Admin",
+      analyst: "Jane Analyst", 
+      viewer: "Bob Viewer"
+    };
+    
+    const roleEmails = {
+      admin: "admin@company.com",
+      analyst: "analyst@company.com",
+      viewer: "viewer@company.com"
+    };
+
+    setCurrentUser({
+      ...currentUser,
+      role: newRole,
+      name: roleNames[newRole],
+      email: roleEmails[newRole]
+    });
+    
+    // Reset tab when switching roles
+    setSelectedTab("overview");
+    
+    console.log(`🔧 Switched to ${newRole} role for testing`);
+  };
 
   const handleSettingsChange = (key: string, value: boolean | string) => {
     setSettings(prev => ({ ...prev, [key]: value }));
@@ -493,9 +520,42 @@ export default function DashboardLayout() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <div className="text-right">
-            <p className="text-sm font-medium">{currentUser.name}</p>
-            <p className="text-xs text-muted-foreground">{currentUser.email}</p>
+          {/* TEMPORARY: Role Switcher for Testing - DELETE AFTER TESTING */}
+          <div className="flex flex-col items-end gap-2">
+            <div className="text-right">
+              <p className="text-sm font-medium">{currentUser.name}</p>
+              <p className="text-xs text-muted-foreground">{currentUser.email}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Select value={currentUser.role} onValueChange={handleRoleChange}>
+                <SelectTrigger className="w-32 h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">
+                    <div className="flex items-center gap-2">
+                      <Settings className="h-3 w-3" />
+                      Admin
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="analyst">
+                    <div className="flex items-center gap-2">
+                      <Search className="h-3 w-3" />
+                      Analyst
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="viewer">
+                    <div className="flex items-center gap-2">
+                      <Eye className="h-3 w-3" />
+                      Viewer
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <Badge variant="outline" className="text-xs px-2 py-1">
+                🧪 Testing Mode
+              </Badge>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {getRoleIcon(currentUser.role)}
