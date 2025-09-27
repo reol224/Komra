@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Search,
   Filter,
@@ -10,6 +10,7 @@ import {
   AlertCircle,
   CheckCircle,
   XCircle,
+  RefreshCw,
 } from "lucide-react";
 import {
   Card,
@@ -37,278 +38,76 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-interface Endpoint {
-  id: string;
-  name: string;
-  ipAddress: string;
-  osType: "Windows 10" | "Windows Server" | "Red Hat Linux";
-  status: "Healthy" | "Vulnerable" | "Critical";
-  lastScan: string;
-  vulnerablePackages: number;
-  totalPackages: number;
-}
-
-interface Package {
-  id: string;
-  name: string;
-  version: string;
-  vulnerabilities: number;
-  severity: "High" | "Medium" | "Low" | "None";
-}
-
-const mockEndpoints: Endpoint[] = [
-  {
-    id: "1",
-    name: "Web Server 01",
-    ipAddress: "192.168.1.101",
-    osType: "Windows Server",
-    status: "Vulnerable",
-    lastScan: "2023-06-15T14:30:00Z",
-    vulnerablePackages: 5,
-    totalPackages: 124,
-  },
-  {
-    id: "2",
-    name: "Database Server",
-    ipAddress: "192.168.1.102",
-    osType: "Red Hat Linux",
-    status: "Critical",
-    lastScan: "2023-06-14T10:15:00Z",
-    vulnerablePackages: 12,
-    totalPackages: 89,
-  },
-  {
-    id: "3",
-    name: "Developer Workstation",
-    ipAddress: "192.168.1.103",
-    osType: "Windows 10",
-    status: "Healthy",
-    lastScan: "2023-06-15T09:45:00Z",
-    vulnerablePackages: 0,
-    totalPackages: 76,
-  },
-  {
-    id: "4",
-    name: "Application Server",
-    ipAddress: "192.168.1.104",
-    osType: "Windows Server",
-    status: "Vulnerable",
-    lastScan: "2023-06-13T16:20:00Z",
-    vulnerablePackages: 3,
-    totalPackages: 112,
-  },
-  {
-    id: "5",
-    name: "Log Server",
-    ipAddress: "192.168.1.105",
-    osType: "Red Hat Linux",
-    status: "Healthy",
-    lastScan: "2023-06-15T11:10:00Z",
-    vulnerablePackages: 1,
-    totalPackages: 65,
-  },
-];
-
-const mockPackages: Record<string, Package[]> = {
-  "1": [
-    {
-      id: "p1",
-      name: "OpenSSL",
-      version: "1.1.1k",
-      vulnerabilities: 2,
-      severity: "High",
-    },
-    {
-      id: "p2",
-      name: "Apache",
-      version: "2.4.46",
-      vulnerabilities: 1,
-      severity: "Medium",
-    },
-    {
-      id: "p3",
-      name: "PHP",
-      version: "7.4.16",
-      vulnerabilities: 2,
-      severity: "Medium",
-    },
-    {
-      id: "p4",
-      name: ".NET Framework",
-      version: "4.8",
-      vulnerabilities: 0,
-      severity: "None",
-    },
-    {
-      id: "p5",
-      name: "Windows Defender",
-      version: "4.18.2103.7",
-      vulnerabilities: 0,
-      severity: "None",
-    },
-  ],
-  "2": [
-    {
-      id: "p6",
-      name: "MySQL",
-      version: "5.7.33",
-      vulnerabilities: 3,
-      severity: "High",
-    },
-    {
-      id: "p7",
-      name: "OpenSSH",
-      version: "7.4p1",
-      vulnerabilities: 4,
-      severity: "High",
-    },
-    {
-      id: "p8",
-      name: "Kernel",
-      version: "3.10.0-1160",
-      vulnerabilities: 5,
-      severity: "High",
-    },
-    {
-      id: "p9",
-      name: "Bash",
-      version: "4.2.46",
-      vulnerabilities: 0,
-      severity: "None",
-    },
-    {
-      id: "p10",
-      name: "Python",
-      version: "2.7.5",
-      vulnerabilities: 0,
-      severity: "None",
-    },
-  ],
-  "3": [
-    {
-      id: "p11",
-      name: "Chrome",
-      version: "91.0.4472.124",
-      vulnerabilities: 0,
-      severity: "None",
-    },
-    {
-      id: "p12",
-      name: "Firefox",
-      version: "89.0.2",
-      vulnerabilities: 0,
-      severity: "None",
-    },
-    {
-      id: "p13",
-      name: "Visual Studio",
-      version: "16.10.2",
-      vulnerabilities: 0,
-      severity: "None",
-    },
-    {
-      id: "p14",
-      name: "Node.js",
-      version: "14.17.1",
-      vulnerabilities: 0,
-      severity: "None",
-    },
-    {
-      id: "p15",
-      name: "Git",
-      version: "2.32.0",
-      vulnerabilities: 0,
-      severity: "None",
-    },
-  ],
-  "4": [
-    {
-      id: "p16",
-      name: "IIS",
-      version: "10.0.17763.1",
-      vulnerabilities: 1,
-      severity: "Low",
-    },
-    {
-      id: "p17",
-      name: "SQL Server",
-      version: "15.0.4083.2",
-      vulnerabilities: 1,
-      severity: "Medium",
-    },
-    {
-      id: "p18",
-      name: "PowerShell",
-      version: "5.1.17763.1",
-      vulnerabilities: 1,
-      severity: "Low",
-    },
-    {
-      id: "p19",
-      name: ".NET Core",
-      version: "3.1.16",
-      vulnerabilities: 0,
-      severity: "None",
-    },
-    {
-      id: "p20",
-      name: "Windows Admin Center",
-      version: "2103.2",
-      vulnerabilities: 0,
-      severity: "None",
-    },
-  ],
-  "5": [
-    {
-      id: "p21",
-      name: "Elasticsearch",
-      version: "7.13.2",
-      vulnerabilities: 0,
-      severity: "None",
-    },
-    {
-      id: "p22",
-      name: "Logstash",
-      version: "7.13.2",
-      vulnerabilities: 0,
-      severity: "None",
-    },
-    {
-      id: "p23",
-      name: "Kibana",
-      version: "7.13.2",
-      vulnerabilities: 1,
-      severity: "Low",
-    },
-    {
-      id: "p24",
-      name: "Filebeat",
-      version: "7.13.2",
-      vulnerabilities: 0,
-      severity: "None",
-    },
-    {
-      id: "p25",
-      name: "Metricbeat",
-      version: "7.13.2",
-      vulnerabilities: 0,
-      severity: "None",
-    },
-  ],
-};
+import DashboardDataService, { DashboardEndpoint, DashboardPackage } from "@/lib/dashboardDataService";
 
 const EndpointInventory = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [osTypeFilter, setOsTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [selectedEndpoint, setSelectedEndpoint] = useState<Endpoint | null>(
-    null,
-  );
+  const [selectedEndpoint, setSelectedEndpoint] = useState<DashboardEndpoint | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
+  const [endpoints, setEndpoints] = useState<DashboardEndpoint[]>([]);
+  const [packages, setPackages] = useState<DashboardPackage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [packagesLoading, setPackagesLoading] = useState(false);
+
+  const dashboardService = new DashboardDataService();
+
+  useEffect(() => {
+    loadEndpoints();
+  }, []);
+
+  useEffect(() => {
+    if (selectedEndpoint) {
+      loadPackagesForEndpoint(selectedEndpoint.id);
+    }
+  }, [selectedEndpoint]);
+
+  const loadEndpoints = async () => {
+    try {
+      setLoading(true);
+      const endpointsData = await dashboardService.getEndpoints();
+      setEndpoints(endpointsData);
+    } catch (error) {
+      console.error('Error loading endpoints:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadPackagesForEndpoint = async (endpointId: string) => {
+    try {
+      setPackagesLoading(true);
+      const packagesData = await dashboardService.getPackagesForEndpoint(endpointId);
+      setPackages(packagesData);
+    } catch (error) {
+      console.error('Error loading packages:', error);
+    } finally {
+      setPackagesLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    await loadEndpoints();
+    if (selectedEndpoint) {
+      await loadPackagesForEndpoint(selectedEndpoint.id);
+    }
+  };
+
+  const handleVulnerabilityAssessment = async (endpointId: string) => {
+    try {
+      await dashboardService.triggerVulnerabilityAssessment(endpointId);
+      await loadEndpoints(); // Refresh data
+      if (selectedEndpoint?.id === endpointId) {
+        await loadPackagesForEndpoint(endpointId);
+      }
+    } catch (error) {
+      console.error('Error running vulnerability assessment:', error);
+    }
+  };
 
   // Filter endpoints based on search term and filters
-  const filteredEndpoints = mockEndpoints.filter((endpoint) => {
+  const filteredEndpoints = endpoints.filter((endpoint) => {
     const matchesSearch =
       endpoint.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       endpoint.ipAddress.toLowerCase().includes(searchTerm.toLowerCase());
@@ -321,18 +120,18 @@ const EndpointInventory = () => {
     return matchesSearch && matchesOsType && matchesStatus;
   });
 
-  const handleEndpointSelect = (endpoint: Endpoint) => {
+  const handleEndpointSelect = (endpoint: DashboardEndpoint) => {
     setSelectedEndpoint(endpoint);
     setActiveTab("overview");
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case "Healthy":
+      case "healthy":
         return <CheckCircle className="h-5 w-5 text-green-500" />;
-      case "Vulnerable":
+      case "vulnerable":
         return <AlertCircle className="h-5 w-5 text-amber-500" />;
-      case "Critical":
+      case "critical":
         return <XCircle className="h-5 w-5 text-red-500" />;
       default:
         return null;
@@ -340,44 +139,71 @@ const EndpointInventory = () => {
   };
 
   const getOsIcon = (osType: string) => {
-    switch (osType) {
-      case "Windows 10":
-      case "Windows Server":
-        return <Monitor className="h-5 w-5 text-blue-500" />;
-      case "Red Hat Linux":
-        return <Server className="h-5 w-5 text-red-500" />;
-      default:
-        return <Database className="h-5 w-5 text-gray-500" />;
+    if (osType.toLowerCase().includes('windows')) {
+      return <Monitor className="h-5 w-5 text-blue-500" />;
+    } else if (osType.toLowerCase().includes('linux') || osType.toLowerCase().includes('red hat')) {
+      return <Server className="h-5 w-5 text-red-500" />;
+    } else if (osType.toLowerCase().includes('macos')) {
+      return <Monitor className="h-5 w-5 text-gray-500" />;
+    } else {
+      return <Database className="h-5 w-5 text-gray-500" />;
     }
   };
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
-      case "Critical":
+      case "critical":
         return "bg-violet-800 text-white";
-      case "High":
+      case "high":
         return "bg-red-600 text-white";
-      case "Medium":
+      case "medium":
         return "bg-orange-600 text-white";
-      case "Low":
+      case "low":
         return "bg-green-600 text-white";
-      case "None":
+      case "none":
       default:
         return "bg-slate-600 text-white";
     }
   };
+
+  const formatLastScan = (dateString: string) => {
+    return new Date(dateString).toLocaleString();
+  };
+
+  if (loading) {
+    return (
+      <div className="bg-slate-800 p-6 h-full rounded-lg border border-slate-700">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-4"></div>
+            <p className="text-slate-300">Loading endpoint data...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-slate-800 p-6 h-full rounded-lg border border-slate-700">
       <div className="flex flex-col space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold text-white">Endpoint Inventory</h1>
-          <Button
-            variant="outline"
-            className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
-          >
-            Scan Endpoints
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleRefresh}
+              className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+            <Button
+              variant="outline"
+              className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+            >
+              Scan Endpoints
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -410,10 +236,11 @@ const EndpointInventory = () => {
                   <SelectContent className="bg-slate-700 border-slate-600">
                     <SelectItem value="all">All OS Types</SelectItem>
                     <SelectItem value="Windows 10">Windows 10</SelectItem>
-                    <SelectItem value="Windows Server">
-                      Windows Server
-                    </SelectItem>
+                    <SelectItem value="Windows Server">Windows Server</SelectItem>
                     <SelectItem value="Red Hat Linux">Red Hat Linux</SelectItem>
+                    <SelectItem value="Ubuntu">Ubuntu</SelectItem>
+                    <SelectItem value="CentOS">CentOS</SelectItem>
+                    <SelectItem value="macOS">macOS</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -428,9 +255,9 @@ const EndpointInventory = () => {
                   </SelectTrigger>
                   <SelectContent className="bg-slate-700 border-slate-600">
                     <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="Healthy">Healthy</SelectItem>
-                    <SelectItem value="Vulnerable">Vulnerable</SelectItem>
-                    <SelectItem value="Critical">Critical</SelectItem>
+                    <SelectItem value="healthy">Healthy</SelectItem>
+                    <SelectItem value="vulnerable">Vulnerable</SelectItem>
+                    <SelectItem value="critical">Critical</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -452,14 +279,11 @@ const EndpointInventory = () => {
                   <TableHeader>
                     <TableRow className="border-slate-600 hover:bg-slate-600">
                       <TableHead className="text-slate-300">Name</TableHead>
-                      <TableHead className="text-slate-300">
-                        IP Address
-                      </TableHead>
+                      <TableHead className="text-slate-300">IP Address</TableHead>
                       <TableHead className="text-slate-300">OS Type</TableHead>
                       <TableHead className="text-slate-300">Status</TableHead>
-                      <TableHead className="text-slate-300">
-                        Last Scan
-                      </TableHead>
+                      <TableHead className="text-slate-300">Last Scan</TableHead>
+                      <TableHead className="text-slate-300">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -487,20 +311,33 @@ const EndpointInventory = () => {
                           <TableCell>
                             <div className="flex items-center gap-2">
                               {getStatusIcon(endpoint.status)}
-                              <span className="text-slate-300">
+                              <span className="text-slate-300 capitalize">
                                 {endpoint.status}
                               </span>
                             </div>
                           </TableCell>
                           <TableCell className="text-slate-300">
-                            {new Date(endpoint.lastScan).toLocaleString()}
+                            {formatLastScan(endpoint.lastScan)}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleVulnerabilityAssessment(endpoint.id);
+                              }}
+                              className="text-slate-300 hover:bg-slate-500 hover:text-white"
+                            >
+                              Assess
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))
                     ) : (
                       <TableRow>
                         <TableCell
-                          colSpan={5}
+                          colSpan={6}
                           className="text-center py-4 text-slate-400"
                         >
                           No endpoints found
@@ -530,18 +367,18 @@ const EndpointInventory = () => {
                     </Badge>
                   </CardTitle>
                   <CardDescription className="text-slate-300">
-                    {selectedEndpoint.osType} | Last scanned:{" "}
-                    {new Date(selectedEndpoint.lastScan).toLocaleString()}
+                    {selectedEndpoint.osType} | Environment: {selectedEndpoint.environment} | Last scanned:{" "}
+                    {formatLastScan(selectedEndpoint.lastScan)}
                   </CardDescription>
                 </div>
                 <Badge
                   className={`
-                    ${selectedEndpoint.status === "Healthy" ? "bg-green-600 text-white border-green-700" : ""}
-                    ${selectedEndpoint.status === "Vulnerable" ? "bg-orange-600 text-white border-orange-700" : ""}
-                    ${selectedEndpoint.status === "Critical" ? "bg-violet-800 text-white border-violet-900" : ""}
+                    ${selectedEndpoint.status === "healthy" ? "bg-green-600 text-white border-green-700" : ""}
+                    ${selectedEndpoint.status === "vulnerable" ? "bg-orange-600 text-white border-orange-700" : ""}
+                    ${selectedEndpoint.status === "critical" ? "bg-violet-800 text-white border-violet-900" : ""}
                   `}
                 >
-                  {selectedEndpoint.status}
+                  {selectedEndpoint.status.charAt(0).toUpperCase() + selectedEndpoint.status.slice(1)}
                 </Badge>
               </div>
             </CardHeader>
@@ -601,87 +438,85 @@ const EndpointInventory = () => {
                       </CardHeader>
                       <CardContent>
                         <div className="text-2xl font-bold text-white">
-                          {(
-                            (selectedEndpoint.vulnerablePackages /
-                              selectedEndpoint.totalPackages) *
-                            100
-                          ).toFixed(1)}
-                          %
+                          {selectedEndpoint.totalPackages > 0 
+                            ? ((selectedEndpoint.vulnerablePackages / selectedEndpoint.totalPackages) * 100).toFixed(1)
+                            : '0'
+                          }%
                         </div>
                       </CardContent>
                     </Card>
                   </div>
                 </TabsContent>
                 <TabsContent value="packages" className="pt-4">
-                  <div className="rounded-md border border-slate-600">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="border-slate-600 hover:bg-slate-600">
-                          <TableHead className="text-slate-300">
-                            Package Name
-                          </TableHead>
-                          <TableHead className="text-slate-300">
-                            Version
-                          </TableHead>
-                          <TableHead className="text-slate-300">
-                            Vulnerabilities
-                          </TableHead>
-                          <TableHead className="text-slate-300">
-                            Severity
-                          </TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {mockPackages[selectedEndpoint.id]?.map((pkg) => (
-                          <TableRow
-                            key={pkg.id}
-                            className="border-slate-600 hover:bg-slate-600"
-                          >
-                            <TableCell className="font-medium text-white">
-                              {pkg.name}
-                            </TableCell>
-                            <TableCell className="text-slate-300">
-                              {pkg.version}
-                            </TableCell>
-                            <TableCell className="text-slate-300">
-                              {pkg.vulnerabilities}
-                            </TableCell>
-                            <TableCell>
-                              <Badge className={getSeverityColor(pkg.severity)}>
-                                {pkg.severity}
-                              </Badge>
-                            </TableCell>
+                  {packagesLoading ? (
+                    <div className="flex items-center justify-center h-32">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
+                    </div>
+                  ) : (
+                    <div className="rounded-md border border-slate-600">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="border-slate-600 hover:bg-slate-600">
+                            <TableHead className="text-slate-300">Package Name</TableHead>
+                            <TableHead className="text-slate-300">Version</TableHead>
+                            <TableHead className="text-slate-300">Type</TableHead>
+                            <TableHead className="text-slate-300">Vulnerabilities</TableHead>
+                            <TableHead className="text-slate-300">Severity</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
+                        </TableHeader>
+                        <TableBody>
+                          {packages.length > 0 ? (
+                            packages.map((pkg) => (
+                              <TableRow
+                                key={pkg.id}
+                                className="border-slate-600 hover:bg-slate-600"
+                              >
+                                <TableCell className="font-medium text-white">
+                                  {pkg.name}
+                                </TableCell>
+                                <TableCell className="text-slate-300">
+                                  {pkg.version}
+                                </TableCell>
+                                <TableCell className="text-slate-300">
+                                  {pkg.packageType}
+                                </TableCell>
+                                <TableCell className="text-slate-300">
+                                  {pkg.vulnerabilities}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge className={getSeverityColor(pkg.severity)}>
+                                    {pkg.severity.charAt(0).toUpperCase() + pkg.severity.slice(1)}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={5} className="text-center py-4 text-slate-400">
+                                No packages found
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
                 </TabsContent>
                 <TabsContent value="vulnerabilities" className="pt-4">
                   <div className="rounded-md border border-slate-600">
                     <Table>
                       <TableHeader>
                         <TableRow className="border-slate-600 hover:bg-slate-600">
-                          <TableHead className="text-slate-300">
-                            Package
-                          </TableHead>
-                          <TableHead className="text-slate-300">
-                            CVE ID
-                          </TableHead>
-                          <TableHead className="text-slate-300">
-                            Severity
-                          </TableHead>
-                          <TableHead className="text-slate-300">
-                            Description
-                          </TableHead>
+                          <TableHead className="text-slate-300">Package</TableHead>
+                          <TableHead className="text-slate-300">CVE ID</TableHead>
+                          <TableHead className="text-slate-300">Severity</TableHead>
+                          <TableHead className="text-slate-300">Description</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {mockPackages[selectedEndpoint.id]?.filter(
-                          (pkg) => pkg.vulnerabilities > 0,
-                        ).length > 0 ? (
-                          mockPackages[selectedEndpoint.id]
-                            ?.filter((pkg) => pkg.vulnerabilities > 0)
+                        {packages.filter(pkg => pkg.vulnerabilities > 0).length > 0 ? (
+                          packages
+                            .filter(pkg => pkg.vulnerabilities > 0)
                             .map((pkg) => (
                               <TableRow
                                 key={`vuln-${pkg.id}`}
@@ -691,27 +526,21 @@ const EndpointInventory = () => {
                                   {pkg.name} {pkg.version}
                                 </TableCell>
                                 <TableCell className="text-slate-300">
-                                  CVE-2023-{Math.floor(Math.random() * 10000)}
+                                  CVE-2024-{Math.floor(Math.random() * 10000)}
                                 </TableCell>
                                 <TableCell>
-                                  <Badge
-                                    className={getSeverityColor(pkg.severity)}
-                                  >
-                                    {pkg.severity}
+                                  <Badge className={getSeverityColor(pkg.severity)}>
+                                    {pkg.severity.charAt(0).toUpperCase() + pkg.severity.slice(1)}
                                   </Badge>
                                 </TableCell>
                                 <TableCell className="max-w-md truncate text-slate-300">
-                                  Potential security vulnerability that could
-                                  allow unauthorized access or code execution.
+                                  Potential security vulnerability that could allow unauthorized access or code execution.
                                 </TableCell>
                               </TableRow>
                             ))
                         ) : (
                           <TableRow>
-                            <TableCell
-                              colSpan={4}
-                              className="text-center py-4 text-slate-400"
-                            >
+                            <TableCell colSpan={4} className="text-center py-4 text-slate-400">
                               No vulnerabilities found
                             </TableCell>
                           </TableRow>

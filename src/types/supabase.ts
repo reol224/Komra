@@ -115,6 +115,68 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_trail: {
+        Row: {
+          action: string
+          description: string
+          endpoint_id: string | null
+          event_category: string
+          event_type: string
+          id: string
+          ip_address: unknown | null
+          metadata: Json | null
+          resource_id: string | null
+          resource_type: string | null
+          session_id: string | null
+          severity: string | null
+          timestamp: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          description: string
+          endpoint_id?: string | null
+          event_category: string
+          event_type: string
+          id?: string
+          ip_address?: unknown | null
+          metadata?: Json | null
+          resource_id?: string | null
+          resource_type?: string | null
+          session_id?: string | null
+          severity?: string | null
+          timestamp?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          description?: string
+          endpoint_id?: string | null
+          event_category?: string
+          event_type?: string
+          id?: string
+          ip_address?: unknown | null
+          metadata?: Json | null
+          resource_id?: string | null
+          resource_type?: string | null
+          session_id?: string | null
+          severity?: string | null
+          timestamp?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_trail_endpoint_id_fkey"
+            columns: ["endpoint_id"]
+            isOneToOne: false
+            referencedRelation: "endpoints"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       auth_sessions: {
         Row: {
           created_at: string | null
@@ -184,6 +246,155 @@ export type Database = {
         }
         Relationships: []
       }
+      collection_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          endpoints_processed: number | null
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          packages_collected: number | null
+          schedule_id: string | null
+          started_at: string | null
+          status: string | null
+          vulnerabilities_found: number | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          endpoints_processed?: number | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          packages_collected?: number | null
+          schedule_id?: string | null
+          started_at?: string | null
+          status?: string | null
+          vulnerabilities_found?: number | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          endpoints_processed?: number | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          packages_collected?: number | null
+          schedule_id?: string | null
+          started_at?: string | null
+          status?: string | null
+          vulnerabilities_found?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "collection_jobs_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "collection_schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      collection_schedules: {
+        Row: {
+          collection_type: string | null
+          created_at: string | null
+          enabled: boolean | null
+          endpoints: string[]
+          frequency: string
+          id: string
+          last_run: string | null
+          name: string
+          next_run: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          collection_type?: string | null
+          created_at?: string | null
+          enabled?: boolean | null
+          endpoints?: string[]
+          frequency: string
+          id?: string
+          last_run?: string | null
+          name: string
+          next_run?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          collection_type?: string | null
+          created_at?: string | null
+          enabled?: boolean | null
+          endpoints?: string[]
+          frequency?: string
+          id?: string
+          last_run?: string | null
+          name?: string
+          next_run?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      compliance_reports: {
+        Row: {
+          approved_by: string | null
+          created_at: string | null
+          description: string | null
+          findings: Json | null
+          framework: string
+          generated_by: string | null
+          id: string
+          published_at: string | null
+          recommendations: Json | null
+          report_period_end: string | null
+          report_period_start: string | null
+          report_type: string
+          reviewed_by: string | null
+          scope: Json | null
+          status: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          approved_by?: string | null
+          created_at?: string | null
+          description?: string | null
+          findings?: Json | null
+          framework: string
+          generated_by?: string | null
+          id?: string
+          published_at?: string | null
+          recommendations?: Json | null
+          report_period_end?: string | null
+          report_period_start?: string | null
+          report_type: string
+          reviewed_by?: string | null
+          scope?: Json | null
+          status?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          approved_by?: string | null
+          created_at?: string | null
+          description?: string | null
+          findings?: Json | null
+          framework?: string
+          generated_by?: string | null
+          id?: string
+          published_at?: string | null
+          recommendations?: Json | null
+          report_period_end?: string | null
+          report_period_start?: string | null
+          report_type?: string
+          reviewed_by?: string | null
+          scope?: Json | null
+          status?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       cves: {
         Row: {
           created_at: string | null
@@ -230,6 +441,7 @@ export type Database = {
           id: string
           installed_date: string | null
           package_id: string
+          status: string | null
         }
         Insert: {
           created_at?: string | null
@@ -237,6 +449,7 @@ export type Database = {
           id?: string
           installed_date?: string | null
           package_id: string
+          status?: string | null
         }
         Update: {
           created_at?: string | null
@@ -244,6 +457,7 @@ export type Database = {
           id?: string
           installed_date?: string | null
           package_id?: string
+          status?: string | null
         }
         Relationships: [
           {
@@ -265,11 +479,13 @@ export type Database = {
       endpoints: {
         Row: {
           created_at: string | null
+          description: string | null
           environment: string
           hostname: string
           id: string
           ip_address: unknown | null
           last_scan: string | null
+          metadata: Json | null
           os_type: string
           os_version: string | null
           status: string | null
@@ -277,11 +493,13 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          description?: string | null
           environment: string
           hostname: string
           id?: string
           ip_address?: unknown | null
           last_scan?: string | null
+          metadata?: Json | null
           os_type: string
           os_version?: string | null
           status?: string | null
@@ -289,11 +507,13 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          description?: string | null
           environment?: string
           hostname?: string
           id?: string
           ip_address?: unknown | null
           last_scan?: string | null
+          metadata?: Json | null
           os_type?: string
           os_version?: string | null
           status?: string | null
@@ -338,6 +558,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      investigation_logs: {
+        Row: {
+          case_number: string | null
+          closed_at: string | null
+          created_at: string | null
+          description: string | null
+          evidence: Json | null
+          findings: string | null
+          id: string
+          investigation_id: string | null
+          investigator_id: string | null
+          priority: string | null
+          related_endpoints: string[] | null
+          related_vulnerabilities: string[] | null
+          status: string | null
+          tags: string[] | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          case_number?: string | null
+          closed_at?: string | null
+          created_at?: string | null
+          description?: string | null
+          evidence?: Json | null
+          findings?: string | null
+          id?: string
+          investigation_id?: string | null
+          investigator_id?: string | null
+          priority?: string | null
+          related_endpoints?: string[] | null
+          related_vulnerabilities?: string[] | null
+          status?: string | null
+          tags?: string[] | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          case_number?: string | null
+          closed_at?: string | null
+          created_at?: string | null
+          description?: string | null
+          evidence?: Json | null
+          findings?: string | null
+          id?: string
+          investigation_id?: string | null
+          investigator_id?: string | null
+          priority?: string | null
+          related_endpoints?: string[] | null
+          related_vulnerabilities?: string[] | null
+          status?: string | null
+          tags?: string[] | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       mfa_secrets: {
         Row: {
@@ -641,6 +918,53 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      vulnerabilities: {
+        Row: {
+          created_at: string | null
+          cve_id: string
+          cvss_score: number | null
+          description: string | null
+          discovered_date: string | null
+          endpoint_id: string
+          id: string
+          severity: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          cve_id: string
+          cvss_score?: number | null
+          description?: string | null
+          discovered_date?: string | null
+          endpoint_id: string
+          id?: string
+          severity: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          cve_id?: string
+          cvss_score?: number | null
+          description?: string | null
+          discovered_date?: string | null
+          endpoint_id?: string
+          id?: string
+          severity?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vulnerabilities_endpoint_id_fkey"
+            columns: ["endpoint_id"]
+            isOneToOne: false
+            referencedRelation: "endpoints"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       waitlist: {
         Row: {

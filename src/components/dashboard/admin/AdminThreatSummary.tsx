@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { AlertTriangle, Shield, TrendingUp, Clock, Eye, ExternalLink, Users, Calendar, UserCheck, AlertCircle } from 'lucide-react';
+import { DashboardDataService, DashboardVulnerability, RiskMetrics } from '@/lib/dashboardDataService';
 
 export default function AdminThreatSummary() {
   const [selectedThreat, setSelectedThreat] = useState<any>(null);
@@ -20,6 +21,54 @@ export default function AdminThreatSummary() {
   const [escalationReason, setEscalationReason] = useState('');
   const [escalationLevel, setEscalationLevel] = useState('');
   const [escalationNotes, setEscalationNotes] = useState('');
+  
+  // Real data state
+  const [vulnerabilities, setVulnerabilities] = useState<DashboardVulnerability[]>([]);
+  const [riskMetrics, setRiskMetrics] = useState<RiskMetrics>({
+    criticalCount: 0,
+    highCount: 0,
+    mediumCount: 0,
+    lowCount: 0,
+    totalEndpoints: 0,
+    healthyEndpoints: 0,
+    vulnerableEndpoints: 0,
+    criticalEndpoints: 0
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  const dashboardService = new DashboardDataService();
+
+  // Load real threat data
+  useEffect(() => {
+    loadThreatData();
+    
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(loadThreatData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const loadThreatData = async () => {
+    try {
+      setIsLoading(true);
+      const [vulnData, metricsData] = await Promise.all([
+        dashboardService.getVulnerabilities(),
+        dashboardService.getRiskMetrics()
+      ]);
+
+      setVulnerabilities(vulnData);
+      setRiskMetrics(metricsData);
+      
+      console.log('🔍 Threat data loaded:', {
+        vulnerabilities: vulnData.length,
+        critical: metricsData.criticalCount,
+        high: metricsData.highCount
+      });
+    } catch (error) {
+      console.error('❌ Error loading threat data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const teamMembers = [
     { id: 'john-doe', name: 'John Doe', role: 'Senior Security Analyst', availability: 'available' },
@@ -47,72 +96,82 @@ export default function AdminThreatSummary() {
     'Other (specify in notes)'
   ];
 
+  // Calculate threat stats from real data
   const threatStats = {
-    totalThreats: 1247,
-    criticalThreats: 23,
-    highThreats: 156,
-    mediumThreats: 489,
-    lowThreats: 579,
-    resolvedToday: 45,
-    newThreatsToday: 12,
-    avgResolutionTime: '4.2 hours'
+    totalThreats: vulnerabilities.length,
+    criticalThreats: riskMetrics.criticalCount,
+    highThreats: riskMetrics.highCount,
+    mediumThreats: riskMetrics.mediumCount,
+    lowThreats: riskMetrics.lowCount,
+    resolvedToday: vulnerabilities.filter(v => 
+      v.status === 'resolved' && 
+      new Date(v.discovered_date).toDateString() === new Date().toDateString()
+    ).length,
+    newThreatsToday: vulnerabilities.filter(v => 
+      new Date(v.discovered_date).toDateString() === new Date().toDateString()
+    ).length,
+    avgResolutionTime: '4.2 hours' // This would need historical data to calculate properly
   };
 
-  const recentThreats = [
-    {
-      id: 'CVE-2024-1234',
-      severity: 'critical',
-      title: 'Remote Code Execution in Apache Struts',
-      affectedSystems: 15,
-      detectedAt: '2024-03-22T14:30:00Z',
-      status: 'active',
-      description: 'A critical vulnerability in Apache Struts allows remote code execution through malicious HTTP requests.',
-      impact: 'Complete system compromise possible',
-      recommendation: 'Immediately update Apache Struts to version 2.5.30 or later',
-      affectedEndpoints: ['web-server-01', 'web-server-02', 'api-gateway-01']
-    },
-    {
-      id: 'CVE-2024-5678',
-      severity: 'high',
-      title: 'SQL Injection in Custom Application',
-      affectedSystems: 8,
-      detectedAt: '2024-03-22T13:45:00Z',
-      status: 'investigating',
-      description: 'SQL injection vulnerability found in user authentication module.',
-      impact: 'Potential data breach and unauthorized access',
-      recommendation: 'Apply input validation patches and review database permissions',
-      affectedEndpoints: ['app-server-01', 'app-server-02']
-    },
-    {
-      id: 'CVE-2024-9012',
-      severity: 'high',
-      title: 'Privilege Escalation in Windows Service',
-      affectedSystems: 23,
-      detectedAt: '2024-03-22T12:15:00Z',
-      status: 'mitigating',
-      description: 'Local privilege escalation vulnerability in Windows Print Spooler service.',
-      impact: 'Local users can gain SYSTEM privileges',
-      recommendation: 'Install Windows security update KB5012345',
-      affectedEndpoints: ['win-server-01', 'win-server-02', 'win-workstation-*']
-    },
-    {
-      id: 'CVE-2024-3456',
-      severity: 'medium',
-      title: 'Cross-Site Scripting in Web Portal',
-      affectedSystems: 5,
-      detectedAt: '2024-03-22T11:30:00Z',
-      status: 'resolved',
-      description: 'Stored XSS vulnerability in user profile comments section.',
-      impact: 'Session hijacking and data theft possible',
-      recommendation: 'Input sanitization has been implemented',
-      affectedEndpoints: ['web-portal-01']
-    }
-  ];
+  // Get recent high-priority threats from real data
+  const recentThreats = vulnerabilities
+    .filter(v => v.severity === 'critical' || v.severity === 'high')
+    .sort((a, b) => new Date(b.discovered_date).getTime() - new Date(a.discovered_date).getTime())
+    .slice(0, 10)
+    .map(vuln => ({
+      id: vuln.cve_id,
+      severity: vuln.severity,
+      title: vuln.description || `Vulnerability ${vuln.cve_id}`,
+      affectedSystems: 1, // This would need endpoint relationship data
+      detectedAt: vuln.discovered_date,
+      status: vuln.status === 'resolved' ? 'resolved' : 
+              vuln.status === 'in_progress' ? 'mitigating' : 'active',
+      description: vuln.description || `Security vulnerability ${vuln.cve_id} detected in system`,
+      impact: vuln.severity === 'critical' ? 'Complete system compromise possible' :
+              vuln.severity === 'high' ? 'Significant security risk' :
+              'Moderate security concern',
+      recommendation: vuln.severity === 'critical' ? 'Immediate patching required' :
+                     vuln.severity === 'high' ? 'Apply security updates within 24 hours' :
+                     'Schedule maintenance window for patching',
+      affectedEndpoints: [vuln.endpoint_name]
+    }));
 
+  // Calculate threat trends from real data
   const threatTrends = [
-    { period: 'Last 7 days', detected: 89, resolved: 76, trend: 'up' },
-    { period: 'Last 30 days', detected: 342, resolved: 318, trend: 'down' },
-    { period: 'Last 90 days', detected: 1156, resolved: 1089, trend: 'stable' }
+    { 
+      period: 'Last 7 days', 
+      detected: vulnerabilities.filter(v => {
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        return new Date(v.discovered_date) >= weekAgo;
+      }).length,
+      resolved: vulnerabilities.filter(v => {
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        return v.status === 'resolved' && new Date(v.discovered_date) >= weekAgo;
+      }).length,
+      trend: 'stable' as const
+    },
+    { 
+      period: 'Last 30 days', 
+      detected: vulnerabilities.filter(v => {
+        const monthAgo = new Date();
+        monthAgo.setDate(monthAgo.getDate() - 30);
+        return new Date(v.discovered_date) >= monthAgo;
+      }).length,
+      resolved: vulnerabilities.filter(v => {
+        const monthAgo = new Date();
+        monthAgo.setDate(monthAgo.getDate() - 30);
+        return v.status === 'resolved' && new Date(v.discovered_date) >= monthAgo;
+      }).length,
+      trend: 'down' as const
+    },
+    { 
+      period: 'Last 90 days', 
+      detected: vulnerabilities.length,
+      resolved: vulnerabilities.filter(v => v.status === 'resolved').length,
+      trend: 'stable' as const
+    }
   ];
 
   const getSeverityColor = (severity: string) => {
@@ -223,19 +282,26 @@ export default function AdminThreatSummary() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center space-x-2">
-        <AlertTriangle className="h-5 w-5" />
-        <h3 className="text-lg font-semibold">Threat Detection Summary</h3>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <AlertTriangle className="h-5 w-5" />
+          <h3 className="text-lg font-semibold">Threat Detection Summary</h3>
+        </div>
+        <div className="text-sm text-gray-500">
+          {isLoading ? 'Loading...' : `Last updated: ${new Date().toLocaleTimeString()}`}
+        </div>
       </div>
 
-      {/* Threat Overview */}
+      {/* Threat Overview - Now with real data */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center space-x-2">
               <AlertTriangle className="h-5 w-5 text-red-600" />
               <div>
-                <div className="text-2xl font-bold text-red-600">{threatStats.criticalThreats}</div>
+                <div className="text-2xl font-bold text-red-600">
+                  {isLoading ? '...' : threatStats.criticalThreats}
+                </div>
                 <div className="text-sm text-gray-500">Critical Threats</div>
               </div>
             </div>
@@ -246,7 +312,9 @@ export default function AdminThreatSummary() {
             <div className="flex items-center space-x-2">
               <AlertTriangle className="h-5 w-5 text-orange-600" />
               <div>
-                <div className="text-2xl font-bold text-orange-600">{threatStats.highThreats}</div>
+                <div className="text-2xl font-bold text-orange-600">
+                  {isLoading ? '...' : threatStats.highThreats}
+                </div>
                 <div className="text-sm text-gray-500">High Threats</div>
               </div>
             </div>
@@ -257,7 +325,9 @@ export default function AdminThreatSummary() {
             <div className="flex items-center space-x-2">
               <Shield className="h-5 w-5 text-green-600" />
               <div>
-                <div className="text-2xl font-bold text-green-600">{threatStats.resolvedToday}</div>
+                <div className="text-2xl font-bold text-green-600">
+                  {isLoading ? '...' : threatStats.resolvedToday}
+                </div>
                 <div className="text-sm text-gray-500">Resolved Today</div>
               </div>
             </div>
@@ -276,7 +346,7 @@ export default function AdminThreatSummary() {
         </Card>
       </div>
 
-      {/* Threat Distribution */}
+      {/* Threat Distribution - Now with real data */}
       <Card>
         <CardHeader>
           <CardTitle>Threat Distribution</CardTitle>
@@ -284,168 +354,190 @@ export default function AdminThreatSummary() {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center p-4 border rounded-lg">
-              <div className="text-3xl font-bold text-red-600">{threatStats.criticalThreats}</div>
+              <div className="text-3xl font-bold text-red-600">
+                {isLoading ? '...' : threatStats.criticalThreats}
+              </div>
               <div className="text-sm text-gray-500">Critical</div>
               <div className="text-xs text-gray-400">
-                {((threatStats.criticalThreats / threatStats.totalThreats) * 100).toFixed(1)}%
+                {threatStats.totalThreats > 0 ? 
+                  ((threatStats.criticalThreats / threatStats.totalThreats) * 100).toFixed(1) : '0'}%
               </div>
             </div>
             <div className="text-center p-4 border rounded-lg">
-              <div className="text-3xl font-bold text-orange-600">{threatStats.highThreats}</div>
+              <div className="text-3xl font-bold text-orange-600">
+                {isLoading ? '...' : threatStats.highThreats}
+              </div>
               <div className="text-sm text-gray-500">High</div>
               <div className="text-xs text-gray-400">
-                {((threatStats.highThreats / threatStats.totalThreats) * 100).toFixed(1)}%
+                {threatStats.totalThreats > 0 ? 
+                  ((threatStats.highThreats / threatStats.totalThreats) * 100).toFixed(1) : '0'}%
               </div>
             </div>
             <div className="text-center p-4 border rounded-lg">
-              <div className="text-3xl font-bold text-yellow-600">{threatStats.mediumThreats}</div>
+              <div className="text-3xl font-bold text-yellow-600">
+                {isLoading ? '...' : threatStats.mediumThreats}
+              </div>
               <div className="text-sm text-gray-500">Medium</div>
               <div className="text-xs text-gray-400">
-                {((threatStats.mediumThreats / threatStats.totalThreats) * 100).toFixed(1)}%
+                {threatStats.totalThreats > 0 ? 
+                  ((threatStats.mediumThreats / threatStats.totalThreats) * 100).toFixed(1) : '0'}%
               </div>
             </div>
             <div className="text-center p-4 border rounded-lg">
-              <div className="text-3xl font-bold text-green-600">{threatStats.lowThreats}</div>
+              <div className="text-3xl font-bold text-green-600">
+                {isLoading ? '...' : threatStats.lowThreats}
+              </div>
               <div className="text-sm text-gray-500">Low</div>
               <div className="text-xs text-gray-400">
-                {((threatStats.lowThreats / threatStats.totalThreats) * 100).toFixed(1)}%
+                {threatStats.totalThreats > 0 ? 
+                  ((threatStats.lowThreats / threatStats.totalThreats) * 100).toFixed(1) : '0'}%
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Recent High-Priority Threats with Enhanced Escalation */}
+      {/* Recent High-Priority Threats - Now with real data */}
       <Card>
         <CardHeader>
           <CardTitle>Recent High-Priority Threats</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {recentThreats.map((threat) => (
-              <div key={threat.id} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-start space-x-3">
-                  <AlertTriangle className={`h-5 w-5 mt-0.5 ${
-                    threat.severity === 'critical' ? 'text-red-600' : 
-                    threat.severity === 'high' ? 'text-orange-600' : 
-                    'text-yellow-600'
-                  }`} />
-                  <div>
-                    <div className="font-medium">{threat.title}</div>
-                    <div className="text-sm text-gray-500">{threat.id}</div>
-                    <div className="text-sm text-gray-500">
-                      {threat.affectedSystems} affected systems • 
-                      Detected {new Date(threat.detectedAt).toLocaleString()}
+          {isLoading ? (
+            <div className="text-center py-8 text-gray-500">Loading threat data...</div>
+          ) : recentThreats.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Shield className="h-12 w-12 mx-auto mb-4 text-green-500" />
+              <p>No high-priority threats detected</p>
+              <p className="text-sm">Your systems appear to be secure</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {recentThreats.map((threat) => (
+                <div key={threat.id} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-start space-x-3">
+                    <AlertTriangle className={`h-5 w-5 mt-0.5 ${
+                      threat.severity === 'critical' ? 'text-red-600' : 
+                      threat.severity === 'high' ? 'text-orange-600' : 
+                      'text-yellow-600'
+                    }`} />
+                    <div>
+                      <div className="font-medium">{threat.title}</div>
+                      <div className="text-sm text-gray-500">{threat.id}</div>
+                      <div className="text-sm text-gray-500">
+                        {threat.affectedSystems} affected systems • 
+                        Detected {new Date(threat.detectedAt).toLocaleString()}
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <Badge className={getSeverityColor(threat.severity) + " capitalize"}>
-                    {threat.severity}
-                  </Badge>
-                  <Badge className={getStatusColor(threat.status) + " capitalize"}>
-                    {threat.status}
-                  </Badge>
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleViewThreatDetails(threat)}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-2xl">
-                      <DialogHeader>
-                        <DialogTitle className="flex items-center space-x-2">
-                          <AlertTriangle className={`h-5 w-5 ${
-                            threat.severity === 'critical' ? 'text-red-600' : 
-                            threat.severity === 'high' ? 'text-orange-600' : 
-                            'text-yellow-600'
-                          }`} />
-                          <span>{threat.title}</span>
-                        </DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div className="flex items-center space-x-4">
-                          <Badge className={getSeverityColor(threat.severity) + " capitalize"}>
-                            {threat.severity}
-                          </Badge>
-                          <Badge className={getStatusColor(threat.status) + " capitalize"}>
-                            {threat.status}
-                          </Badge>
-                          <span className="text-sm text-gray-500">{threat.id}</span>
-                        </div>
-                        
-                        <div>
-                          <h4 className="font-semibold mb-2">Description</h4>
-                          <p className="text-sm text-gray-600">{threat.description}</p>
-                        </div>
-                        
-                        <div>
-                          <h4 className="font-semibold mb-2">Impact</h4>
-                          <p className="text-sm text-gray-600">{threat.impact}</p>
-                        </div>
-                        
-                        <div>
-                          <h4 className="font-semibold mb-2">Recommendation</h4>
-                          <p className="text-sm text-gray-600">{threat.recommendation}</p>
-                        </div>
-                        
-                        <div>
-                          <h4 className="font-semibold mb-2 flex items-center space-x-2">
-                            <Users className="h-4 w-4" />
-                            <span>Affected Endpoints ({threat.affectedSystems})</span>
-                          </h4>
-                          <div className="flex flex-wrap gap-2">
-                            {threat.affectedEndpoints.map((endpoint, index) => (
-                              <Badge key={index} variant="outline" className="text-xs">
-                                {endpoint}
-                              </Badge>
-                            ))}
+                  <div className="flex items-center space-x-3">
+                    <Badge className={getSeverityColor(threat.severity) + " capitalize"}>
+                      {threat.severity}
+                    </Badge>
+                    <Badge className={getStatusColor(threat.status) + " capitalize"}>
+                      {threat.status}
+                    </Badge>
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleViewThreatDetails(threat)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-2xl">
+                        <DialogHeader>
+                          <DialogTitle className="flex items-center space-x-2">
+                            <AlertTriangle className={`h-5 w-5 ${
+                              threat.severity === 'critical' ? 'text-red-600' : 
+                              threat.severity === 'high' ? 'text-orange-600' : 
+                              'text-yellow-600'
+                            }`} />
+                            <span>{threat.title}</span>
+                          </DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div className="flex items-center space-x-4">
+                            <Badge className={getSeverityColor(threat.severity) + " capitalize"}>
+                              {threat.severity}
+                            </Badge>
+                            <Badge className={getStatusColor(threat.status) + " capitalize"}>
+                              {threat.status}
+                            </Badge>
+                            <span className="text-sm text-gray-500">{threat.id}</span>
                           </div>
-                        </div>
-                        
-                        <div className="flex items-center space-x-2 text-sm text-gray-500">
-                          <Calendar className="h-4 w-4" />
-                          <span>Detected: {new Date(threat.detectedAt).toLocaleString()}</span>
-                        </div>
-                        
-                        <div className="flex space-x-2 pt-4">
-                          <Button 
-                            onClick={() => handleAssignThreat(threat)}
-                            className="flex-1"
-                          >
-                            <UserCheck className="h-4 w-4 mr-2" />
-                            Assign to Team
-                          </Button>
-                          {threat.severity === 'critical' && (
+                          
+                          <div>
+                            <h4 className="font-semibold mb-2">Description</h4>
+                            <p className="text-sm text-gray-600">{threat.description}</p>
+                          </div>
+                          
+                          <div>
+                            <h4 className="font-semibold mb-2">Impact</h4>
+                            <p className="text-sm text-gray-600">{threat.impact}</p>
+                          </div>
+                          
+                          <div>
+                            <h4 className="font-semibold mb-2">Recommendation</h4>
+                            <p className="text-sm text-gray-600">{threat.recommendation}</p>
+                          </div>
+                          
+                          <div>
+                            <h4 className="font-semibold mb-2 flex items-center space-x-2">
+                              <Users className="h-4 w-4" />
+                              <span>Affected Endpoints ({threat.affectedSystems})</span>
+                            </h4>
+                            <div className="flex flex-wrap gap-2">
+                              {threat.affectedEndpoints.map((endpoint, index) => (
+                                <Badge key={index} variant="outline" className="text-xs">
+                                  {endpoint}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center space-x-2 text-sm text-gray-500">
+                            <Calendar className="h-4 w-4" />
+                            <span>Detected: {new Date(threat.detectedAt).toLocaleString()}</span>
+                          </div>
+                          
+                          <div className="flex space-x-2 pt-4">
                             <Button 
-                              variant="destructive"
-                              onClick={() => handleEscalateThreat(threat)}
+                              onClick={() => handleAssignThreat(threat)}
                               className="flex-1"
                             >
-                              <AlertCircle className="h-4 w-4 mr-2" />
-                              Escalate
+                              <UserCheck className="h-4 w-4 mr-2" />
+                              Assign to Team
                             </Button>
-                          )}
-                          <Button 
-                            variant="outline" 
-                            className="flex items-center space-x-2"
-                            onClick={() => handleViewCVE(threat.id)}
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                            <span>View CVE</span>
-                          </Button>
+                            {threat.severity === 'critical' && (
+                              <Button 
+                                variant="destructive"
+                                onClick={() => handleEscalateThreat(threat)}
+                                className="flex-1"
+                              >
+                                <AlertCircle className="h-4 w-4 mr-2" />
+                                Escalate
+                              </Button>
+                            )}
+                            <Button 
+                              variant="outline" 
+                              className="flex items-center space-x-2"
+                              onClick={() => handleViewCVE(threat.id)}
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                              <span>View CVE</span>
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -622,7 +714,7 @@ export default function AdminThreatSummary() {
         </DialogContent>
       </Dialog>
 
-      {/* Threat Trends */}
+      {/* Threat Trends - Now with real data */}
       <Card>
         <CardHeader>
           <CardTitle>Threat Trends</CardTitle>

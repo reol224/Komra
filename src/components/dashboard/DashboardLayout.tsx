@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,12 +28,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DashboardDataService, RiskMetrics } from "@/lib/dashboardDataService";
 
 // Import role-specific components
 import AdminUserManagement from "./admin/AdminUserManagement";
 import AdminSystemHealth from "./admin/AdminSystemHealth";
 import AdminThreatSummary from "./admin/AdminThreatSummary";
 import AdminAuditTrail from "./admin/AdminAuditTrail";
+import BackgroundCollectionManager from "./BackgroundCollectionManager";
 
 import AnalystThreatFeed from "./analyst/AnalystThreatFeed";
 import AnalystIncidentResponse from "./analyst/AnalystIncidentResponse";
@@ -57,6 +59,9 @@ interface DashboardStats {
   criticalVulns: number;
   activeIncidents: number;
   complianceScore: number;
+  healthyEndpoints: number;
+  vulnerableEndpoints: number;
+  criticalEndpoints: number;
 }
 
 const mockStats: DashboardStats = {
@@ -64,12 +69,25 @@ const mockStats: DashboardStats = {
   criticalVulns: 12,
   activeIncidents: 3,
   complianceScore: 87,
+  healthyEndpoints: 115,
+  vulnerableEndpoints: 12,
+  criticalEndpoints: 12,
 };
 
 export default function DashboardLayout() {
   const [currentUser, setCurrentUser] = useState(mockUser);
   const [selectedTab, setSelectedTab] = useState("overview");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
+    totalEndpoints: 0,
+    criticalVulns: 0,
+    activeIncidents: 0,
+    complianceScore: 0,
+    healthyEndpoints: 0,
+    vulnerableEndpoints: 0,
+    criticalEndpoints: 0,
+  });
+  const [isLoading, setIsLoading] = useState(true);
   const [settings, setSettings] = useState({
     autoRefresh: true,
     refreshInterval: "30",
@@ -78,6 +96,59 @@ export default function DashboardLayout() {
     compactView: false,
     showAdvancedMetrics: true
   });
+
+  const dashboardService = new DashboardDataService();
+
+  // Load real dashboard data
+  useEffect(() => {
+    loadDashboardData();
+    
+    // Set up auto-refresh if enabled
+    let interval: NodeJS.Timeout;
+    if (settings.autoRefresh) {
+      interval = setInterval(() => {
+        loadDashboardData();
+      }, parseInt(settings.refreshInterval) * 1000);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [settings.autoRefresh, settings.refreshInterval]);
+
+  const loadDashboardData = async () => {
+    try {
+      setIsLoading(true);
+      const [endpoints, riskMetrics] = await Promise.all([
+        dashboardService.getEndpoints(),
+        dashboardService.getRiskMetrics()
+      ]);
+
+      // Calculate compliance score based on vulnerability ratio
+      const complianceScore = Math.max(0, 100 - Math.round((riskMetrics.criticalCount + riskMetrics.highCount) / Math.max(riskMetrics.totalEndpoints, 1) * 100));
+
+      setDashboardStats({
+        totalEndpoints: riskMetrics.totalEndpoints,
+        criticalVulns: riskMetrics.criticalCount + riskMetrics.highCount,
+        activeIncidents: riskMetrics.criticalCount, // Critical vulns as active incidents
+        complianceScore,
+        healthyEndpoints: riskMetrics.healthyEndpoints,
+        vulnerableEndpoints: riskMetrics.vulnerableEndpoints,
+        criticalEndpoints: riskMetrics.criticalEndpoints,
+      });
+
+      console.log('📊 Dashboard data loaded:', {
+        endpoints: endpoints.length,
+        critical: riskMetrics.criticalCount,
+        compliance: complianceScore
+      });
+    } catch (error) {
+      console.error('❌ Error loading dashboard data:', error);
+      // Keep existing mock data on error
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // TEMPORARY: Role switcher for testing - DELETE AFTER TESTING
   const handleRoleChange = (newRole: "admin" | "analyst" | "viewer") => {
@@ -112,7 +183,7 @@ export default function DashboardLayout() {
 
   const renderAdminDashboard = () => (
     <div className="space-y-6">
-      {/* Admin Overview Stats */}
+      {/* Admin Overview Stats - Now with real data */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -122,9 +193,11 @@ export default function DashboardLayout() {
             <Server className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockStats.totalEndpoints}</div>
+            <div className="text-2xl font-bold">
+              {isLoading ? "..." : dashboardStats.totalEndpoints}
+            </div>
             <p className="text-xs text-muted-foreground">
-              +12% from last month
+              {dashboardStats.healthyEndpoints} healthy, {dashboardStats.vulnerableEndpoints} vulnerable
             </p>
           </CardContent>
         </Card>
@@ -138,9 +211,11 @@ export default function DashboardLayout() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600">
-              {mockStats.criticalVulns}
+              {isLoading ? "..." : dashboardStats.criticalVulns}
             </div>
-            <p className="text-xs text-muted-foreground">-3 from last week</p>
+            <p className="text-xs text-muted-foreground">
+              {dashboardStats.criticalEndpoints} endpoints affected
+            </p>
           </CardContent>
         </Card>
 
@@ -153,9 +228,11 @@ export default function DashboardLayout() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-orange-600">
-              {mockStats.activeIncidents}
+              {isLoading ? "..." : dashboardStats.activeIncidents}
             </div>
-            <p className="text-xs text-muted-foreground">2 resolved today</p>
+            <p className="text-xs text-muted-foreground">
+              Requires immediate attention
+            </p>
           </CardContent>
         </Card>
 
@@ -167,21 +244,28 @@ export default function DashboardLayout() {
             <CheckCircle className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {mockStats.complianceScore}%
+            <div className={`text-2xl font-bold ${
+              dashboardStats.complianceScore >= 80 ? 'text-green-600' : 
+              dashboardStats.complianceScore >= 60 ? 'text-yellow-600' : 'text-red-600'
+            }`}>
+              {isLoading ? "..." : `${dashboardStats.complianceScore}%`}
             </div>
-            <p className="text-xs text-muted-foreground">+5% improvement</p>
+            <p className="text-xs text-muted-foreground">
+              {dashboardStats.complianceScore >= 80 ? 'Good' : 
+               dashboardStats.complianceScore >= 60 ? 'Needs improvement' : 'Critical'}
+            </p>
           </CardContent>
         </Card>
       </div>
 
       {/* Admin Tabs */}
       <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="users">User Management</TabsTrigger>
           <TabsTrigger value="system">System Health</TabsTrigger>
           <TabsTrigger value="audit">Audit Trail</TabsTrigger>
+          <TabsTrigger value="collection">Background Collection</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -202,13 +286,17 @@ export default function DashboardLayout() {
         <TabsContent value="audit">
           <AdminAuditTrail />
         </TabsContent>
+
+        <TabsContent value="collection">
+          <BackgroundCollectionManager />
+        </TabsContent>
       </Tabs>
     </div>
   );
 
   const renderAnalystDashboard = () => (
     <div className="space-y-6">
-      {/* Analyst Overview Stats */}
+      {/* Analyst Overview Stats - Enhanced with real data */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -218,8 +306,12 @@ export default function DashboardLayout() {
             <Shield className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">24</div>
-            <p className="text-xs text-muted-foreground">+6 new today</p>
+            <div className="text-2xl font-bold text-red-600">
+              {isLoading ? "..." : dashboardStats.criticalVulns}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {dashboardStats.criticalEndpoints} endpoints at risk
+            </p>
           </CardContent>
         </Card>
 
@@ -231,21 +323,29 @@ export default function DashboardLayout() {
             <Search className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">8</div>
-            <p className="text-xs text-muted-foreground">3 high priority</p>
+            <div className="text-2xl font-bold text-orange-600">
+              {Math.ceil(dashboardStats.criticalVulns / 3)}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {dashboardStats.activeIncidents} high priority
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Reports Generated
+              Monitored Systems
             </CardTitle>
-            <FileText className="h-4 w-4 text-blue-500" />
+            <Server className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">15</div>
-            <p className="text-xs text-muted-foreground">This month</p>
+            <div className="text-2xl font-bold text-blue-600">
+              {isLoading ? "..." : dashboardStats.totalEndpoints}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {dashboardStats.healthyEndpoints} healthy systems
+            </p>
           </CardContent>
         </Card>
 
@@ -291,17 +391,23 @@ export default function DashboardLayout() {
 
   const renderViewerDashboard = () => (
     <div className="space-y-6">
-      {/* Viewer Overview Stats - Read-only */}
+      {/* Viewer Overview Stats - Read-only with real data */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">System Status</CardTitle>
-            <Activity className="h-4 w-4 text-green-500" />
+            <Activity className={`h-4 w-4 ${
+              dashboardStats.criticalEndpoints === 0 ? 'text-green-500' : 'text-red-500'
+            }`} />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">Healthy</div>
+            <div className={`text-2xl font-bold ${
+              dashboardStats.criticalEndpoints === 0 ? 'text-green-600' : 'text-red-600'
+            }`}>
+              {dashboardStats.criticalEndpoints === 0 ? 'Healthy' : 'At Risk'}
+            </div>
             <p className="text-xs text-muted-foreground">
-              All systems operational
+              {dashboardStats.totalEndpoints} systems monitored
             </p>
           </CardContent>
         </Card>
@@ -312,8 +418,12 @@ export default function DashboardLayout() {
             <Bell className="h-4 w-4 text-yellow-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">7</div>
-            <p className="text-xs text-muted-foreground">2 require attention</p>
+            <div className="text-2xl font-bold text-yellow-600">
+              {isLoading ? "..." : dashboardStats.criticalVulns}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {dashboardStats.activeIncidents} require attention
+            </p>
           </CardContent>
         </Card>
 
@@ -325,9 +435,14 @@ export default function DashboardLayout() {
             <CheckCircle className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">87%</div>
+            <div className={`text-2xl font-bold ${
+              dashboardStats.complianceScore >= 80 ? 'text-green-600' : 
+              dashboardStats.complianceScore >= 60 ? 'text-yellow-600' : 'text-red-600'
+            }`}>
+              {isLoading ? "..." : `${dashboardStats.complianceScore}%`}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Within acceptable range
+              {dashboardStats.complianceScore >= 80 ? 'Within acceptable range' : 'Needs attention'}
             </p>
           </CardContent>
         </Card>
@@ -338,9 +453,11 @@ export default function DashboardLayout() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">2m ago</div>
+            <div className="text-2xl font-bold">
+              {settings.autoRefresh ? `${settings.refreshInterval}s` : 'Manual'}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Auto-refresh enabled
+              {settings.autoRefresh ? 'Auto-refresh enabled' : 'Manual refresh only'}
             </p>
           </CardContent>
         </Card>

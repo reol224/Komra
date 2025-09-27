@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -29,48 +29,77 @@ import {
   Pie,
   Cell,
 } from "recharts";
+import DashboardDataService from "@/lib/dashboardDataService";
 
-const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
+const COLORS = ["#7C3AED", "#DC2626", "#F97316", "#16A34A", "#64748B"];
 
 interface ChartData {
   name: string;
   value: number;
   color?: string;
-  [key: string]: any; // Add index signature for Recharts compatibility
+  [key: string]: any;
 }
 
 const RiskAssessment = () => {
   const [timeRange, setTimeRange] = useState<string>("30days");
   const [selectedChart, setSelectedChart] = useState<string>("severity");
   const [selectedCVE, setSelectedCVE] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [chartData, setChartData] = useState<{
+    severityData: ChartData[];
+    environmentData: ChartData[];
+    statusData: ChartData[];
+    osTypeData: ChartData[];
+  }>({
+    severityData: [],
+    environmentData: [],
+    statusData: [],
+    osTypeData: []
+  });
 
-  // Mock data for different chart types with updated colors
-  const severityData: ChartData[] = [
-    { name: "Critical", value: 12, color: "#DC2626" },
-    { name: "High", value: 24, color: "#F97316" },
-    { name: "Medium", value: 47, color: "#EAB308" },
-    { name: "Low", value: 31, color: "#3B82F6" },
-    { name: "Info", value: 18, color: "#64748B" },
-  ];
+  const dashboardService = new DashboardDataService();
 
-  const environmentData: ChartData[] = [
-    { name: "Production", value: 42, color: "#DC2626" },
-    { name: "Testing", value: 28, color: "#EAB308" },
-    { name: "Development", value: 62, color: "#3B82F6" },
-  ];
+  useEffect(() => {
+    loadRiskData();
+  }, [timeRange]);
 
-  const osTypeData: ChartData[] = [
-    { name: "Windows 10", value: 35, color: "#3B82F6" },
-    { name: "Windows Server", value: 48, color: "#64748B" },
-    { name: "Red Hat Linux", value: 49, color: "#DC2626" },
-  ];
+  const loadRiskData = async () => {
+    try {
+      setLoading(true);
+      
+      const [vulnerabilities, endpoints, distribution] = await Promise.all([
+        dashboardService.getVulnerabilities(),
+        dashboardService.getEndpoints(),
+        dashboardService.getVulnerabilityDistribution()
+      ]);
 
-  const statusData: ChartData[] = [
-    { name: "Open", value: 65, color: "#DC2626" },
-    { name: "In Progress", value: 32, color: "#EAB308" },
-    { name: "Resolved", value: 43, color: "#16A34A" },
-  ];
+      // OS Type distribution based on endpoints
+      const osTypes = endpoints.reduce((acc, endpoint) => {
+        const osType = endpoint.osType;
+        acc[osType] = (acc[osType] || 0) + endpoint.vulnerablePackages;
+        return acc;
+      }, {} as Record<string, number>);
 
+      const osTypeData: ChartData[] = Object.entries(osTypes).map(([name, value], index) => ({
+        name,
+        value,
+        color: COLORS[index % COLORS.length]
+      }));
+
+      setChartData({
+        severityData: distribution.severityData,
+        environmentData: distribution.environmentData,
+        statusData: distribution.statusData,
+        osTypeData
+      });
+    } catch (error) {
+      console.error('Error loading risk data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Mock remediation progress data - in real implementation, this would come from historical data
   const remediationProgressData = [
     { name: "Jan", open: 65, resolved: 12 },
     { name: "Feb", open: 59, resolved: 18 },
@@ -80,28 +109,38 @@ const RiskAssessment = () => {
     { name: "Jun", open: 35, resolved: 42 },
   ];
 
-  // Get the appropriate data based on the selected chart type
   const getChartData = () => {
     switch (selectedChart) {
       case "severity":
-        return severityData;
+        return chartData.severityData;
       case "environment":
-        return environmentData;
+        return chartData.environmentData;
       case "osType":
-        return osTypeData;
+        return chartData.osTypeData;
       case "status":
-        return statusData;
+        return chartData.statusData;
       default:
-        return severityData;
+        return chartData.severityData;
     }
   };
 
-  // Handle chart click to drill down to specific vulnerabilities
   const handleChartClick = (data: any, index: number) => {
     setSelectedCVE(data.name);
-    // In a real implementation, this would fetch the related CVEs for the selected category
     console.log(`Selected ${data.name} with ${data.value} vulnerabilities`);
   };
+
+  if (loading) {
+    return (
+      <div className="w-full h-full p-6 bg-slate-800 rounded-lg border border-slate-700">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-4"></div>
+            <p className="text-slate-300">Loading risk assessment data...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-full p-6 bg-slate-800 rounded-lg border border-slate-700">
@@ -125,7 +164,9 @@ const RiskAssessment = () => {
           <TabsTrigger value="distribution" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white">
             Vulnerability Distribution
           </TabsTrigger>
-          <TabsTrigger value="trends" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white">Remediation Trends</TabsTrigger>
+          <TabsTrigger value="trends" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white">
+            Remediation Trends
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="distribution" className="space-y-6">
@@ -143,9 +184,7 @@ const RiskAssessment = () => {
                     </SelectTrigger>
                     <SelectContent className="bg-slate-700 border-slate-600">
                       <SelectItem value="severity">By Severity</SelectItem>
-                      <SelectItem value="environment">
-                        By Environment
-                      </SelectItem>
+                      <SelectItem value="environment">By Environment</SelectItem>
                       <SelectItem value="osType">By OS Type</SelectItem>
                       <SelectItem value="status">By Status</SelectItem>
                     </SelectContent>
@@ -265,12 +304,15 @@ const RiskAssessment = () => {
               <CardContent>
                 <div className="border border-slate-600 rounded-md p-4 bg-slate-600">
                   <p className="text-slate-300">
-                    In a real implementation, this would show a table of CVEs
-                    related to the selected category.
+                    Showing vulnerabilities for the selected category. In a full implementation, 
+                    this would display a filtered table of specific CVEs.
                   </p>
                   <p className="mt-2 text-slate-200">
                     Selected category:{" "}
                     <span className="font-medium text-white">{selectedCVE}</span>
+                  </p>
+                  <p className="mt-1 text-slate-300">
+                    Count: {getChartData().find(item => item.name === selectedCVE)?.value || 0} vulnerabilities
                   </p>
                 </div>
               </CardContent>
@@ -283,7 +325,7 @@ const RiskAssessment = () => {
             <CardHeader>
               <CardTitle className="text-white">Remediation Progress Over Time</CardTitle>
               <CardDescription className="text-slate-300">
-                Tracking open vs. resolved vulnerabilities
+                Tracking open vs. resolved vulnerabilities (sample data)
               </CardDescription>
             </CardHeader>
             <CardContent>
