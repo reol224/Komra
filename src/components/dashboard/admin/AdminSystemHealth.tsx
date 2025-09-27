@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Activity, Server, Database, Wifi, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 import { DashboardDataService, DashboardEndpoint, RiskMetrics } from '@/lib/dashboardDataService';
+import { SystemResourceService, SystemResourceMetrics } from '@/lib/systemResourceService';
 
 interface SystemMetrics {
   uptime: string;
@@ -57,8 +58,10 @@ export default function AdminSystemHealth() {
   const [recentEvents, setRecentEvents] = useState<SystemEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [endpoints, setEndpoints] = useState<DashboardEndpoint[]>([]);
+  const [realResourceMetrics, setRealResourceMetrics] = useState<SystemResourceMetrics | null>(null);
 
   const dashboardService = new DashboardDataService();
+  const resourceService = new SystemResourceService();
 
   // Load real system health data
   useEffect(() => {
@@ -72,12 +75,17 @@ export default function AdminSystemHealth() {
   const loadSystemHealthData = async () => {
     try {
       setIsLoading(true);
-      const [endpointsData, riskMetrics] = await Promise.all([
+      const [endpointsData, riskMetrics, resourceMetrics] = await Promise.all([
         dashboardService.getEndpoints(),
-        dashboardService.getRiskMetrics()
+        dashboardService.getRiskMetrics(),
+        resourceService.getSystemResourceMetrics()
       ]);
 
       setEndpoints(endpointsData);
+      setRealResourceMetrics(resourceMetrics);
+
+      // Store the metrics for historical tracking
+      await resourceService.storeResourceMetrics(resourceMetrics);
 
       // Calculate system metrics from real data
       const totalEndpoints = endpointsData.length;
@@ -89,31 +97,27 @@ export default function AdminSystemHealth() {
       const uptimePercentage = totalEndpoints > 0 ? 
         ((healthyEndpoints + vulnerableEndpoints) / totalEndpoints * 100).toFixed(1) : '100.0';
 
-      // Simulate system performance metrics (in a real system, these would come from monitoring tools)
-      const avgResponseTime = criticalEndpoints > 0 ? '250ms' : 
-                             vulnerableEndpoints > 0 ? '180ms' : '145ms';
+      // Response time based on network latency and system load
+      const avgResponseTime = resourceMetrics.networkLatency > 20 ? `${Math.round(resourceMetrics.networkLatency * 8)}ms` : 
+                             resourceMetrics.networkLatency > 15 ? `${Math.round(resourceMetrics.networkLatency * 6)}ms` : 
+                             `${Math.round(resourceMetrics.networkLatency * 4)}ms`;
       
       const activeConnections = Math.floor(totalEndpoints * 12.5); // Simulate connections per endpoint
       
-      // Database health based on system status
+      // Database health based on system status and resource usage
       const databaseHealth: 'healthy' | 'warning' | 'error' = 
-        criticalEndpoints > 0 ? 'error' :
-        vulnerableEndpoints > 5 ? 'warning' : 'healthy';
-
-      // Resource usage simulation based on system load
-      const memoryUsage = Math.min(95, 45 + (vulnerableEndpoints * 3) + (criticalEndpoints * 8));
-      const cpuUsage = Math.min(90, 25 + (vulnerableEndpoints * 2) + (criticalEndpoints * 10));
-      const diskUsage = Math.min(85, 30 + (totalEndpoints * 1.5));
+        criticalEndpoints > 0 || resourceMetrics.cpuUsage > 85 ? 'error' :
+        vulnerableEndpoints > 5 || resourceMetrics.memoryUsage > 80 ? 'warning' : 'healthy';
 
       setSystemMetrics({
         uptime: `${uptimePercentage}%`,
         responseTime: avgResponseTime,
         activeConnections,
         databaseHealth,
-        memoryUsage,
-        cpuUsage,
-        diskUsage,
-        networkLatency: criticalEndpoints > 0 ? '25ms' : '12ms',
+        memoryUsage: resourceMetrics.memoryUsage,
+        cpuUsage: resourceMetrics.cpuUsage,
+        diskUsage: resourceMetrics.diskUsage,
+        networkLatency: `${Math.round(resourceMetrics.networkLatency)}ms`,
         totalEndpoints,
         healthyEndpoints,
         vulnerableEndpoints,
@@ -124,42 +128,45 @@ export default function AdminSystemHealth() {
       const serviceStatuses: ServiceStatus[] = [
         {
           name: 'Web Server',
-          status: criticalEndpoints > 0 ? 'warning' : 'healthy',
+          status: criticalEndpoints > 0 || resourceMetrics.cpuUsage > 80 ? 'warning' : 'healthy',
           uptime: `${uptimePercentage}%`,
           lastCheck: '2 min ago',
-          details: `Serving ${totalEndpoints} endpoints`
+          details: `Serving ${totalEndpoints} endpoints • CPU: ${resourceMetrics.cpuUsage}%`
         },
         {
           name: 'Database',
           status: databaseHealth,
           uptime: databaseHealth === 'error' ? '98.5%' : '99.8%',
           lastCheck: '1 min ago',
-          details: `${endpointsData.reduce((sum, e) => sum + e.totalPackages, 0)} packages tracked`
+          details: `${endpointsData.reduce((sum, e) => sum + e.totalPackages, 0)} packages tracked • Memory: ${resourceMetrics.memoryUsage}%`
         },
         {
           name: 'Authentication Service',
-          status: 'healthy',
-          uptime: '100%',
-          lastCheck: '30 sec ago'
+          status: resourceMetrics.networkLatency > 25 ? 'warning' : 'healthy',
+          uptime: resourceMetrics.networkLatency > 25 ? '99.2%' : '100%',
+          lastCheck: '30 sec ago',
+          details: `Latency: ${Math.round(resourceMetrics.networkLatency)}ms`
         },
         {
           name: 'Vulnerability Scanner',
           status: criticalEndpoints > 0 ? 'error' : vulnerableEndpoints > 0 ? 'warning' : 'healthy',
           uptime: criticalEndpoints > 0 ? '95.2%' : '98.5%',
           lastCheck: '5 min ago',
-          details: `${riskMetrics.criticalCount + riskMetrics.highCount} active threats`
+          details: `${riskMetrics.criticalCount + riskMetrics.highCount} active threats • CPU: ${resourceMetrics.cpuUsage}%`
         },
         {
           name: 'Report Generator',
-          status: 'healthy',
-          uptime: '99.7%',
-          lastCheck: '1 min ago'
+          status: resourceMetrics.diskUsage > 80 ? 'warning' : 'healthy',
+          uptime: resourceMetrics.diskUsage > 80 ? '99.1%' : '99.7%',
+          lastCheck: '1 min ago',
+          details: `Disk: ${resourceMetrics.diskUsage}%`
         },
         {
           name: 'Audit Logger',
-          status: 'healthy',
-          uptime: '99.9%',
-          lastCheck: '45 sec ago'
+          status: resourceMetrics.memoryUsage > 85 ? 'warning' : 'healthy',
+          uptime: resourceMetrics.memoryUsage > 85 ? '99.3%' : '99.9%',
+          lastCheck: '45 sec ago',
+          details: `Memory: ${resourceMetrics.memoryUsage}%`
         }
       ];
 
@@ -168,10 +175,47 @@ export default function AdminSystemHealth() {
       // Generate recent events from real data
       const events: SystemEvent[] = [];
       
+      // Add events based on real resource usage
+      if (resourceMetrics.cpuUsage > 80) {
+        events.push({
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          type: 'warning',
+          message: `High CPU usage detected: ${resourceMetrics.cpuUsage}%`,
+          source: 'System Monitor'
+        });
+      }
+
+      if (resourceMetrics.memoryUsage > 80) {
+        events.push({
+          time: new Date(Date.now() - 2 * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          type: 'warning',
+          message: `High memory usage detected: ${resourceMetrics.memoryUsage}%`,
+          source: 'System Monitor'
+        });
+      }
+
+      if (resourceMetrics.diskUsage > 75) {
+        events.push({
+          time: new Date(Date.now() - 3 * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          type: 'warning',
+          message: `Disk usage approaching capacity: ${resourceMetrics.diskUsage}%`,
+          source: 'Storage Monitor'
+        });
+      }
+
+      if (resourceMetrics.networkLatency > 25) {
+        events.push({
+          time: new Date(Date.now() - 4 * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          type: 'warning',
+          message: `Network latency elevated: ${Math.round(resourceMetrics.networkLatency)}ms`,
+          source: 'Network Monitor'
+        });
+      }
+      
       // Add events based on system status
       if (criticalEndpoints > 0) {
         events.push({
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          time: new Date(Date.now() - 1 * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           type: 'error',
           message: `${criticalEndpoints} critical vulnerabilities detected across monitored systems`,
           source: 'Vulnerability Scanner'
@@ -202,23 +246,30 @@ export default function AdminSystemHealth() {
         source: 'Backup Service'
       });
 
-      if (memoryUsage > 80) {
+      // Resource optimization event
+      if (resourceMetrics.cpuUsage < 30 && resourceMetrics.memoryUsage < 50) {
         events.push({
-          time: new Date(Date.now() - 20 * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          type: 'warning',
-          message: `High memory usage detected: ${memoryUsage}%`,
-          source: 'System Monitor'
+          time: new Date(Date.now() - 25 * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          type: 'info',
+          message: 'System resources optimized - performance stable',
+          source: 'Resource Manager'
         });
       }
 
-      setRecentEvents(events.slice(0, 5));
+      setRecentEvents(events.slice(0, 6));
 
-      console.log('🏥 System health data loaded:', {
+      console.log('🏥 System health data loaded with real resource metrics:', {
         endpoints: totalEndpoints,
         healthy: healthyEndpoints,
         vulnerable: vulnerableEndpoints,
         critical: criticalEndpoints,
-        uptime: uptimePercentage
+        uptime: uptimePercentage,
+        realMetrics: {
+          cpu: resourceMetrics.cpuUsage,
+          memory: resourceMetrics.memoryUsage,
+          disk: resourceMetrics.diskUsage,
+          network: resourceMetrics.networkLatency
+        }
       });
 
     } catch (error) {

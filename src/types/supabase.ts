@@ -766,6 +766,36 @@ export type Database = {
           },
         ]
       }
+      system_metrics: {
+        Row: {
+          cpu_usage: number
+          created_at: string | null
+          disk_usage: number
+          id: number
+          memory_usage: number
+          network_latency: number
+          recorded_at: string | null
+        }
+        Insert: {
+          cpu_usage: number
+          created_at?: string | null
+          disk_usage: number
+          id?: number
+          memory_usage: number
+          network_latency: number
+          recorded_at?: string | null
+        }
+        Update: {
+          cpu_usage?: number
+          created_at?: string | null
+          disk_usage?: number
+          id?: number
+          memory_usage?: number
+          network_latency?: number
+          recorded_at?: string | null
+        }
+        Relationships: []
+      }
       triage_actions: {
         Row: {
           assigned_to: string | null
