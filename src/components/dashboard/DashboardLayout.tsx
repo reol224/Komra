@@ -23,11 +23,15 @@ import {
   UserCheck,
   BarChart3,
   Clock,
+  Plus,
+  Trash2,
+  RefreshCw,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { DashboardDataService, RiskMetrics } from "@/lib/dashboardDataService";
 
 // Import role-specific components
@@ -92,10 +96,16 @@ export default function DashboardLayout() {
     autoRefresh: true,
     refreshInterval: "30",
     notifications: true,
-    darkMode: false,
-    compactView: false,
-    showAdvancedMetrics: true
+    logSources: [
+      { id: '1', name: 'Windows Event Logs', enabled: true, type: 'windows' },
+      { id: '2', name: 'Linux Syslog', enabled: true, type: 'linux' },
+      { id: '3', name: 'Application Logs', enabled: false, type: 'application' },
+      { id: '4', name: 'Network Logs', enabled: true, type: 'network' },
+      { id: '5', name: 'Security Logs', enabled: true, type: 'security' }
+    ]
   });
+
+  const [newLogSource, setNewLogSource] = useState({ name: '', type: 'application' });
 
   const dashboardService = new DashboardDataService();
 
@@ -103,18 +113,42 @@ export default function DashboardLayout() {
   useEffect(() => {
     loadDashboardData();
     
-    // Set up auto-refresh if enabled
+    // Set up auto-refresh if enabled - this overrides the 30 second default
     let interval: NodeJS.Timeout;
     if (settings.autoRefresh) {
+      const intervalMs = parseInt(settings.refreshInterval) * 1000;
+      console.log(`🔄 Auto-refresh enabled: ${settings.refreshInterval}s interval`);
+      
       interval = setInterval(() => {
+        console.log('🔄 Auto-refreshing dashboard data...');
         loadDashboardData();
-      }, parseInt(settings.refreshInterval) * 1000);
+        
+        // Show notification if enabled
+        if (settings.notifications && 'Notification' in window) {
+          // Request permission if not granted
+          if (Notification.permission === 'default') {
+            Notification.requestPermission();
+          }
+          
+          // Show notification for critical updates
+          if (Notification.permission === 'granted' && dashboardStats.criticalVulns > 0) {
+            new Notification('Komra Security Alert', {
+              body: `${dashboardStats.criticalVulns} critical vulnerabilities detected`,
+              icon: '/favicon.ico',
+              tag: 'security-alert'
+            });
+          }
+        }
+      }, intervalMs);
     }
 
     return () => {
-      if (interval) clearInterval(interval);
+      if (interval) {
+        clearInterval(interval);
+        console.log('🔄 Auto-refresh interval cleared');
+      }
     };
-  }, [settings.autoRefresh, settings.refreshInterval]);
+  }, [settings.autoRefresh, settings.refreshInterval, settings.notifications, dashboardStats.criticalVulns]);
 
   const loadDashboardData = async () => {
     try {
@@ -179,6 +213,59 @@ export default function DashboardLayout() {
 
   const handleSettingsChange = (key: string, value: boolean | string) => {
     setSettings(prev => ({ ...prev, [key]: value }));
+    
+    if (key === 'notifications' && value === true) {
+      // Request notification permission when enabling notifications
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+          if (permission === 'granted') {
+            new Notification('Komra Security Dashboard', {
+              body: 'Push notifications enabled successfully',
+              icon: '/favicon.ico'
+            });
+          }
+        });
+      }
+    }
+    
+    console.log(`⚙️ Settings updated: ${key} = ${value}`);
+  };
+
+  const handleLogSourceToggle = (sourceId: string, enabled: boolean) => {
+    setSettings(prev => ({
+      ...prev,
+      logSources: prev.logSources.map(source => 
+        source.id === sourceId ? { ...source, enabled } : source
+      )
+    }));
+    console.log(`📋 Log source ${sourceId} ${enabled ? 'enabled' : 'disabled'}`);
+  };
+
+  const handleAddLogSource = () => {
+    if (newLogSource.name.trim()) {
+      const newSource = {
+        id: Date.now().toString(),
+        name: newLogSource.name.trim(),
+        type: newLogSource.type,
+        enabled: true
+      };
+      
+      setSettings(prev => ({
+        ...prev,
+        logSources: [...prev.logSources, newSource]
+      }));
+      
+      setNewLogSource({ name: '', type: 'application' });
+      console.log(`📋 Added new log source: ${newSource.name}`);
+    }
+  };
+
+  const handleRemoveLogSource = (sourceId: string) => {
+    setSettings(prev => ({
+      ...prev,
+      logSources: prev.logSources.filter(source => source.id !== sourceId)
+    }));
+    console.log(`📋 Removed log source: ${sourceId}`);
   };
 
   const renderAdminDashboard = () => (
@@ -496,17 +583,23 @@ export default function DashboardLayout() {
                 <Settings className="h-4 w-4" />
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Dashboard Settings</DialogTitle>
+                <DialogTitle className="flex items-center gap-2">
+                  <Settings className="h-5 w-5" />
+                  Dashboard Settings
+                </DialogTitle>
               </DialogHeader>
               <div className="space-y-6">
                 {/* Auto Refresh */}
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label>Auto Refresh</Label>
+                    <Label className="flex items-center gap-2">
+                      <RefreshCw className="h-4 w-4" />
+                      Auto Refresh
+                    </Label>
                     <p className="text-sm text-muted-foreground">
-                      Automatically refresh dashboard data
+                      Automatically refresh dashboard data (overrides 30s default)
                     </p>
                   </div>
                   <Switch
@@ -517,7 +610,7 @@ export default function DashboardLayout() {
 
                 {/* Refresh Interval */}
                 {settings.autoRefresh && (
-                  <div className="space-y-2">
+                  <div className="space-y-2 pl-6 border-l-2 border-muted">
                     <Label>Refresh Interval</Label>
                     <Select 
                       value={settings.refreshInterval} 
@@ -527,21 +620,31 @@ export default function DashboardLayout() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="5">5 seconds</SelectItem>
+                        <SelectItem value="10">10 seconds</SelectItem>
                         <SelectItem value="15">15 seconds</SelectItem>
                         <SelectItem value="30">30 seconds</SelectItem>
                         <SelectItem value="60">1 minute</SelectItem>
+                        <SelectItem value="120">2 minutes</SelectItem>
                         <SelectItem value="300">5 minutes</SelectItem>
+                        <SelectItem value="600">10 minutes</SelectItem>
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Current: Every {settings.refreshInterval} seconds
+                    </p>
                   </div>
                 )}
 
-                {/* Notifications */}
+                {/* Push Notifications */}
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label>Push Notifications</Label>
+                    <Label className="flex items-center gap-2">
+                      <Bell className="h-4 w-4" />
+                      Push Notifications
+                    </Label>
                     <p className="text-sm text-muted-foreground">
-                      Receive alerts for critical events
+                      Receive browser notifications for critical security events
                     </p>
                   </div>
                   <Switch
@@ -550,52 +653,104 @@ export default function DashboardLayout() {
                   />
                 </div>
 
-                {/* Dark Mode */}
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Dark Mode</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Switch to dark theme
-                    </p>
+                {/* Log Sources Management */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    <Label className="text-base font-medium">Log Sources</Label>
                   </div>
-                  <Switch
-                    checked={settings.darkMode}
-                    onCheckedChange={(checked) => handleSettingsChange('darkMode', checked)}
-                  />
+                  <p className="text-sm text-muted-foreground">
+                    Configure which log sources to monitor for security events
+                  </p>
+                  
+                  {/* Existing Log Sources */}
+                  <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3">
+                    {settings.logSources.map((source) => (
+                      <div key={source.id} className="flex items-center justify-between p-2 border rounded">
+                        <div className="flex items-center gap-3">
+                          <Switch
+                            checked={source.enabled}
+                            onCheckedChange={(checked) => handleLogSourceToggle(source.id, checked)}
+                            size="sm"
+                          />
+                          <div>
+                            <p className="font-medium text-sm">{source.name}</p>
+                            <p className="text-xs text-muted-foreground capitalize">
+                              {source.type} logs
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveLogSource(source.id)}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Add New Log Source */}
+                  <div className="space-y-3 p-3 border rounded-lg bg-muted/20">
+                    <Label className="text-sm font-medium">Add New Log Source</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Log source name..."
+                        value={newLogSource.name}
+                        onChange={(e) => setNewLogSource(prev => ({ ...prev, name: e.target.value }))}
+                        className="flex-1"
+                      />
+                      <Select
+                        value={newLogSource.type}
+                        onValueChange={(value) => setNewLogSource(prev => ({ ...prev, type: value }))}
+                      >
+                        <SelectTrigger className="w-32">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="application">Application</SelectItem>
+                          <SelectItem value="security">Security</SelectItem>
+                          <SelectItem value="network">Network</SelectItem>
+                          <SelectItem value="system">System</SelectItem>
+                          <SelectItem value="windows">Windows</SelectItem>
+                          <SelectItem value="linux">Linux</SelectItem>
+                          <SelectItem value="database">Database</SelectItem>
+                          <SelectItem value="web">Web Server</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        onClick={handleAddLogSource}
+                        disabled={!newLogSource.name.trim()}
+                        size="sm"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Log Sources Summary */}
+                  <div className="text-xs text-muted-foreground p-2 bg-muted/30 rounded">
+                    {settings.logSources.filter(s => s.enabled).length} of {settings.logSources.length} log sources active
+                  </div>
                 </div>
 
-                {/* Compact View */}
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Compact View</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Show more data in less space
-                    </p>
-                  </div>
-                  <Switch
-                    checked={settings.compactView}
-                    onCheckedChange={(checked) => handleSettingsChange('compactView', checked)}
-                  />
-                </div>
-
-                {/* Advanced Metrics */}
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Advanced Metrics</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Display detailed performance data
-                    </p>
-                  </div>
-                  <Switch
-                    checked={settings.showAdvancedMetrics}
-                    onCheckedChange={(checked) => handleSettingsChange('showAdvancedMetrics', checked)}
-                  />
-                </div>
-
-                <div className="pt-4 border-t">
+                <div className="pt-4 border-t flex gap-2">
+                  <Button 
+                    onClick={() => {
+                      loadDashboardData();
+                      console.log('🔄 Manual refresh triggered');
+                    }}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Refresh Now
+                  </Button>
                   <Button 
                     onClick={() => setIsSettingsOpen(false)} 
-                    className="w-full"
+                    className="flex-1"
                   >
                     Save Settings
                   </Button>
