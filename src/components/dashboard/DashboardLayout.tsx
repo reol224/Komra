@@ -1,38 +1,43 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Shield,
-  Users,
-  Activity,
-  AlertTriangle,
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+  Shield, 
+  AlertTriangle, 
+  Activity, 
+  Users, 
+  Settings, 
+  Eye, 
+  Search, 
+  Bell, 
+  CheckCircle, 
+  TrendingUp, 
+  Database, 
+  Lock, 
+  UserCheck, 
+  BarChart3, 
+  Clock, 
+  Plus, 
+  Trash2, 
+  RefreshCw, 
+  Play, 
+  Square, 
+  BellOff,
   Server,
-  FileText,
-  Settings,
-  Eye,
-  Search,
-  Bell,
-  CheckCircle,
-  TrendingUp,
-  Database,
-  Lock,
-  UserCheck,
-  BarChart3,
-  Clock,
-  Plus,
-  Trash2,
-  RefreshCw,
-} from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { DashboardDataService, RiskMetrics } from "@/lib/dashboardDataService";
+  FileText
+} from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { DashboardDataService, RiskMetrics } from '@/lib/dashboardDataService';
+import { useNotifications } from '@/contexts/NotificationContext';
+import { useSecurityNotifications } from '@/hooks/useSecurityNotifications';
 
 // Import role-specific components
 import AdminUserManagement from "./admin/AdminUserManagement";
@@ -108,6 +113,9 @@ export default function DashboardLayout() {
   const [newLogSource, setNewLogSource] = useState({ name: '', type: 'application' });
 
   const dashboardService = new DashboardDataService();
+
+  const { permission, isSubscribed, requestPermission, subscribe } = useNotifications();
+  const { triggerTestNotification } = useSecurityNotifications();
 
   // Load real dashboard data
   useEffect(() => {
@@ -347,12 +355,13 @@ export default function DashboardLayout() {
 
       {/* Admin Tabs */}
       <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="users">User Management</TabsTrigger>
           <TabsTrigger value="system">System Health</TabsTrigger>
           <TabsTrigger value="audit">Audit Trail</TabsTrigger>
           <TabsTrigger value="collection">Background Collection</TabsTrigger>
+          <TabsTrigger value="notifications">Notifications</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -376,6 +385,130 @@ export default function DashboardLayout() {
 
         <TabsContent value="collection">
           <BackgroundCollectionManager />
+        </TabsContent>
+
+        <TabsContent value="notifications">
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold">Push Notification Management</h3>
+                <p className="text-sm text-muted-foreground">
+                  Configure and manage push notifications for security events
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant={permission === 'granted' && isSubscribed ? "default" : "secondary"}>
+                  {permission === 'granted' && isSubscribed ? (
+                    <>
+                      <Bell className="h-3 w-3 mr-1" />
+                      Active
+                    </>
+                  ) : (
+                    <>
+                      <BellOff className="h-3 w-3 mr-1" />
+                      Inactive
+                    </>
+                  )}
+                </Badge>
+
+                {/* Notification Bell */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (permission === 'granted' && isSubscribed) {
+                      triggerTestNotification();
+                    } else {
+                      requestPermission().then(granted => {
+                        if (granted) subscribe();
+                      });
+                    }
+                  }}
+                  className="flex items-center gap-1"
+                >
+                  {permission === 'granted' && isSubscribed ? (
+                    <>
+                      <Bell className="h-4 w-4" />
+                      Test Alert
+                    </>
+                  ) : (
+                    <>
+                      <BellOff className="h-4 w-4" />
+                      Enable Alerts
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="h-5 w-5" />
+                  Notification Configuration
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    <h4 className="font-medium">Browser Notifications</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm">Permission Status</Label>
+                        <Badge variant={permission === 'granted' ? 'default' : 'destructive'}>
+                          {permission}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm">Push Subscription</Label>
+                        <Badge variant={isSubscribed ? 'default' : 'secondary'}>
+                          {isSubscribed ? 'Subscribed' : 'Not Subscribed'}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <h4 className="font-medium">Service Worker</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm">Registration Status</Label>
+                        <Badge variant="default">Active</Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm">Background Sync</Label>
+                        <Badge variant="default">Enabled</Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="pt-4 border-t">
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={() => {
+                        if (permission === 'granted' && isSubscribed) {
+                          triggerTestNotification();
+                        }
+                      }}
+                      disabled={permission !== 'granted' || !isSubscribed}
+                      variant="outline"
+                    >
+                      <Bell className="h-4 w-4 mr-2" />
+                      Send Test Notification
+                    </Button>
+                    <Button 
+                      onClick={() => window.open('/notifications', '_blank')}
+                      variant="outline"
+                    >
+                      <Settings className="h-4 w-4 mr-2" />
+                      Advanced Settings
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
