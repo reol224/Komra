@@ -42,6 +42,9 @@ export async function POST(request: NextRequest) {
       case 'broadcast':
         return handleBroadcastNotification(notification);
       
+      case 'trigger-security':
+        return handleTriggerSecurityNotification(notification.type, notification.details);
+      
       default:
         return NextResponse.json(
           { success: false, error: 'Invalid action' },
@@ -191,8 +194,8 @@ async function handleBroadcastNotification(notification: NotificationPayload) {
   }
 }
 
-// Helper function to trigger security notifications
-export async function triggerSecurityNotification(
+// Helper function to trigger security notifications (now internal to the route)
+async function handleTriggerSecurityNotification(
   type: 'critical_vulnerability' | 'high_severity_threat' | 'system_offline' | 'new_endpoint' | 'compliance_alert',
   details: any
 ) {

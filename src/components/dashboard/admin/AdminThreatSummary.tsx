@@ -268,7 +268,26 @@ export default function AdminThreatSummary() {
       };
 
       // Log the assignment action
-      auditLogger.log(auditEntry);
+      auditLogger.log(
+        'THREAT_ASSIGNED',
+        'threat_management',
+        {
+          threat_id: selectedThreat?.id,
+          threat_type: selectedThreat?.title,
+          severity: selectedThreat?.severity,
+          assigned_to: assignedMember?.name,
+          assignment_timestamp: new Date().toISOString(),
+          threat_description: selectedThreat?.description
+        },
+        {
+          severity: 'medium',
+          status: 'success',
+          metadata: {
+            action_category: 'threat_management',
+            security_relevant: true
+          }
+        }
+      );
       
       // Simulate assignment API call
       await new Promise(resolve => setTimeout(resolve, 1500));
@@ -338,7 +357,7 @@ export default function AdminThreatSummary() {
       
       // Show success toast
       toast({
-        title: "Escalation Successful! 🚨",
+        title: "Escalation Successful! ����",
         description: (
           <div className="flex items-center space-x-2">
             <AlertCircle className="h-4 w-4 text-orange-600" />

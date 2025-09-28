@@ -95,7 +95,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
       
       const subscription = await serviceWorkerRegistration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey) as BufferSource
       });
       
       // Send subscription to server (simulate API call)
