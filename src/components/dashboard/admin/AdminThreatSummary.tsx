@@ -8,13 +8,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { AlertTriangle, Shield, TrendingUp, Clock, Eye, ExternalLink, Users, Calendar, UserCheck, AlertCircle } from 'lucide-react';
+import { toast } from '@/components/ui/use-toast';
+import { AlertTriangle, Shield, TrendingUp, Clock, Eye, ExternalLink, Users, Calendar, UserCheck, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { DashboardDataService, DashboardVulnerability, RiskMetrics } from '@/lib/dashboardDataService';
+import { auditLogger } from '@/lib/auditLogger';
 
 export default function AdminThreatSummary() {
   const [selectedThreat, setSelectedThreat] = useState<any>(null);
   const [assignmentDialog, setAssignmentDialog] = useState(false);
   const [escalationDialog, setEscalationDialog] = useState(false);
+  const [isAssigning, setIsAssigning] = useState(false); // Loading state for assignment
   const [selectedTeamMember, setSelectedTeamMember] = useState('');
   const [assignmentNotes, setAssignmentNotes] = useState('');
   const [priority, setPriority] = useState('');
@@ -233,23 +236,80 @@ export default function AdminThreatSummary() {
     setPriority('');
   };
 
-  const handleConfirmAssignment = () => {
+  const handleConfirmAssignment = async () => {
     if (!selectedTeamMember || !priority) {
-      alert('Please select a team member and priority level');
+      toast({
+        title: "Missing Information",
+        description: "Please select a team member and priority level",
+        variant: "destructive",
+      });
       return;
     }
 
     const assignedMember = teamMembers.find(member => member.id === selectedTeamMember);
     
-    // Simulate assignment
-    alert(`Successfully assigned ${selectedThreat?.id} to ${assignedMember?.name} with ${priority} priority`);
+    setIsAssigning(true);
     
-    // Reset form
-    setAssignmentDialog(false);
-    setSelectedTeamMember('');
-    setAssignmentNotes('');
-    setPriority('');
-    setSelectedThreat(null);
+    try {
+      // Create audit log entry
+      const auditEntry = {
+        action: 'threat_assignment',
+        threat_id: selectedThreat?.id,
+        assigned_to: assignedMember?.name,
+        assigned_by: 'Current Admin User', // This would come from auth context
+        priority: priority,
+        notes: assignmentNotes,
+        timestamp: new Date().toISOString(),
+        details: {
+          threat_title: selectedThreat?.title,
+          severity: selectedThreat?.severity,
+          affected_systems: selectedThreat?.affectedSystems
+        }
+      };
+
+      // Log the assignment action
+      auditLogger.log(auditEntry);
+      
+      // Simulate assignment API call
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Update threat status to assigned (simulate database update)
+      if (selectedThreat) {
+        selectedThreat.status = 'assigned';
+        selectedThreat.assignedTo = assignedMember?.name;
+        selectedThreat.assignedAt = new Date().toISOString();
+        selectedThreat.priority = priority;
+      }
+      
+      // Show success toast immediately
+      toast({
+        title: "Assignment Successful! ✅",
+        description: (
+          <div className="flex items-center space-x-2">
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <span>
+              {selectedThreat?.id} assigned to {assignedMember?.name} with {priority} priority
+            </span>
+          </div>
+        ),
+        duration: 4000,
+      });
+      
+    } catch (error) {
+      toast({
+        title: "Assignment Failed",
+        description: "There was an error assigning the threat. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      // Always reset state and close dialog
+      setIsAssigning(false);
+      setAssignmentDialog(false);
+      setSelectedTeamMember('');
+      setAssignmentNotes('');
+      setPriority('');
+      setSelectedThreat(null);
+    }
   };
 
   const handleEscalateThreat = (threat: any) => {
@@ -260,23 +320,50 @@ export default function AdminThreatSummary() {
     setEscalationNotes('');
   };
 
-  const handleConfirmEscalation = () => {
+  const handleConfirmEscalation = async () => {
     if (!escalationReason || !escalationLevel) {
-      alert('Please select escalation reason and level');
+      toast({
+        title: "Missing Information",
+        description: "Please select escalation reason and level",
+        variant: "destructive",
+      });
       return;
     }
 
     const selectedLevel = escalationLevels.find(level => level.id === escalationLevel);
     
-    // Simulate escalation
-    alert(`Successfully escalated ${selectedThreat?.id} to ${selectedLevel?.name}\nReason: ${escalationReason}`);
-    
-    // Reset form
-    setEscalationDialog(false);
-    setEscalationReason('');
-    setEscalationLevel('');
-    setEscalationNotes('');
-    setSelectedThreat(null);
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Show success toast
+      toast({
+        title: "Escalation Successful! 🚨",
+        description: (
+          <div className="flex items-center space-x-2">
+            <AlertCircle className="h-4 w-4 text-orange-600" />
+            <span>
+              {selectedThreat?.id} escalated to {selectedLevel?.name}
+            </span>
+          </div>
+        ),
+        duration: 4000,
+      });
+      
+      // Reset form
+      setEscalationDialog(false);
+      setEscalationReason('');
+      setEscalationLevel('');
+      setEscalationNotes('');
+      setSelectedThreat(null);
+      
+    } catch (error) {
+      toast({
+        title: "Escalation Failed",
+        description: "There was an error escalating the threat. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -610,10 +697,29 @@ export default function AdminThreatSummary() {
             </div>
 
             <div className="flex space-x-2 pt-4">
-              <Button onClick={handleConfirmAssignment} className="flex-1">
-                Confirm Assignment
+              <Button 
+                onClick={handleConfirmAssignment} 
+                className="flex-1"
+                disabled={isAssigning}
+              >
+                {isAssigning ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Assigning...
+                  </>
+                ) : (
+                  <>
+                    <UserCheck className="h-4 w-4 mr-2" />
+                    Confirm Assignment
+                  </>
+                )}
               </Button>
-              <Button variant="outline" onClick={() => setAssignmentDialog(false)} className="flex-1">
+              <Button 
+                variant="outline" 
+                onClick={() => setAssignmentDialog(false)} 
+                className="flex-1"
+                disabled={isAssigning}
+              >
                 Cancel
               </Button>
             </div>
