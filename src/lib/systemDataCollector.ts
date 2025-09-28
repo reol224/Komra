@@ -169,7 +169,7 @@ class SystemDataCollector {
       } catch {
         // Try DEB-based systems (Debian, Ubuntu)
         try {
-          const { stdout: dpkgOutput } = await execAsync(`dpkg-query -W -f='\\${Package}|\\${Version}|\\${Maintainer}\\n'`);
+          const { stdout: dpkgOutput } = await execAsync(`dpkg-query -W -f='\${Package}|\${Version}|\${Maintainer}\n'`);
           const dpkgLines = dpkgOutput.trim().split('\n');
           
           for (const line of dpkgLines) {

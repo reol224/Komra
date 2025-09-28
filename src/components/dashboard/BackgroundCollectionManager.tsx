@@ -197,7 +197,7 @@ export default function BackgroundCollectionManager() {
   const triggerManualCollection = async () => {
     try {
       const allEndpoints = schedules.flatMap(s => s.endpoints);
-      const uniqueEndpoints = [...new Set(allEndpoints)];
+      const uniqueEndpoints = Array.from(new Set(allEndpoints));
       
       const response = await fetch('/api/background-collection?action=trigger_collection', {
         method: 'POST',

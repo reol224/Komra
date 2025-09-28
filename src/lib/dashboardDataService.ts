@@ -152,7 +152,7 @@ export class DashboardDataService {
       }
 
       return endpointPackages.map(ep => {
-        const pkg = ep.packages;
+        const pkg = Array.isArray(ep.packages) ? ep.packages[0] : ep.packages;
         const vulnerabilities = ep.vulnerabilities || [];
         const vulnerabilityCount = vulnerabilities.length;
         
@@ -169,16 +169,16 @@ export class DashboardDataService {
         }
 
         return {
-          id: pkg.id,
-          name: pkg.name,
-          version: pkg.version,
+          id: pkg?.id || '',
+          name: pkg?.name || '',
+          version: pkg?.version || '',
           vulnerabilities: vulnerabilityCount,
           severity,
           endpointId,
-          packageType: pkg.package_type,
-          vendor: pkg.vendor
+          packageType: pkg?.package_type || '',
+          vendor: pkg?.vendor
         };
-      });
+      }).filter(pkg => pkg.id); // Filter out any packages without valid data
     } catch (error) {
       console.error('Error in getPackagesForEndpoint:', error);
       return [];
@@ -210,19 +210,23 @@ export class DashboardDataService {
         return [];
       }
 
-      return vulnerabilities.map(vuln => ({
-        id: vuln.id,
-        cve_id: vuln.cve_id,
-        description: vuln.description || `Vulnerability ${vuln.cve_id}`,
-        severity: vuln.severity,
-        cvss_score: vuln.cvss_score || 0,
-        status: vuln.status,
-        endpoint_id: vuln.endpoint_id,
-        endpoint_name: vuln.endpoints?.hostname || 'Unknown',
-        environment: vuln.endpoints?.environment || 'Unknown',
-        discovered_date: vuln.discovered_date,
-        affected_packages: [] // This would need a join with packages if we track that relationship
-      }));
+      return vulnerabilities.map(vuln => {
+        const endpoint = Array.isArray(vuln.endpoints) ? vuln.endpoints[0] : vuln.endpoints;
+        
+        return {
+          id: vuln.id,
+          cve_id: vuln.cve_id,
+          severity: vuln.severity,
+          cvss_score: vuln.cvss_score,
+          description: vuln.description,
+          status: vuln.status,
+          endpoint_id: vuln.endpoint_id,
+          endpoint_name: endpoint?.hostname || 'Unknown',
+          environment: endpoint?.environment || 'Unknown',
+          discovered_date: vuln.discovered_date,
+          affected_packages: [] // This would need a join with packages if we track that relationship
+        };
+      });
     } catch (error) {
       console.error('Error fetching vulnerabilities:', error);
       return [];

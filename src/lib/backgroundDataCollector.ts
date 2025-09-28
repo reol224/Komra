@@ -139,6 +139,8 @@ export class BackgroundDataCollector {
           console.log(`✅ Collected data from ${endpoint}: ${result.packages} packages, ${result.vulnerabilities} vulnerabilities`);
         } catch (error) {
           console.error(`❌ Failed to collect data from ${endpoint}:`, error);
+          // Continue with next endpoint even if this one fails
+          totalEndpoints++;
         }
       }
 
@@ -156,17 +158,21 @@ export class BackgroundDataCollector {
 
     } catch (error) {
       console.error(`❌ Collection job failed:`, error);
-      await this.failCollectionJob(jobId, error.message);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      await this.failCollectionJob(jobId, errorMessage);
     }
   }
 
   // Collect data from a specific endpoint
-  private async collectEndpointData(endpoint: string): Promise<void> {
+  private async collectEndpointData(endpoint: string): Promise<{ packages: number; vulnerabilities: number }> {
     try {
       console.log(`🔍 Starting data collection for endpoint: ${endpoint}`);
       
       // Use the correct method name from DataIngestionService
       const result = await this.dataIngestionService.collectAndStoreSystemData();
+      
+      let packagesCount = 0;
+      let vulnerabilitiesCount = 0;
       
       if (result.success) {
         console.log(`✅ Successfully collected data from ${endpoint}`);
@@ -174,7 +180,7 @@ export class BackgroundDataCollector {
         // If we have endpoint data, also scan for vulnerabilities
         if (result.data?.endpoint) {
           // Get the endpoint ID from the database to run vulnerability scan
-          const { data: endpointRecord } = await this.supabase
+          const { data: endpointRecord } = await supabase
             .from('endpoints')
             .select('id')
             .eq('hostname', result.data.endpoint.hostname)
@@ -182,10 +188,27 @@ export class BackgroundDataCollector {
             
           if (endpointRecord) {
             await this.dataIngestionService.scanForVulnerabilities(endpointRecord.id);
+            
+            // Get counts from the database
+            const { data: packages } = await supabase
+              .from('packages')
+              .select('id')
+              .eq('endpoint_id', endpointRecord.id);
+              
+            const { data: vulnerabilities } = await supabase
+              .from('vulnerabilities')
+              .select('id')
+              .eq('endpoint_id', endpointRecord.id);
+              
+            packagesCount = packages?.length || 0;
+            vulnerabilitiesCount = vulnerabilities?.length || 0;
           }
         }
+        
+        return { packages: packagesCount, vulnerabilities: vulnerabilitiesCount };
       } else {
         console.error(`❌ Failed to collect data from ${endpoint}: ${result.error}`);
+        return { packages: 0, vulnerabilities: 0 };
       }
     } catch (error) {
       console.error(`❌ Failed to collect data from ${endpoint}:`, error);

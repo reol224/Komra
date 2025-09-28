@@ -671,7 +671,6 @@ export default function DashboardLayout() {
                           <Switch
                             checked={source.enabled}
                             onCheckedChange={(checked) => handleLogSourceToggle(source.id, checked)}
-                            size="sm"
                           />
                           <div>
                             <p className="font-medium text-sm">{source.name}</p>

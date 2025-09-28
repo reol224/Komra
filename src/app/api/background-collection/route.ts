@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     console.error('Background collection API error:', error);
     return NextResponse.json({ 
       success: false, 
-      error: error.message 
+      error: error instanceof Error ? error.message : 'An unknown error occurred'
     }, { status: 500 });
   }
 }
@@ -44,8 +44,26 @@ export async function POST(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action');
     
+    // Define proper types for request body
+    interface CreateScheduleBody {
+      name: string;
+      endpoints: string[];
+      frequency: 'hourly' | 'daily' | 'weekly' | 'monthly';
+      collection_type?: 'full' | 'incremental' | 'vulnerability_only';
+    }
+
+    interface ScheduleActionBody {
+      scheduleId: string;
+    }
+
+    interface TriggerCollectionBody {
+      endpoints: string[];
+    }
+
+    type RequestBody = CreateScheduleBody | ScheduleActionBody | TriggerCollectionBody | Record<string, never>;
+    
     // Only parse JSON body if the request has content
-    let body = {};
+    let body: RequestBody = {};
     try {
       const text = await request.text();
       if (text) {
@@ -94,12 +112,31 @@ export async function POST(request: NextRequest) {
         });
 
       case 'create_schedule':
-        const { name, endpoints, frequency, collection_type } = body;
+        const createBody = body as CreateScheduleBody;
+        const { name, endpoints, frequency, collection_type } = createBody;
         
         if (!name || !endpoints || !frequency) {
           return NextResponse.json({ 
             success: false, 
             error: 'Missing required fields: name, endpoints, frequency' 
+          }, { status: 400 });
+        }
+
+        // Validate frequency value
+        const validFrequencies = ['hourly', 'daily', 'weekly', 'monthly'];
+        if (!validFrequencies.includes(frequency)) {
+          return NextResponse.json({ 
+            success: false, 
+            error: 'Invalid frequency. Must be one of: hourly, daily, weekly, monthly' 
+          }, { status: 400 });
+        }
+
+        // Validate collection_type value
+        const validCollectionTypes = ['full', 'incremental', 'vulnerability_only'];
+        if (collection_type && !validCollectionTypes.includes(collection_type)) {
+          return NextResponse.json({ 
+            success: false, 
+            error: 'Invalid collection_type. Must be one of: full, incremental, vulnerability_only' 
           }, { status: 400 });
         }
 
@@ -133,7 +170,8 @@ export async function POST(request: NextRequest) {
         });
 
       case 'enable_schedule':
-        const { scheduleId: enableId } = body;
+        const enableBody = body as ScheduleActionBody;
+        const { scheduleId: enableId } = enableBody;
         await backgroundCollector.enableSchedule(enableId);
         
         await searchableService.createAuditEntry({
@@ -151,7 +189,8 @@ export async function POST(request: NextRequest) {
         });
 
       case 'disable_schedule':
-        const { scheduleId: disableId } = body;
+        const disableBody = body as ScheduleActionBody;
+        const { scheduleId: disableId } = disableBody;
         await backgroundCollector.disableSchedule(disableId);
         
         await searchableService.createAuditEntry({
@@ -170,7 +209,8 @@ export async function POST(request: NextRequest) {
 
       case 'trigger_collection':
         // Manually trigger a collection job
-        const { endpoints: triggerEndpoints } = body;
+        const triggerBody = body as TriggerCollectionBody;
+        const { endpoints: triggerEndpoints } = triggerBody;
         
         if (!triggerEndpoints || !Array.isArray(triggerEndpoints)) {
           return NextResponse.json({ 
@@ -216,7 +256,7 @@ export async function POST(request: NextRequest) {
     console.error('Background collection API error:', error);
     return NextResponse.json({ 
       success: false, 
-      error: error.message 
+      error: error instanceof Error ? error.message : 'An unknown error occurred'
     }, { status: 500 });
   }
 }

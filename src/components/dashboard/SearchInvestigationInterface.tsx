@@ -90,6 +90,26 @@ export default function SearchInvestigationInterface() {
     tags: ''
   });
 
+  const getItemTimestamp = (item: any): string => {
+    return item.timestamp || item.created_at || '';
+  };
+
+  const getItemCategory = (item: any): string => {
+    return item.event_category || item.type || '';
+  };
+
+  const getItemSeverity = (item: any): string => {
+    return item.severity || item.priority || '';
+  };
+
+  const getItemStatus = (item: any): string => {
+    return item.status || '';
+  };
+
+  const getItemTitle = (item: any): string => {
+    return item.title || item.description || '';
+  };
+
   useEffect(() => {
     loadInitialData();
   }, []);
@@ -342,25 +362,23 @@ export default function SearchInvestigationInterface() {
                 {[...searchResults.audit.map(item => ({...item, type: 'audit'})), 
                   ...searchResults.investigations.map(item => ({...item, type: 'investigation'})),
                   ...searchResults.compliance.map(item => ({...item, type: 'compliance'}))]
-                  .sort((a, b) => new Date(b.timestamp || b.created_at).getTime() - new Date(a.timestamp || a.created_at).getTime())
+                  .sort((a, b) => new Date(getItemTimestamp(b)).getTime() - new Date(getItemTimestamp(a)).getTime())
                   .slice(0, 20)
                   .map((item, index) => (
                   <div key={`${item.type}-${item.id}`} className="flex items-start space-x-3 p-4 border rounded-lg">
-                    {getCategoryIcon(item.event_category || item.type)}
+                    {getCategoryIcon(getItemCategory(item))}
                     <div className="flex-1">
                       <div className="flex items-center space-x-2">
                         <Badge className={item.type === 'audit' ? 'bg-blue-100 text-blue-800' : 
-                                         item.type === 'investigation' ? 'bg-orange-100 text-orange-800' : 
-                                         'bg-green-100 text-green-800'}>
+                          item.type === 'investigation' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'}>
                           {item.type}
                         </Badge>
-                        {item.severity && <Badge className={getSeverityColor(item.severity)}>{item.severity}</Badge>}
-                        {item.priority && <Badge className={getSeverityColor(item.priority)}>{item.priority}</Badge>}
-                        {item.status && <Badge className={getStatusColor(item.status)}>{item.status}</Badge>}
+                        {getItemSeverity(item) && <Badge className={getSeverityColor(getItemSeverity(item))}>{getItemSeverity(item)}</Badge>}
+                        {getItemStatus(item) && <Badge className={getStatusColor(getItemStatus(item))}>{getItemStatus(item)}</Badge>}
                       </div>
-                      <h4 className="font-medium mt-1">{item.title || item.description}</h4>
+                      <h4 className="font-medium mt-1">{getItemTitle(item)}</h4>
                       <p className="text-sm text-gray-500 mt-1">
-                        {new Date(item.timestamp || item.created_at).toLocaleString()}
+                        {new Date(getItemTimestamp(item)).toLocaleString()}
                       </p>
                     </div>
                     <Button variant="ghost" size="sm">
