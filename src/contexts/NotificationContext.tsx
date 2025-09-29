@@ -98,15 +98,24 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
         applicationServerKey: urlBase64ToUint8Array(vapidPublicKey) as BufferSource
       });
       
-      // Send subscription to server (simulate API call)
+      // Send subscription to server
       console.log('Push subscription:', subscription);
       
-      // In production, send this to your backend:
-      // await fetch('/api/notifications/subscribe', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(subscription)
-      // });
+      // Save subscription to database
+      const response = await fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'subscribe',
+          subscription: subscription
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to save subscription');
+      }
       
       setIsSubscribed(true);
       
@@ -133,6 +142,23 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     try {
       const subscription = await serviceWorkerRegistration.pushManager.getSubscription();
       if (subscription) {
+        // Unsubscribe from database first
+        const response = await fetch('/api/notifications', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'unsubscribe',
+            subscription: subscription
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (!result.success) {
+          console.warn('Failed to remove subscription from database:', result.error);
+        }
+        
+        // Then unsubscribe from browser
         await subscription.unsubscribe();
         setIsSubscribed(false);
         
@@ -150,12 +176,38 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     }
   };
 
-  const sendTestNotification = () => {
-    if (permission === 'granted') {
-      new Notification('Komra Security Test', {
-        body: 'This is a test notification from Komra Security Dashboard',
-        icon: '/images/icon rounded corners.png',
-        tag: 'test-notification'
+  const sendTestNotification = async () => {
+    try {
+      const response = await fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'send',
+          notification: {
+            title: 'Komra Security Test',
+            body: 'This is a test notification from Komra Security Dashboard',
+            icon: '/images/icon rounded corners.png',
+            tag: 'test-notification'
+          }
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        toast({
+          title: "Test Notification Sent",
+          description: `Sent to ${result.stats?.successful || 0} subscribers`,
+        });
+      } else {
+        throw new Error(result.error || 'Failed to send notification');
+      }
+    } catch (error) {
+      console.error('Error sending test notification:', error);
+      toast({
+        title: "Send Failed",
+        description: "Failed to send test notification. Please try again.",
+        variant: "destructive",
       });
     }
   };

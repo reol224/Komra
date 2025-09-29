@@ -1,4 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize Supabase client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_KEY!
+);
 
 // In production, store these securely in environment variables
 const VAPID_PUBLIC_KEY = 'BEl62iUYgUivxIkv69yViEuiBIa40HI0DLLuxazjqAKUrXK5acbva7akSSJ88RcGfHeyGWyUzjgGpXYM2EM90MI';
@@ -22,16 +29,13 @@ interface NotificationPayload {
   priority?: 'high' | 'normal' | 'low';
 }
 
-// Store subscriptions in memory (in production, use a database)
-const subscriptions: PushSubscription[] = [];
-
 export async function POST(request: NextRequest) {
   try {
     const { action, subscription, notification } = await request.json();
 
     switch (action) {
       case 'subscribe':
-        return handleSubscribe(subscription);
+        return handleSubscribe(subscription, request);
       
       case 'unsubscribe':
         return handleUnsubscribe(subscription);
@@ -72,10 +76,25 @@ export async function GET(request: NextRequest) {
       });
     
     case 'subscriptions':
-      return NextResponse.json({
-        success: true,
-        count: subscriptions.length
-      });
+      try {
+        const { count, error } = await supabase
+          .from('push_subscriptions')
+          .select('*', { count: 'exact', head: true })
+          .eq('is_active', true);
+
+        if (error) throw error;
+
+        return NextResponse.json({
+          success: true,
+          count: count || 0
+        });
+      } catch (error) {
+        console.error('Error fetching subscription count:', error);
+        return NextResponse.json(
+          { success: false, error: 'Failed to fetch subscriptions' },
+          { status: 500 }
+        );
+      }
     
     default:
       return NextResponse.json(
@@ -85,7 +104,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-async function handleSubscribe(subscription: PushSubscription) {
+async function handleSubscribe(subscription: PushSubscription, request: NextRequest) {
   try {
     // Validate subscription
     if (!subscription || !subscription.endpoint) {
@@ -95,18 +114,38 @@ async function handleSubscribe(subscription: PushSubscription) {
       );
     }
 
-    // Check if subscription already exists
-    const existingIndex = subscriptions.findIndex(
-      sub => sub.endpoint === subscription.endpoint
-    );
+    // Extract user agent from request headers
+    const userAgent = request.headers.get('user-agent') || '';
 
-    if (existingIndex === -1) {
-      subscriptions.push(subscription);
-      console.log('New push subscription added:', subscription.endpoint);
-    } else {
-      subscriptions[existingIndex] = subscription;
-      console.log('Push subscription updated:', subscription.endpoint);
+    // TODO: Extract user_id from authentication context
+    // For now, we'll use null, but this should be updated when auth is implemented
+    const userId = null; // This should come from JWT token or session
+
+    // Upsert subscription in database
+    const { data, error } = await supabase
+      .from('push_subscriptions')
+      .upsert({
+        user_id: userId,
+        endpoint: subscription.endpoint,
+        p256dh_key: subscription.keys.p256dh,
+        auth_key: subscription.keys.auth,
+        user_agent: userAgent,
+        is_active: true,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'endpoint'
+      })
+      .select();
+
+    if (error) {
+      console.error('Database error:', error);
+      return NextResponse.json(
+        { success: false, error: 'Failed to save subscription' },
+        { status: 500 }
+      );
     }
+
+    console.log('Push subscription saved to database:', subscription.endpoint, 'User Agent:', userAgent);
 
     return NextResponse.json({
       success: true,
@@ -123,14 +162,20 @@ async function handleSubscribe(subscription: PushSubscription) {
 
 async function handleUnsubscribe(subscription: PushSubscription) {
   try {
-    const index = subscriptions.findIndex(
-      sub => sub.endpoint === subscription.endpoint
-    );
+    const { error } = await supabase
+      .from('push_subscriptions')
+      .update({ is_active: false })
+      .eq('endpoint', subscription.endpoint);
 
-    if (index !== -1) {
-      subscriptions.splice(index, 1);
-      console.log('Push subscription removed:', subscription.endpoint);
+    if (error) {
+      console.error('Database error:', error);
+      return NextResponse.json(
+        { success: false, error: 'Failed to remove subscription' },
+        { status: 500 }
+      );
     }
+
+    console.log('Push subscription deactivated:', subscription.endpoint);
 
     return NextResponse.json({
       success: true,
@@ -147,9 +192,28 @@ async function handleUnsubscribe(subscription: PushSubscription) {
 
 async function handleSendNotification(notification: NotificationPayload) {
   try {
-    // In production, you would use a library like 'web-push' to send notifications
-    // For demo purposes, we'll simulate the process
-    
+    // Fetch active subscriptions from database
+    const { data: subscriptions, error } = await supabase
+      .from('push_subscriptions')
+      .select('endpoint, p256dh_key, auth_key')
+      .eq('is_active', true);
+
+    if (error) {
+      console.error('Database error:', error);
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch subscriptions' },
+        { status: 500 }
+      );
+    }
+
+    if (!subscriptions || subscriptions.length === 0) {
+      return NextResponse.json({
+        success: true,
+        message: 'No active subscriptions found',
+        stats: { successful: 0, failed: 0, total: 0 }
+      });
+    }
+
     console.log('Sending notification:', notification);
     
     // Simulate sending to all subscriptions
