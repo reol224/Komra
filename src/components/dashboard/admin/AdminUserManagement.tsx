@@ -16,6 +16,8 @@ import { createClient } from '@supabase/supabase-js';
 import { sanitizeText, sanitizeEmail } from '@/lib/sanitization';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import PermissionMatrix from './PermissionMatrix';
+import { PermissionGuard } from '@/components/auth/PermissionGuard';
+import { PERMISSIONS } from '@/lib/permissionService';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -369,89 +371,91 @@ export default function AdminUserManagement() {
         
         <TabsContent value="users" className="space-y-6">
           {/* Add User Button */}
-          <div className="flex justify-end">
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="flex items-center space-x-2">
-                  <Plus className="h-4 w-4" />
-                  <span>Add User</span>
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Create New User</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  {formErrors.general && (
-                    <div className="bg-red-900/20 border border-red-700/50 rounded-lg p-3">
-                      <p className="text-red-400 text-sm">{formErrors.general}</p>
-                    </div>
-                  )}
-                  
-                  <div>
-                    <Label htmlFor="email">Email *</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="user@company.com"
-                      value={createForm.email}
-                      onChange={(e) => {
-                        setCreateForm({...createForm, email: e.target.value});
-                        if (formErrors.email) setFormErrors(prev => ({...prev, email: ''}));
-                      }}
-                      className={formErrors.email ? 'border-red-500' : ''} />
-                    {formErrors.email && (
-                      <p className="text-red-400 text-xs mt-1">{formErrors.email}</p>
-                    )}
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="fullName">Full Name *</Label>
-                    <Input
-                      id="fullName"
-                      placeholder="John Doe"
-                      value={createForm.full_name}
-                      onChange={(e) => {
-                        setCreateForm({...createForm, full_name: e.target.value});
-                        if (formErrors.full_name) setFormErrors(prev => ({...prev, full_name: ''}));
-                      }}
-                      className={formErrors.full_name ? 'border-red-500' : ''} />
-                    {formErrors.full_name && (
-                      <p className="text-red-400 text-xs mt-1">{formErrors.full_name}</p>
-                    )}
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="role">Role *</Label>
-                    <Select
-                      value={createForm.role}
-                      onValueChange={(value: UserRole) => setCreateForm({...createForm, role: value})}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="viewer">Viewer</SelectItem>
-                        <SelectItem value="analyst">Analyst</SelectItem>
-                        <SelectItem value="admin">Administrator</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <Button onClick={handleCreateUser} className="w-full" disabled={isSubmitting}>
-                    {isSubmitting ? (
-                      <>
-                        <div
-                          className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Creating User...
-                      </>
-                    ) : (
-                      'Create User'
-                    )}
+          <PermissionGuard permission={PERMISSIONS.USERS_CREATE}>
+            <div className="flex justify-end">
+              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="flex items-center space-x-2">
+                    <Plus className="h-4 w-4" />
+                    <span>Add User</span>
                   </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Create New User</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    {formErrors.general && (
+                      <div className="bg-red-900/20 border border-red-700/50 rounded-lg p-3">
+                        <p className="text-red-400 text-sm">{formErrors.general}</p>
+                      </div>
+                    )}
+                    
+                    <div>
+                      <Label htmlFor="email">Email *</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="user@company.com"
+                        value={createForm.email}
+                        onChange={(e) => {
+                          setCreateForm({...createForm, email: e.target.value});
+                          if (formErrors.email) setFormErrors(prev => ({...prev, email: ''}));
+                        }}
+                        className={formErrors.email ? 'border-red-500' : ''} />
+                      {formErrors.email && (
+                        <p className="text-red-400 text-xs mt-1">{formErrors.email}</p>
+                      )}
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="fullName">Full Name *</Label>
+                      <Input
+                        id="fullName"
+                        placeholder="John Doe"
+                        value={createForm.full_name}
+                        onChange={(e) => {
+                          setCreateForm({...createForm, full_name: e.target.value});
+                          if (formErrors.full_name) setFormErrors(prev => ({...prev, full_name: ''}));
+                        }}
+                        className={formErrors.full_name ? 'border-red-500' : ''} />
+                      {formErrors.full_name && (
+                        <p className="text-red-400 text-xs mt-1">{formErrors.full_name}</p>
+                      )}
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="role">Role *</Label>
+                      <Select
+                        value={createForm.role}
+                        onValueChange={(value: UserRole) => setCreateForm({...createForm, role: value})}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="viewer">Viewer</SelectItem>
+                          <SelectItem value="analyst">Analyst</SelectItem>
+                          <SelectItem value="admin">Administrator</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <Button onClick={handleCreateUser} className="w-full" disabled={isSubmitting}>
+                      {isSubmitting ? (
+                        <>
+                          <div
+                            className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Creating User...
+                        </>
+                      ) : (
+                        'Create User'
+                      )}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </PermissionGuard>
 
           {/* Filters */}
           <Card>
@@ -496,7 +500,9 @@ export default function AdminUserManagement() {
                     <TableHead>Status</TableHead>
                     <TableHead>Last Login</TableHead>
                     <TableHead>Created</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <PermissionGuard permissions={[PERMISSIONS.USERS_EDIT, PERMISSIONS.USERS_DELETE]}>
+                      <TableHead>Actions</TableHead>
+                    </PermissionGuard>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -532,47 +538,53 @@ export default function AdminUserManagement() {
                       <TableCell>
                         {new Date(user.created_at).toLocaleDateString()}
                       </TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
-                          <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="outline" size="sm">
-                                <Trash2 className="h-4 w-4" />
+                      <PermissionGuard permissions={[PERMISSIONS.USERS_EDIT, PERMISSIONS.USERS_DELETE]}>
+                        <TableCell>
+                          <div className="flex space-x-2">
+                            <PermissionGuard permission={PERMISSIONS.USERS_EDIT}>
+                              <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}>
+                                <Edit className="h-4 w-4" />
                               </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete User</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you want to delete {user.full_name}? This action cannot be undone and will permanently remove the user from the database.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel disabled={isDeleting === user.id}>
-                                  Cancel
-                                </AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => handleDeleteUser(user.id)}
-                                  disabled={isDeleting === user.id}
-                                  className="bg-red-600 hover:bg-red-700">
-                                  {isDeleting === user.id ? (
-                                    <>
-                                      <div
-                                        className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                      Deleting...
-                                    </>
-                                  ) : (
-                                    'Delete User'
-                                  )}
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </TableCell>
+                            </PermissionGuard>
+                            <PermissionGuard permission={PERMISSIONS.USERS_DELETE}>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="outline" size="sm">
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete User</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Are you sure you want to delete {user.full_name}? This action cannot be undone and will permanently remove the user from the database.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel disabled={isDeleting === user.id}>
+                                      Cancel
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => handleDeleteUser(user.id)}
+                                      disabled={isDeleting === user.id}
+                                      className="bg-red-600 hover:bg-red-700">
+                                      {isDeleting === user.id ? (
+                                        <>
+                                          <div
+                                            className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                          Deleting...
+                                        </>
+                                      ) : (
+                                        'Delete User'
+                                      )}
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </PermissionGuard>
+                          </div>
+                        </TableCell>
+                      </PermissionGuard>
                     </TableRow>
                   ))}
                 </TableBody>

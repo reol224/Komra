@@ -32,77 +32,8 @@ interface RolePermission {
   granted: boolean;
 }
 
-const DEFAULT_PERMISSIONS: Permission[] = [
-  // Dashboard & Overview
-  { id: 'dashboard.view', name: 'View Dashboard', description: 'Access main dashboard and overview', category: 'Dashboard', resource: 'dashboard', action: 'view' },
-  { id: 'dashboard.export', name: 'Export Dashboard Data', description: 'Export dashboard data and reports', category: 'Dashboard', resource: 'dashboard', action: 'export' },
-  
-  // Vulnerability Management
-  { id: 'vulnerabilities.view', name: 'View Vulnerabilities', description: 'View vulnerability reports and details', category: 'Vulnerabilities', resource: 'vulnerabilities', action: 'view' },
-  { id: 'vulnerabilities.triage', name: 'Triage Vulnerabilities', description: 'Assign and prioritize vulnerabilities', category: 'Vulnerabilities', resource: 'vulnerabilities', action: 'triage' },
-  { id: 'vulnerabilities.resolve', name: 'Resolve Vulnerabilities', description: 'Mark vulnerabilities as resolved', category: 'Vulnerabilities', resource: 'vulnerabilities', action: 'resolve' },
-  { id: 'vulnerabilities.delete', name: 'Delete Vulnerabilities', description: 'Delete vulnerability records', category: 'Vulnerabilities', resource: 'vulnerabilities', action: 'delete' },
-  
-  // Endpoint Management
-  { id: 'endpoints.view', name: 'View Endpoints', description: 'View endpoint inventory and details', category: 'Endpoints', resource: 'endpoints', action: 'view' },
-  { id: 'endpoints.manage', name: 'Manage Endpoints', description: 'Add, edit, and remove endpoints', category: 'Endpoints', resource: 'endpoints', action: 'manage' },
-  { id: 'endpoints.scan', name: 'Scan Endpoints', description: 'Initiate vulnerability scans', category: 'Endpoints', resource: 'endpoints', action: 'scan' },
-  
-  // User Management
-  { id: 'users.view', name: 'View Users', description: 'View user accounts and profiles', category: 'User Management', resource: 'users', action: 'view' },
-  { id: 'users.create', name: 'Create Users', description: 'Create new user accounts', category: 'User Management', resource: 'users', action: 'create' },
-  { id: 'users.edit', name: 'Edit Users', description: 'Modify user accounts and roles', category: 'User Management', resource: 'users', action: 'edit' },
-  { id: 'users.delete', name: 'Delete Users', description: 'Delete user accounts', category: 'User Management', resource: 'users', action: 'delete' },
-  { id: 'users.permissions', name: 'Manage Permissions', description: 'Modify user permissions and access control', category: 'User Management', resource: 'users', action: 'permissions' },
-  
-  // Reports & Analytics
-  { id: 'reports.view', name: 'View Reports', description: 'Access security reports and analytics', category: 'Reports', resource: 'reports', action: 'view' },
-  { id: 'reports.create', name: 'Create Reports', description: 'Generate custom reports', category: 'Reports', resource: 'reports', action: 'create' },
-  { id: 'reports.export', name: 'Export Reports', description: 'Export reports in various formats', category: 'Reports', resource: 'reports', action: 'export' },
-  { id: 'reports.schedule', name: 'Schedule Reports', description: 'Set up automated report generation', category: 'Reports', resource: 'reports', action: 'schedule' },
-  
-  // System Administration
-  { id: 'system.config', name: 'System Configuration', description: 'Modify system settings and configuration', category: 'System', resource: 'system', action: 'config' },
-  { id: 'system.logs', name: 'View System Logs', description: 'Access system and audit logs', category: 'System', resource: 'system', action: 'logs' },
-  { id: 'system.backup', name: 'System Backup', description: 'Create and manage system backups', category: 'System', resource: 'system', action: 'backup' },
-  { id: 'system.maintenance', name: 'System Maintenance', description: 'Perform system maintenance tasks', category: 'System', resource: 'system', action: 'maintenance' },
-  
-  // API & Integration
-  { id: 'api.access', name: 'API Access', description: 'Access REST API endpoints', category: 'API', resource: 'api', action: 'access' },
-  { id: 'api.keys', name: 'Manage API Keys', description: 'Create and manage API keys', category: 'API', resource: 'api', action: 'keys' },
-  { id: 'integrations.manage', name: 'Manage Integrations', description: 'Configure third-party integrations', category: 'API', resource: 'integrations', action: 'manage' }
-];
-
-const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, string[]> = {
-  admin: [
-    'dashboard.view', 'dashboard.export',
-    'vulnerabilities.view', 'vulnerabilities.triage', 'vulnerabilities.resolve', 'vulnerabilities.delete',
-    'endpoints.view', 'endpoints.manage', 'endpoints.scan',
-    'users.view', 'users.create', 'users.edit', 'users.delete', 'users.permissions',
-    'reports.view', 'reports.create', 'reports.export', 'reports.schedule',
-    'system.config', 'system.logs', 'system.backup', 'system.maintenance',
-    'api.access', 'api.keys', 'integrations.manage'
-  ],
-  analyst: [
-    'dashboard.view', 'dashboard.export',
-    'vulnerabilities.view', 'vulnerabilities.triage', 'vulnerabilities.resolve',
-    'endpoints.view', 'endpoints.scan',
-    'users.view',
-    'reports.view', 'reports.create', 'reports.export',
-    'system.logs',
-    'api.access'
-  ],
-  viewer: [
-    'dashboard.view',
-    'vulnerabilities.view',
-    'endpoints.view',
-    'users.view',
-    'reports.view'
-  ]
-};
-
 export default function PermissionMatrix() {
-  const [permissions] = useState<Permission[]>(DEFAULT_PERMISSIONS);
+  const [permissions, setPermissions] = useState<Permission[]>([]);
   const [rolePermissions, setRolePermissions] = useState<Record<UserRole, Record<string, boolean>>>({
     admin: {},
     analyst: {},
@@ -119,26 +50,52 @@ export default function PermissionMatrix() {
 
   const loadPermissions = async () => {
     try {
-      // Initialize with default permissions
-      const initialPermissions: Record<UserRole, Record<string, boolean>> = {
+      setLoading(true);
+      
+      // Load all permissions
+      const { data: permissionsData, error: permissionsError } = await supabase
+        .from('permissions')
+        .select('*')
+        .order('category, name');
+
+      if (permissionsError) throw permissionsError;
+
+      // Load role permissions
+      const { data: rolePermissionsData, error: rolePermissionsError } = await supabase
+        .from('role_permissions')
+        .select('*');
+
+      if (rolePermissionsError) throw rolePermissionsError;
+
+      setPermissions(permissionsData || []);
+
+      // Build role permissions object
+      const rolePermissionsMap: Record<UserRole, Record<string, boolean>> = {
         admin: {},
         analyst: {},
         viewer: {}
       };
 
-      // Set default permissions for each role
-      Object.entries(DEFAULT_ROLE_PERMISSIONS).forEach(([role, permissionIds]) => {
-        permissions.forEach(permission => {
-          initialPermissions[role as UserRole][permission.id] = permissionIds.includes(permission.id);
-        });
+      // Initialize all permissions as false
+      (permissionsData || []).forEach(permission => {
+        rolePermissionsMap.admin[permission.id] = false;
+        rolePermissionsMap.analyst[permission.id] = false;
+        rolePermissionsMap.viewer[permission.id] = false;
       });
 
-      setRolePermissions(initialPermissions);
+      // Set granted permissions to true
+      (rolePermissionsData || []).forEach(rp => {
+        if (rolePermissionsMap[rp.role as UserRole]) {
+          rolePermissionsMap[rp.role as UserRole][rp.permission_id] = rp.granted;
+        }
+      });
+
+      setRolePermissions(rolePermissionsMap);
     } catch (error) {
       console.error('Error loading permissions:', error);
       toast({
         title: "Error",
-        description: "Failed to load permissions. Using defaults.",
+        description: "Failed to load permissions from database.",
         variant: "destructive",
       });
     } finally {
@@ -160,9 +117,34 @@ export default function PermissionMatrix() {
   const savePermissions = async () => {
     setSaving(true);
     try {
-      // In a real implementation, this would save to the database
-      // For now, we'll just simulate a save operation
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Prepare data for upsert
+      const rolePermissionUpdates: any[] = [];
+      
+      Object.entries(rolePermissions).forEach(([role, permissions]) => {
+        Object.entries(permissions).forEach(([permissionId, granted]) => {
+          rolePermissionUpdates.push({
+            role,
+            permission_id: permissionId,
+            granted,
+            updated_at: new Date().toISOString()
+          });
+        });
+      });
+
+      // Delete existing role permissions and insert new ones
+      const { error: deleteError } = await supabase
+        .from('role_permissions')
+        .delete()
+        .neq('role', 'nonexistent'); // Delete all
+
+      if (deleteError) throw deleteError;
+
+      // Insert new permissions
+      const { error: insertError } = await supabase
+        .from('role_permissions')
+        .insert(rolePermissionUpdates);
+
+      if (insertError) throw insertError;
       
       setHasChanges(false);
       toast({
@@ -181,21 +163,23 @@ export default function PermissionMatrix() {
     }
   };
 
-  const resetToDefaults = () => {
-    const initialPermissions: Record<UserRole, Record<string, boolean>> = {
-      admin: {},
-      analyst: {},
-      viewer: {}
-    };
-
-    Object.entries(DEFAULT_ROLE_PERMISSIONS).forEach(([role, permissionIds]) => {
-      permissions.forEach(permission => {
-        initialPermissions[role as UserRole][permission.id] = permissionIds.includes(permission.id);
+  const resetToDefaults = async () => {
+    try {
+      // Reset to default permissions by reloading from database
+      await loadPermissions();
+      setHasChanges(false);
+      toast({
+        title: "Reset Complete",
+        description: "Permissions have been reset to current database values.",
       });
-    });
-
-    setRolePermissions(initialPermissions);
-    setHasChanges(true);
+    } catch (error) {
+      console.error('Error resetting permissions:', error);
+      toast({
+        title: "Error",
+        description: "Failed to reset permissions.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getPermissionsByCategory = () => {
@@ -234,7 +218,7 @@ export default function PermissionMatrix() {
         <div className="flex space-x-2">
           <Button variant="outline" onClick={resetToDefaults}>
             <RotateCcw className="h-4 w-4 mr-2" />
-            Reset to Defaults
+            Reset to Database
           </Button>
           <Button onClick={savePermissions} disabled={!hasChanges || saving}>
             <Save className="h-4 w-4 mr-2" />

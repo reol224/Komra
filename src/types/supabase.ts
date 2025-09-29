@@ -715,6 +715,36 @@ export type Database = {
         }
         Relationships: []
       }
+      permissions: {
+        Row: {
+          action: string
+          category: string
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+          resource: string
+        }
+        Insert: {
+          action: string
+          category: string
+          created_at?: string | null
+          description?: string | null
+          id: string
+          name: string
+          resource: string
+        }
+        Update: {
+          action?: string
+          category?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          resource?: string
+        }
+        Relationships: []
+      }
       push_subscriptions: {
         Row: {
           auth_key: string
@@ -798,6 +828,35 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      role_permissions: {
+        Row: {
+          granted: boolean | null
+          permission_id: string
+          role: string
+          updated_at: string | null
+        }
+        Insert: {
+          granted?: boolean | null
+          permission_id: string
+          role: string
+          updated_at?: string | null
+        }
+        Update: {
+          granted?: boolean | null
+          permission_id?: string
+          role?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_permissions_permission_id_fkey"
+            columns: ["permission_id"]
+            isOneToOne: false
+            referencedRelation: "permissions"
             referencedColumns: ["id"]
           },
         ]
