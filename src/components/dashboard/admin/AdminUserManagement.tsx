@@ -14,6 +14,8 @@ import { Users, Plus, Edit, Trash2, Shield, Search } from 'lucide-react';
 import { UserRole } from '@/contexts/AuthContext';
 import { createClient } from '@supabase/supabase-js';
 import { sanitizeText, sanitizeEmail } from '@/lib/sanitization';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import PermissionMatrix from './PermissionMatrix';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -356,213 +358,290 @@ export default function AdminUserManagement() {
           <Users className="h-5 w-5" />
           <h3 className="text-lg font-semibold">User Management</h3>
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="flex items-center space-x-2">
-              <Plus className="h-4 w-4" />
-              <span>Add User</span>
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create New User</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              {formErrors.general && (
-                <div className="bg-red-900/20 border border-red-700/50 rounded-lg p-3">
-                  <p className="text-red-400 text-sm">{formErrors.general}</p>
+      </div>
+
+      {/* Tabs for User Management and Permission Matrix */}
+      <Tabs defaultValue="users" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="users">User Accounts</TabsTrigger>
+          <TabsTrigger value="permissions">Permission Matrix</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="users" className="space-y-6">
+          {/* Add User Button */}
+          <div className="flex justify-end">
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="flex items-center space-x-2">
+                  <Plus className="h-4 w-4" />
+                  <span>Add User</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Create New User</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  {formErrors.general && (
+                    <div className="bg-red-900/20 border border-red-700/50 rounded-lg p-3">
+                      <p className="text-red-400 text-sm">{formErrors.general}</p>
+                    </div>
+                  )}
+                  
+                  <div>
+                    <Label htmlFor="email">Email *</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="user@company.com"
+                      value={createForm.email}
+                      onChange={(e) => {
+                        setCreateForm({...createForm, email: e.target.value});
+                        if (formErrors.email) setFormErrors(prev => ({...prev, email: ''}));
+                      }}
+                      className={formErrors.email ? 'border-red-500' : ''} />
+                    {formErrors.email && (
+                      <p className="text-red-400 text-xs mt-1">{formErrors.email}</p>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="fullName">Full Name *</Label>
+                    <Input
+                      id="fullName"
+                      placeholder="John Doe"
+                      value={createForm.full_name}
+                      onChange={(e) => {
+                        setCreateForm({...createForm, full_name: e.target.value});
+                        if (formErrors.full_name) setFormErrors(prev => ({...prev, full_name: ''}));
+                      }}
+                      className={formErrors.full_name ? 'border-red-500' : ''} />
+                    {formErrors.full_name && (
+                      <p className="text-red-400 text-xs mt-1">{formErrors.full_name}</p>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="role">Role *</Label>
+                    <Select
+                      value={createForm.role}
+                      onValueChange={(value: UserRole) => setCreateForm({...createForm, role: value})}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="viewer">Viewer</SelectItem>
+                        <SelectItem value="analyst">Analyst</SelectItem>
+                        <SelectItem value="admin">Administrator</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <Button onClick={handleCreateUser} className="w-full" disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <>
+                        <div
+                          className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Creating User...
+                      </>
+                    ) : (
+                      'Create User'
+                    )}
+                  </Button>
                 </div>
-              )}
-              
-              <div>
-                <Label htmlFor="email">Email *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="user@company.com"
-                  value={createForm.email}
-                  onChange={(e) => {
-                    setCreateForm({...createForm, email: e.target.value});
-                    if (formErrors.email) setFormErrors(prev => ({...prev, email: ''}));
-                  }}
-                  className={formErrors.email ? 'border-red-500' : ''} />
-                {formErrors.email && (
-                  <p className="text-red-400 text-xs mt-1">{formErrors.email}</p>
-                )}
-              </div>
-              
-              <div>
-                <Label htmlFor="fullName">Full Name *</Label>
-                <Input
-                  id="fullName"
-                  placeholder="John Doe"
-                  value={createForm.full_name}
-                  onChange={(e) => {
-                    setCreateForm({...createForm, full_name: e.target.value});
-                    if (formErrors.full_name) setFormErrors(prev => ({...prev, full_name: ''}));
-                  }}
-                  className={formErrors.full_name ? 'border-red-500' : ''} />
-                {formErrors.full_name && (
-                  <p className="text-red-400 text-xs mt-1">{formErrors.full_name}</p>
-                )}
-              </div>
-              
-              <div>
-                <Label htmlFor="role">Role *</Label>
-                <Select
-                  value={createForm.role}
-                  onValueChange={(value: UserRole) => setCreateForm({...createForm, role: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select role" />
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {/* Filters */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex space-x-4">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="Search users..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10" />
+                  </div>
+                </div>
+                <Select value={selectedRole} onValueChange={setSelectedRole}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="viewer">Viewer</SelectItem>
-                    <SelectItem value="analyst">Analyst</SelectItem>
+                    <SelectItem value="all">All Roles</SelectItem>
                     <SelectItem value="admin">Administrator</SelectItem>
+                    <SelectItem value="analyst">Analyst</SelectItem>
+                    <SelectItem value="viewer">Viewer</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              
-              <Button onClick={handleCreateUser} className="w-full" disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <>
-                    <div
-                      className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Creating User...
-                  </>
-                ) : (
-                  'Create User'
-                )}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
-      {/* Filters */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex space-x-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search users..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10" />
-              </div>
-            </div>
-            <Select value={selectedRole} onValueChange={setSelectedRole}>
-              <SelectTrigger className="w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Roles</SelectItem>
-                <SelectItem value="admin">Administrator</SelectItem>
-                <SelectItem value="analyst">Analyst</SelectItem>
-                <SelectItem value="viewer">Viewer</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-      {/* Users Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Users ({filteredUsers.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>User</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Last Login</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredUsers.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>
-                    <div>
-                      <div className="font-medium">{user.full_name}</div>
-                      <div className="text-sm text-gray-500">{user.email}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge 
-                      variant={getRoleColor(user.role)} 
-                      className={`capitalize ${getRoleBadgeClassName(user.role)}`}
-                    >
-                      {user.role}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={getStatusColor(user.status)}
-                      className={getStatusBadgeClassName(user.status)}>
-                      {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {user.last_login ? 
-                      new Date(user.last_login).toLocaleDateString() : 
-                      'Never'
-                    }
-                  </TableCell>
-                  <TableCell>
-                    {new Date(user.created_at).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex space-x-2">
-                      <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="outline" size="sm">
-                            <Trash2 className="h-4 w-4" />
+            </CardContent>
+          </Card>
+
+          {/* Users Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Users ({filteredUsers.length})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>User</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Last Login</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredUsers.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{user.full_name}</div>
+                          <div className="text-sm text-gray-500">{user.email}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant={getRoleColor(user.role)} 
+                          className={`capitalize ${getRoleBadgeClassName(user.role)}`}
+                        >
+                          {user.role}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={getStatusColor(user.status)}
+                          className={getStatusBadgeClassName(user.status)}>
+                          {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {user.last_login ? 
+                          new Date(user.last_login).toLocaleDateString() : 
+                          'Never'
+                        }
+                      </TableCell>
+                      <TableCell>
+                        {new Date(user.created_at).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex space-x-2">
+                          <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}>
+                            <Edit className="h-4 w-4" />
                           </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete User</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to delete {user.full_name}? This action cannot be undone and will permanently remove the user from the database.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel disabled={isDeleting === user.id}>
-                              Cancel
-                            </AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDeleteUser(user.id)}
-                              disabled={isDeleting === user.id}
-                              className="bg-red-600 hover:bg-red-700">
-                              {isDeleting === user.id ? (
-                                <>
-                                  <div
-                                    className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                  Deleting...
-                                </>
-                              ) : (
-                                'Delete User'
-                              )}
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="outline" size="sm">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete User</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete {user.full_name}? This action cannot be undone and will permanently remove the user from the database.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel disabled={isDeleting === user.id}>
+                                  Cancel
+                                </AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDeleteUser(user.id)}
+                                  disabled={isDeleting === user.id}
+                                  className="bg-red-600 hover:bg-red-700">
+                                  {isDeleting === user.id ? (
+                                    <>
+                                      <div
+                                        className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                      Deleting...
+                                    </>
+                                  ) : (
+                                    'Delete User'
+                                  )}
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          {/* Quick Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center space-x-2">
+                  <Shield className="h-5 w-5 text-red-600" />
+                  <div>
+                    <div className="text-2xl font-bold">
+                      {users.filter(u => u.role === 'admin').length}
                     </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                    <div className="text-sm text-gray-500">Administrators</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center space-x-2">
+                  <Search className="h-5 w-5 text-blue-600" />
+                  <div>
+                    <div className="text-2xl font-bold">
+                      {users.filter(u => u.role === 'analyst').length}
+                    </div>
+                    <div className="text-sm text-gray-500">Analysts</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center space-x-2">
+                  <Users className="h-5 w-5 text-green-600" />
+                  <div>
+                    <div className="text-2xl font-bold">
+                      {users.filter(u => u.role === 'viewer').length}
+                    </div>
+                    <div className="text-sm text-gray-500">Viewers</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center space-x-2">
+                  <Users className="h-5 w-5 text-gray-600" />
+                  <div>
+                    <div className="text-2xl font-bold">
+                      {users.filter(u => u.status === 'active').length}
+                    </div>
+                    <div className="text-sm text-gray-500">Active Users</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="permissions">
+          <PermissionMatrix />
+        </TabsContent>
+      </Tabs>
+
       {/* Edit User Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
@@ -665,61 +744,6 @@ export default function AdminUserManagement() {
           </div>
         </DialogContent>
       </Dialog>
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <Shield className="h-5 w-5 text-red-600" />
-              <div>
-                <div className="text-2xl font-bold">
-                  {users.filter(u => u.role === 'admin').length}
-                </div>
-                <div className="text-sm text-gray-500">Administrators</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <Search className="h-5 w-5 text-blue-600" />
-              <div>
-                <div className="text-2xl font-bold">
-                  {users.filter(u => u.role === 'analyst').length}
-                </div>
-                <div className="text-sm text-gray-500">Analysts</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <Users className="h-5 w-5 text-green-600" />
-              <div>
-                <div className="text-2xl font-bold">
-                  {users.filter(u => u.role === 'viewer').length}
-                </div>
-                <div className="text-sm text-gray-500">Viewers</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <Users className="h-5 w-5 text-gray-600" />
-              <div>
-                <div className="text-2xl font-bold">
-                  {users.filter(u => u.status === 'active').length}
-                </div>
-                <div className="text-sm text-gray-500">Active Users</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }
