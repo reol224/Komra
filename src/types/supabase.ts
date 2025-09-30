@@ -974,26 +974,56 @@ export type Database = {
       }
       user_passwords: {
         Row: {
+          algorithm: string
+          change_reason: string | null
           created_at: string | null
+          failed_attempts: number | null
           id: string
+          iterations: number
+          last_changed: string | null
+          locked_until: string | null
+          memory_cost: number
+          parallelism: number
           password_hash: string
+          requires_change: boolean | null
           salt: string
+          strength_score: number | null
           updated_at: string | null
           user_id: string
         }
         Insert: {
+          algorithm?: string
+          change_reason?: string | null
           created_at?: string | null
+          failed_attempts?: number | null
           id?: string
+          iterations?: number
+          last_changed?: string | null
+          locked_until?: string | null
+          memory_cost?: number
+          parallelism?: number
           password_hash: string
+          requires_change?: boolean | null
           salt: string
+          strength_score?: number | null
           updated_at?: string | null
           user_id: string
         }
         Update: {
+          algorithm?: string
+          change_reason?: string | null
           created_at?: string | null
+          failed_attempts?: number | null
           id?: string
+          iterations?: number
+          last_changed?: string | null
+          locked_until?: string | null
+          memory_cost?: number
+          parallelism?: number
           password_hash?: string
+          requires_change?: boolean | null
           salt?: string
+          strength_score?: number | null
           updated_at?: string | null
           user_id?: string
         }
@@ -1138,6 +1168,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_password_strength: {
+        Args: { password: string }
+        Returns: {
+          feedback: string[]
+          is_strong: boolean
+          score: number
+        }[]
+      }
       hash_password: {
         Args: { password: string }
         Returns: {
@@ -1149,8 +1187,12 @@ export type Database = {
         Args: { password: string; user_id: string }
         Returns: boolean
       }
+      upgrade_password_security: {
+        Args: { input_user_id: string; new_password: string }
+        Returns: boolean
+      }
       verify_user_password: {
-        Args: { password: string; user_id: string }
+        Args: { input_user_id: string; password: string }
         Returns: boolean
       }
     }

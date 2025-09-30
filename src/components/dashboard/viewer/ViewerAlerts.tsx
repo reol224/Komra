@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { PermissionGuard } from '@/components/auth/PermissionGuard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -169,190 +170,200 @@ export default function ViewerAlerts() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center space-x-2">
-        <Bell className="h-5 w-5" />
-        <h3 className="text-lg font-semibold">Alerts and Notifications</h3>
-      </div>
-
-      {/* Alert Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <Bell className="h-5 w-5 text-blue-600" />
-              <div>
-                <div className="text-2xl font-bold">{alertStats.total}</div>
-                <div className="text-sm text-gray-500">Total Alerts</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <AlertTriangle className="h-5 w-5 text-red-600" />
-              <div>
-                <div className="text-2xl font-bold text-red-600">{alertStats.active}</div>
-                <div className="text-sm text-gray-500">Active Alerts</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <AlertTriangle className="h-5 w-5 text-red-600" />
-              <div>
-                <div className="text-2xl font-bold text-red-600">{alertStats.critical}</div>
-                <div className="text-sm text-gray-500">Critical Alerts</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <Clock className="h-5 w-5 text-yellow-600" />
-              <div>
-                <div className="text-2xl font-bold text-yellow-600">{alertStats.acknowledged}</div>
-                <div className="text-sm text-gray-500">Acknowledged</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filters */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Select value={selectedSeverity} onValueChange={setSelectedSeverity}>
-              <SelectTrigger>
-                <SelectValue placeholder="All Severities" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Severities</SelectItem>
-                <SelectItem value="critical">Critical</SelectItem>
-                <SelectItem value="error">Error</SelectItem>
-                <SelectItem value="warning">Warning</SelectItem>
-                <SelectItem value="info">Info</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              <SelectTrigger>
-                <SelectValue placeholder="All Categories" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="vulnerability">Vulnerability</SelectItem>
-                <SelectItem value="security">Security</SelectItem>
-                <SelectItem value="system">System</SelectItem>
-                <SelectItem value="compliance">Compliance</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-              <SelectTrigger>
-                <SelectValue placeholder="All Statuses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="acknowledged">Acknowledged</SelectItem>
-                <SelectItem value="resolved">Resolved</SelectItem>
-              </SelectContent>
-            </Select>
+    <PermissionGuard permission="dashboard.alerts" fallback={
+      <div className="space-y-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <p className="text-slate-300">You don't have permission to view alerts.</p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+    }>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center space-x-2">
+          <Bell className="h-5 w-5" />
+          <h3 className="text-lg font-semibold">Alerts and Notifications</h3>
+        </div>
 
-      {/* Alerts List */}
-      <div className="space-y-4">
-        {filteredAlerts.map((alert) => (
-          <Card key={alert.id} className="hover:shadow-md transition-shadow">
+        {/* Alert Summary */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
             <CardContent className="pt-6">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start space-x-3 flex-1">
-                  {getSeverityIcon(alert.severity)}
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <h4 className="font-semibold">{alert.title}</h4>
-                      <Badge variant={getSeverityColor(alert.severity)} className="capitalize">
-                        {alert.severity}
-                      </Badge>
-                      <Badge variant={getCategoryColor(alert.category)} className="capitalize">
-                        {alert.category}
-                      </Badge>
-                      <Badge variant={getStatusColor(alert.status)} className="capitalize">
-                        {alert.status}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-3">{alert.message}</p>
-                    <div className="flex items-center space-x-4 text-xs text-gray-500">
-                      <span><strong>Source:</strong> {alert.source}</span>
-                      <span><strong>Time:</strong> {new Date(alert.timestamp).toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2 ml-4">
-                  {getStatusIcon(alert.status)}
+              <div className="flex items-center space-x-2">
+                <Bell className="h-5 w-5 text-blue-600" />
+                <div>
+                  <div className="text-2xl font-bold">{alertStats.total}</div>
+                  <div className="text-sm text-gray-500">Total Alerts</div>
                 </div>
               </div>
             </CardContent>
           </Card>
-        ))}
-      </div>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center space-x-2">
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+                <div>
+                  <div className="text-2xl font-bold text-red-600">{alertStats.active}</div>
+                  <div className="text-sm text-gray-500">Active Alerts</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center space-x-2">
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+                <div>
+                  <div className="text-2xl font-bold text-red-600">{alertStats.critical}</div>
+                  <div className="text-sm text-gray-500">Critical Alerts</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center space-x-2">
+                <Clock className="h-5 w-5 text-yellow-600" />
+                <div>
+                  <div className="text-2xl font-bold text-yellow-600">{alertStats.acknowledged}</div>
+                  <div className="text-sm text-gray-500">Acknowledged</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-      {filteredAlerts.length === 0 && (
+        {/* Filters */}
         <Card>
-          <CardContent className="pt-6 text-center">
-            <div className="flex flex-col items-center space-y-2">
-              <CheckCircle className="h-12 w-12 text-green-600" />
-              <p className="text-gray-500">No alerts match your current filters.</p>
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Select value={selectedSeverity} onValueChange={setSelectedSeverity}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Severities" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Severities</SelectItem>
+                  <SelectItem value="critical">Critical</SelectItem>
+                  <SelectItem value="error">Error</SelectItem>
+                  <SelectItem value="warning">Warning</SelectItem>
+                  <SelectItem value="info">Info</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  <SelectItem value="vulnerability">Vulnerability</SelectItem>
+                  <SelectItem value="security">Security</SelectItem>
+                  <SelectItem value="system">System</SelectItem>
+                  <SelectItem value="compliance">Compliance</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="acknowledged">Acknowledged</SelectItem>
+                  <SelectItem value="resolved">Resolved</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>
-      )}
 
-      {/* Recent Activity Summary */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Alert Activity Summary</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-3 border rounded-lg">
-              <div className="text-lg font-bold text-blue-600">
-                {alerts.filter(a => {
-                  const alertTime = new Date(a.timestamp);
-                  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-                  return alertTime > oneDayAgo;
-                }).length}
+        {/* Alerts List */}
+        <div className="space-y-4">
+          {filteredAlerts.map((alert) => (
+            <Card key={alert.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="pt-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start space-x-3 flex-1">
+                    {getSeverityIcon(alert.severity)}
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <h4 className="font-semibold">{alert.title}</h4>
+                        <Badge variant={getSeverityColor(alert.severity)} className="capitalize">
+                          {alert.severity}
+                        </Badge>
+                        <Badge variant={getCategoryColor(alert.category)} className="capitalize">
+                          {alert.category}
+                        </Badge>
+                        <Badge variant={getStatusColor(alert.status)} className="capitalize">
+                          {alert.status}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-3">{alert.message}</p>
+                      <div className="flex items-center space-x-4 text-xs text-gray-500">
+                        <span><strong>Source:</strong> {alert.source}</span>
+                        <span><strong>Time:</strong> {new Date(alert.timestamp).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2 ml-4">
+                    {getStatusIcon(alert.status)}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {filteredAlerts.length === 0 && (
+          <Card>
+            <CardContent className="pt-6 text-center">
+              <div className="flex flex-col items-center space-y-2">
+                <CheckCircle className="h-12 w-12 text-green-600" />
+                <p className="text-gray-500">No alerts match your current filters.</p>
               </div>
-              <div className="text-sm text-gray-500">Last 24 Hours</div>
-            </div>
-            <div className="text-center p-3 border rounded-lg">
-              <div className="text-lg font-bold text-green-600">
-                {alerts.filter(a => a.status === 'resolved').length}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Recent Activity Summary */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Alert Activity Summary</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center p-3 border rounded-lg">
+                <div className="text-lg font-bold text-blue-600">
+                  {alerts.filter(a => {
+                    const alertTime = new Date(a.timestamp);
+                    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+                    return alertTime > oneDayAgo;
+                  }).length}
+                </div>
+                <div className="text-sm text-gray-500">Last 24 Hours</div>
               </div>
-              <div className="text-sm text-gray-500">Resolved Today</div>
-            </div>
-            <div className="text-center p-3 border rounded-lg">
-              <div className="text-lg font-bold text-red-600">
-                {alerts.filter(a => a.severity === 'critical' && a.status === 'active').length}
+              <div className="text-center p-3 border rounded-lg">
+                <div className="text-lg font-bold text-green-600">
+                  {alerts.filter(a => a.status === 'resolved').length}
+                </div>
+                <div className="text-sm text-gray-500">Resolved Today</div>
               </div>
-              <div className="text-sm text-gray-500">Critical Active</div>
-            </div>
-            <div className="text-center p-3 border rounded-lg">
-              <div className="text-lg font-bold text-yellow-600">
-                {alerts.filter(a => a.status === 'acknowledged').length}
+              <div className="text-center p-3 border rounded-lg">
+                <div className="text-lg font-bold text-red-600">
+                  {alerts.filter(a => a.severity === 'critical' && a.status === 'active').length}
+                </div>
+                <div className="text-sm text-gray-500">Critical Active</div>
               </div>
-              <div className="text-sm text-gray-500">Pending Action</div>
+              <div className="text-center p-3 border rounded-lg">
+                <div className="text-lg font-bold text-yellow-600">
+                  {alerts.filter(a => a.status === 'acknowledged').length}
+                </div>
+                <div className="text-sm text-gray-500">Pending Action</div>
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+          </CardContent>
+        </Card>
+      </div>
+    </PermissionGuard>
   );
 }

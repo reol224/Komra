@@ -31,6 +31,31 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Demo users for testing
+const DEMO_USERS = {
+  'admin@komra.security': {
+    id: '11111111-1111-1111-1111-111111111111',
+    email: 'admin@komra.security',
+    full_name: 'Admin User',
+    role: 'admin' as UserRole,
+    mfa_enabled: false,
+  },
+  'analyst@komra.security': {
+    id: '22222222-2222-2222-2222-222222222222',
+    email: 'analyst@komra.security',
+    full_name: 'Analyst User',
+    role: 'analyst' as UserRole,
+    mfa_enabled: false,
+  },
+  'viewer@komra.security': {
+    id: '33333333-3333-3333-3333-333333333333',
+    email: 'viewer@komra.security',
+    full_name: 'Viewer User',
+    role: 'viewer' as UserRole,
+    mfa_enabled: false,
+  }
+};
+
 const roleHierarchy: Record<UserRole, number> = {
   viewer: 1,
   analyst: 2,
@@ -68,78 +93,86 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        fetchUserProfile(session.user.id);
-      } else {
-        setLoading(false);
+    // Check for demo user in localStorage
+    const demoUser = localStorage.getItem('demo_user');
+    if (demoUser) {
+      try {
+        const userData = JSON.parse(demoUser);
+        setUser(userData);
+      } catch (error) {
+        console.error('Error parsing demo user:', error);
+        localStorage.removeItem('demo_user');
       }
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (session?.user) {
-          await fetchUserProfile(session.user.id);
-        } else {
-          setUser(null);
-          setLoading(false);
-        }
-      }
-    );
-
-    return () => subscription.unsubscribe();
+    }
+    setLoading(false);
   }, []);
 
-  const fetchUserProfile = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (error) throw error;
-
-      setUser({
-        id: data.id,
-        email: data.email,
-        full_name: data.full_name,
-        role: data.role as UserRole,
-        mfa_enabled: data.mfa_enabled || false,
-        last_activity: data.last_activity,
-        session_timeout: getSessionTimeoutByRole(data.role),
+  const signIn = async (email: string, password: string) => {
+    // Check if it's a demo user
+    const demoUser = DEMO_USERS[email as keyof typeof DEMO_USERS];
+    
+    if (demoUser) {
+      // For demo users, verify password using the database function
+      const { data: isValid, error } = await supabase.rpc('verify_user_password', {
+        user_id: demoUser.id,
+        password: password
       });
-    } catch (error) {
-      console.error('Error fetching user profile:', error);
-      // Create user profile if it doesn't exist
-      const { data: authUser } = await supabase.auth.getUser();
-      if (authUser.user) {
-        const { data, error: insertError } = await supabase
-          .from('users')
-          .insert({
-            id: authUser.user.id,
-            email: authUser.user.email!,
-            role: 'analyst', // Default role
-            mfa_enabled: false,
-          })
-          .select()
-          .single();
 
-        if (!insertError && data) {
-          setUser({
-            id: data.id,
-            email: data.email,
-            full_name: data.full_name,
-            role: data.role as UserRole,
-            mfa_enabled: false,
-            session_timeout: getSessionTimeoutByRole(data.role),
-          });
-        }
+      if (error) {
+        console.error('Password verification error:', error);
+        throw new Error('Invalid login credentials');
       }
-    } finally {
-      setLoading(false);
+
+      if (!isValid) {
+        throw new Error('Invalid login credentials');
+      }
+
+      // Demo user login successful
+      const userData = {
+        id: demoUser.id,
+        email: demoUser.email,
+        full_name: demoUser.full_name,
+        role: demoUser.role,
+        mfa_enabled: demoUser.mfa_enabled,
+        session_timeout: getSessionTimeoutByRole(demoUser.role),
+      };
+      
+      setUser(userData);
+      localStorage.setItem('demo_user', JSON.stringify(userData));
+      return;
+    }
+
+    // Regular Supabase authentication for non-demo users
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) throw error;
+
+    // Update last activity
+    await updateLastActivity();
+  };
+
+  const signOut = async () => {
+    // Clear demo user
+    localStorage.removeItem('demo_user');
+    setUser(null);
+    
+    // Also sign out from Supabase if there's a session
+    const { error } = await supabase.auth.signOut();
+    if (error) console.error('Supabase signout error:', error);
+  };
+
+  const updateLastActivity = async () => {
+    if (!user) return;
+    
+    try {
+      await supabase
+        .from('users')
+        .update({ last_activity: new Date().toISOString() })
+        .eq('id', user.id);
+    } catch (error) {
+      console.error('Error updating last activity:', error);
     }
   };
 
@@ -153,35 +186,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return 30 * 60 * 1000; // 30 minutes for viewer
       default:
         return 30 * 60 * 1000;
-    }
-  };
-
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) throw error;
-
-    // Update last activity
-    await updateLastActivity();
-  };
-
-  const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
-  };
-
-  const updateLastActivity = async () => {
-    if (!user) return;
-    
-    try {
-      await supabase
-        .from('users')
-        .update({ last_activity: new Date().toISOString() })
-        .eq('id', user.id);
-    } catch (error) {
-      console.error('Error updating last activity:', error);
     }
   };
 
@@ -204,7 +208,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signOut,
     hasPermission,
     canAccess,
-    updateLastActivity,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +20,7 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const { signIn } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,12 +28,24 @@ function LoginForm() {
     setError("");
 
     try {
-      // Mock authentication - in real app would call auth service
-      if (email && password) {
-        console.log("Login successful");
-      } else {
-        throw new Error("Please enter email and password");
-      }
+      await signIn(email, password);
+      console.log("Login successful");
+    } catch (err: any) {
+      setError(err.message || "Failed to sign in");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Quick login buttons for demo
+  const handleDemoLogin = async (demoEmail: string, demoPassword: string = "password123") => {
+    setEmail(demoEmail);
+    setPassword(demoPassword);
+    setLoading(true);
+    setError("");
+
+    try {
+      await signIn(demoEmail, demoPassword);
     } catch (err: any) {
       setError(err.message || "Failed to sign in");
     } finally {
@@ -138,10 +152,36 @@ function LoginForm() {
           </div>
 
           <div className="mt-4 text-center text-sm text-slate-400">
-            <p className="text-slate-300">Demo Accounts:</p>
-            <p>Admin: admin@komra.security</p>
-            <p>Analyst: analyst@komra.security</p>
-            <p>Viewer: viewer@komra.security</p>
+            <p className="text-slate-300 mb-3">Demo Accounts:</p>
+            <div className="space-y-2">
+              <Button
+                onClick={() => handleDemoLogin("admin@komra.security")}
+                variant="outline"
+                size="sm"
+                className="w-full border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+                disabled={loading}
+              >
+                Login as Admin
+              </Button>
+              <Button
+                onClick={() => handleDemoLogin("analyst@komra.security")}
+                variant="outline"
+                size="sm"
+                className="w-full border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+                disabled={loading}
+              >
+                Login as Analyst
+              </Button>
+              <Button
+                onClick={() => handleDemoLogin("viewer@komra.security")}
+                variant="outline"
+                size="sm"
+                className="w-full border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+                disabled={loading}
+              >
+                Login as Viewer
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

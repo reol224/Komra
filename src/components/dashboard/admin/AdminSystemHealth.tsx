@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { PermissionGuard } from '@/components/auth/PermissionGuard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -308,210 +309,220 @@ export default function AdminSystemHealth() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <Activity className="h-5 w-5" />
-          <h3 className="text-lg font-semibold">System Health & Performance</h3>
-        </div>
-        <div className="text-sm text-gray-500">
-          {isLoading ? 'Loading...' : `Last updated: ${new Date().toLocaleTimeString()}`}
+    <PermissionGuard permission="system.health_monitoring" fallback={
+      <div className="space-y-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <p className="text-slate-300">You don't have permission to view system health data.</p>
+          </div>
         </div>
       </div>
+    }>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Activity className="h-5 w-5" />
+            <h3 className="text-lg font-semibold">System Health & Performance</h3>
+          </div>
+          <div className="text-sm text-gray-500">
+            {isLoading ? 'Loading...' : `Last updated: ${new Date().toLocaleTimeString()}`}
+          </div>
+        </div>
 
-      {/* Key Metrics - Now with real data */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <Server className="h-5 w-5 text-green-600" />
-              <div>
-                <div className="text-2xl font-bold text-green-600">
-                  {isLoading ? '...' : systemMetrics.uptime}
-                </div>
-                <div className="text-sm text-gray-500">System Uptime</div>
-                <div className="text-xs text-gray-400">
-                  {systemMetrics.healthyEndpoints}/{systemMetrics.totalEndpoints} healthy
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <Wifi className="h-5 w-5 text-blue-600" />
-              <div>
-                <div className="text-2xl font-bold">
-                  {isLoading ? '...' : systemMetrics.responseTime}
-                </div>
-                <div className="text-sm text-gray-500">Avg Response Time</div>
-                <div className="text-xs text-gray-400">
-                  Network: {systemMetrics.networkLatency}
+        {/* Key Metrics - Now with real data */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center space-x-2">
+                <Server className="h-5 w-5 text-green-600" />
+                <div>
+                  <div className="text-2xl font-bold text-green-600">
+                    {isLoading ? '...' : systemMetrics.uptime}
+                  </div>
+                  <div className="text-sm text-gray-500">System Uptime</div>
+                  <div className="text-xs text-gray-400">
+                    {systemMetrics.healthyEndpoints}/{systemMetrics.totalEndpoints} healthy
+                  </div>
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <Activity className="h-5 w-5 text-purple-600" />
-              <div>
-                <div className="text-2xl font-bold">
-                  {isLoading ? '...' : systemMetrics.activeConnections}
-                </div>
-                <div className="text-sm text-gray-500">Active Connections</div>
-                <div className="text-xs text-gray-400">
-                  {systemMetrics.totalEndpoints} endpoints
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center space-x-2">
+                <Wifi className="h-5 w-5 text-blue-600" />
+                <div>
+                  <div className="text-2xl font-bold">
+                    {isLoading ? '...' : systemMetrics.responseTime}
+                  </div>
+                  <div className="text-sm text-gray-500">Avg Response Time</div>
+                  <div className="text-xs text-gray-400">
+                    Network: {systemMetrics.networkLatency}
+                  </div>
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <Database className={`h-5 w-5 ${
-                systemMetrics.databaseHealth === 'healthy' ? 'text-green-600' :
-                systemMetrics.databaseHealth === 'warning' ? 'text-yellow-600' : 'text-red-600'
-              }`} />
-              <div>
-                <div className={`text-2xl font-bold capitalize ${
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center space-x-2">
+                <Activity className="h-5 w-5 text-purple-600" />
+                <div>
+                  <div className="text-2xl font-bold">
+                    {isLoading ? '...' : systemMetrics.activeConnections}
+                  </div>
+                  <div className="text-sm text-gray-500">Active Connections</div>
+                  <div className="text-xs text-gray-400">
+                    {systemMetrics.totalEndpoints} endpoints
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center space-x-2">
+                <Database className={`h-5 w-5 ${
                   systemMetrics.databaseHealth === 'healthy' ? 'text-green-600' :
                   systemMetrics.databaseHealth === 'warning' ? 'text-yellow-600' : 'text-red-600'
-                }`}>
-                  {isLoading ? '...' : systemMetrics.databaseHealth}
+                }`} />
+                <div>
+                  <div className={`text-2xl font-bold capitalize ${
+                    systemMetrics.databaseHealth === 'healthy' ? 'text-green-600' :
+                    systemMetrics.databaseHealth === 'warning' ? 'text-yellow-600' : 'text-red-600'
+                  }`}>
+                    {isLoading ? '...' : systemMetrics.databaseHealth}
+                  </div>
+                  <div className="text-sm text-gray-500">Database Status</div>
+                  <div className="text-xs text-gray-400">
+                    {systemMetrics.criticalEndpoints > 0 ? 'Issues detected' : 'All systems normal'}
+                  </div>
                 </div>
-                <div className="text-sm text-gray-500">Database Status</div>
-                <div className="text-xs text-gray-400">
-                  {systemMetrics.criticalEndpoints > 0 ? 'Issues detected' : 'All systems normal'}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Resource Usage - Dynamic based on system load */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Resource Usage</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium">Memory Usage</span>
+                  <span className={`text-sm ${
+                    systemMetrics.memoryUsage > 80 ? 'text-red-500' :
+                    systemMetrics.memoryUsage > 60 ? 'text-yellow-500' : 'text-gray-500'
+                  }`}>
+                    {isLoading ? '...' : `${systemMetrics.memoryUsage}%`}
+                  </span>
                 </div>
+                <Progress value={systemMetrics.memoryUsage} className="h-2" />
+              </div>
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium">CPU Usage</span>
+                  <span className={`text-sm ${
+                    systemMetrics.cpuUsage > 80 ? 'text-red-500' :
+                    systemMetrics.cpuUsage > 60 ? 'text-yellow-500' : 'text-gray-500'
+                  }`}>
+                    {isLoading ? '...' : `${systemMetrics.cpuUsage}%`}
+                  </span>
+                </div>
+                <Progress value={systemMetrics.cpuUsage} className="h-2" />
+              </div>
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium">Disk Usage</span>
+                  <span className={`text-sm ${
+                    systemMetrics.diskUsage > 80 ? 'text-red-500' :
+                    systemMetrics.diskUsage > 60 ? 'text-yellow-500' : 'text-gray-500'
+                  }`}>
+                    {isLoading ? '...' : `${systemMetrics.diskUsage}%`}
+                  </span>
+                </div>
+                <Progress value={systemMetrics.diskUsage} className="h-2" />
               </div>
             </div>
           </CardContent>
         </Card>
-      </div>
 
-      {/* Resource Usage - Dynamic based on system load */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Resource Usage</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-6">
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium">Memory Usage</span>
-                <span className={`text-sm ${
-                  systemMetrics.memoryUsage > 80 ? 'text-red-500' :
-                  systemMetrics.memoryUsage > 60 ? 'text-yellow-500' : 'text-gray-500'
-                }`}>
-                  {isLoading ? '...' : `${systemMetrics.memoryUsage}%`}
-                </span>
-              </div>
-              <Progress value={systemMetrics.memoryUsage} className="h-2" />
-            </div>
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium">CPU Usage</span>
-                <span className={`text-sm ${
-                  systemMetrics.cpuUsage > 80 ? 'text-red-500' :
-                  systemMetrics.cpuUsage > 60 ? 'text-yellow-500' : 'text-gray-500'
-                }`}>
-                  {isLoading ? '...' : `${systemMetrics.cpuUsage}%`}
-                </span>
-              </div>
-              <Progress value={systemMetrics.cpuUsage} className="h-2" />
-            </div>
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium">Disk Usage</span>
-                <span className={`text-sm ${
-                  systemMetrics.diskUsage > 80 ? 'text-red-500' :
-                  systemMetrics.diskUsage > 60 ? 'text-yellow-500' : 'text-gray-500'
-                }`}>
-                  {isLoading ? '...' : `${systemMetrics.diskUsage}%`}
-                </span>
-              </div>
-              <Progress value={systemMetrics.diskUsage} className="h-2" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Services Status - Now with real data */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Service Status</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="text-center py-8 text-gray-500">Loading service status...</div>
-          ) : (
-            <div className="space-y-4">
-              {services.map((service, index) => (
-                <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    {getStatusIcon(service.status)}
-                    <div>
-                      <div className="font-medium">{service.name}</div>
-                      <div className="text-sm text-gray-500">
-                        Uptime: {service.uptime}
-                        {service.details && ` • ${service.details}`}
+        {/* Services Status - Now with real data */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Service Status</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="text-center py-8 text-gray-500">Loading service status...</div>
+            ) : (
+              <div className="space-y-4">
+                {services.map((service, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      {getStatusIcon(service.status)}
+                      <div>
+                        <div className="font-medium">{service.name}</div>
+                        <div className="text-sm text-gray-500">
+                          Uptime: {service.uptime}
+                          {service.details && ` • ${service.details}`}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <Badge className={`capitalize ${getStatusColor(service.status)}`}>
-                      {service.status}
-                    </Badge>
-                    <span className="text-sm text-gray-500">{service.lastCheck}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Recent System Events - Now with real data */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent System Events</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="text-center py-8 text-gray-500">Loading system events...</div>
-          ) : recentEvents.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500" />
-              <p>No recent system events</p>
-              <p className="text-sm">All systems operating normally</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {recentEvents.map((event, index) => (
-                <div key={index} className="flex items-start space-x-3 p-3 border-l-2 border-gray-200">
-                  <span className="text-sm text-gray-500 min-w-[50px]">{event.time}</span>
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2">
-                      <span className={`text-sm font-medium ${getEventTypeColor(event.type)} uppercase`}>
-                        {event.type}
-                      </span>
-                      {event.source && (
-                        <span className="text-xs text-gray-400">• {event.source}</span>
-                      )}
+                    <div className="flex items-center space-x-3">
+                      <Badge className={`capitalize ${getStatusColor(service.status)}`}>
+                        {service.status}
+                      </Badge>
+                      <span className="text-sm text-gray-500">{service.lastCheck}</span>
                     </div>
-                    <p className="text-sm text-gray-700 mt-1">{event.message}</p>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Recent System Events - Now with real data */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent System Events</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="text-center py-8 text-gray-500">Loading system events...</div>
+            ) : recentEvents.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500" />
+                <p>No recent system events</p>
+                <p className="text-sm">All systems operating normally</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {recentEvents.map((event, index) => (
+                  <div key={index} className="flex items-start space-x-3 p-3 border-l-2 border-gray-200">
+                    <span className="text-sm text-gray-500 min-w-[50px]">{event.time}</span>
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2">
+                        <span className={`text-sm font-medium ${getEventTypeColor(event.type)} uppercase`}>
+                          {event.type}
+                        </span>
+                        {event.source && (
+                          <span className="text-xs text-gray-400">• {event.source}</span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-700 mt-1">{event.message}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </PermissionGuard>
   );
 }

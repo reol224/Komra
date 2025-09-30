@@ -40,6 +40,7 @@ import {
   Save,
   X,
 } from "lucide-react";
+import { PermissionGuard } from "@/components/auth/PermissionGuard";
 
 interface CVE {
   id: string;
@@ -253,417 +254,429 @@ export default function TriageInterface() {
   };
 
   return (
-    <div className="bg-slate-800 p-6 space-y-6 rounded-lg border border-slate-700">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">Triage Interface</h1>
-        <Button onClick={() => setIsNewPlanDialogOpen(true)} className="bg-orange-500 hover:bg-orange-600 text-white">
-          <Plus className="mr-2 h-4 w-4" />
-          New Remediation Plan
-        </Button>
+    <PermissionGuard permission="vulnerabilities.triage" fallback={
+      <div className="bg-slate-800 p-6 space-y-6 rounded-lg border border-slate-700">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <p className="text-slate-300">You don't have permission to access the triage interface.</p>
+          </div>
+        </div>
       </div>
-
-      <Tabs defaultValue="untriaged" className="w-full">
-        <TabsList className="bg-slate-600">
-          <TabsTrigger value="untriaged" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white">
-            Untriaged CVEs ({untriagedCVEs.length})
-          </TabsTrigger>
-          <TabsTrigger value="triaged" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white">
-            Triaged CVEs ({triagedCVEs.length})
-          </TabsTrigger>
-          <TabsTrigger value="plans" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white">
-            Remediation Plans ({remediationPlans.length})
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="untriaged" className="space-y-4">
-          <Card className="bg-slate-700 border-slate-600">
-            <CardHeader>
-              <CardTitle className="text-white">Untriaged Vulnerabilities</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-md border border-slate-600">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-slate-600 hover:bg-slate-600">
-                      <TableHead className="text-slate-300">CVE ID</TableHead>
-                      <TableHead className="text-slate-300">Title</TableHead>
-                      <TableHead className="text-slate-300">Severity</TableHead>
-                      <TableHead className="text-slate-300">Environment</TableHead>
-                      <TableHead className="text-slate-300">CVSS Score</TableHead>
-                      <TableHead className="text-slate-300">Affected Endpoints</TableHead>
-                      <TableHead className="text-right text-slate-300">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {untriagedCVEs.length > 0 ? (
-                      untriagedCVEs.map((cve) => (
-                        <TableRow key={cve.id} className="border-slate-600 hover:bg-slate-600">
-                          <TableCell className="font-mono text-white">{cve.cveId}</TableCell>
-                          <TableCell className="max-w-[200px] truncate text-slate-300">
-                            {cve.title}
-                          </TableCell>
-                          <TableCell>{getSeverityBadge(cve.severity)}</TableCell>
-                          <TableCell className="text-slate-300">{cve.environment}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="border-slate-500 text-slate-300">{cve.cvssScore}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1">
-                              {cve.affectedEndpoints.slice(0, 2).map((endpoint, i) => (
-                                <Badge key={i} variant="secondary" className="text-xs bg-slate-600 text-slate-200">
-                                  {endpoint}
-                                </Badge>
-                              ))}
-                              {cve.affectedEndpoints.length > 2 && (
-                                <Badge variant="secondary" className="text-xs bg-slate-600 text-slate-200">
-                                  +{cve.affectedEndpoints.length - 2}
-                                </Badge>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              size="sm"
-                              onClick={() => handleTriageCVE(cve)}
-                              className="bg-orange-500 hover:bg-orange-600 text-white"
-                            >
-                              <Edit className="mr-2 h-4 w-4" />
-                              Triage
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={7} className="h-24 text-center text-slate-400">
-                          No untriaged vulnerabilities found.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="triaged" className="space-y-4">
-          <Card className="bg-slate-700 border-slate-600">
-            <CardHeader>
-              <CardTitle className="text-white">Triaged Vulnerabilities</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-md border border-slate-600">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-slate-600 hover:bg-slate-600">
-                      <TableHead className="text-slate-300">CVE ID</TableHead>
-                      <TableHead className="text-slate-300">Title</TableHead>
-                      <TableHead className="text-slate-300">Priority</TableHead>
-                      <TableHead className="text-slate-300">Status</TableHead>
-                      <TableHead className="text-slate-300">Assigned To</TableHead>
-                      <TableHead className="text-slate-300">Remediation Plan</TableHead>
-                      <TableHead className="text-slate-300">Triage Date</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {triagedCVEs.length > 0 ? (
-                      triagedCVEs.map((cve) => (
-                        <TableRow key={cve.id} className="border-slate-600 hover:bg-slate-600">
-                          <TableCell className="font-mono text-white">{cve.cveId}</TableCell>
-                          <TableCell className="max-w-[200px] truncate text-slate-300">
-                            {cve.title}
-                          </TableCell>
-                          <TableCell>{getPriorityBadge(cve.priority)}</TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              {getStatusIcon(cve.status)}
-                              <span className="text-sm text-slate-300">{cve.status}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-slate-300">{cve.assignedTo || "Unassigned"}</TableCell>
-                          <TableCell>
-                            {cve.remediationPlan ? (
-                              <Badge variant="outline" className="border-slate-500 text-slate-300">{cve.remediationPlan}</Badge>
-                            ) : (
-                              <span className="text-slate-400">None</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-slate-300">
-                            {cve.triageDate ? 
-                              new Date(cve.triageDate).toLocaleDateString() : 
-                              "N/A"
-                            }
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={7} className="h-24 text-center text-slate-400">
-                          No triaged vulnerabilities yet.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="plans" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {remediationPlans.map((plan) => (
-              <Card key={plan.id} className="bg-slate-700 border-slate-600">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between text-white">
-                    <span className="truncate">{plan.name}</span>
-                    <Badge 
-                      className={
-                        plan.status === "Active" ? "bg-blue-700 text-white" :
-                        plan.status === "Completed" ? "bg-green-700 text-white" : 
-                        plan.status === "Cancelled" ? "bg-red-700 text-white" : "bg-gray-700 text-white"
-                      }
-                    >
-                      {plan.status}
-                    </Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="text-sm text-slate-300 line-clamp-2">
-                    {plan.description}
-                  </p>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Assigned to:</span>
-                      <span className="font-medium text-slate-200">{plan.assignedTo}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Due date:</span>
-                      <span className="text-slate-200">{new Date(plan.dueDate).toLocaleDateString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">CVEs:</span>
-                      <Badge variant="outline" className="border-slate-500 text-slate-300">{plan.cveCount}</Badge>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </TabsContent>
-      </Tabs>
-
-      {/* Triage Dialog */}
-      <Dialog open={isTriageDialogOpen} onOpenChange={setIsTriageDialogOpen}>
-        <DialogContent className="sm:max-w-[600px] bg-slate-800 border-slate-700">
-          <DialogHeader>
-            <DialogTitle className="text-white">Triage CVE: {selectedCVE?.cveId}</DialogTitle>
-            <DialogDescription className="text-slate-300">
-              Set priority, assign responsibility, and add to remediation plan
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-300">Priority</label>
-                <Select
-                  value={triageForm.priority}
-                  onValueChange={(value) =>
-                    setTriageForm(prev => ({ ...prev, priority: value }))
-                  }
-                >
-                  <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
-                    <SelectValue placeholder="Select priority" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-700 border-slate-600">
-                    <SelectItem value="Critical">Critical</SelectItem>
-                    <SelectItem value="High">High</SelectItem>
-                    <SelectItem value="Medium">Medium</SelectItem>
-                    <SelectItem value="Low">Low</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-300">Status</label>
-                <Select
-                  value={triageForm.status}
-                  onValueChange={(value) =>
-                    setTriageForm(prev => ({ ...prev, status: value }))
-                  }
-                >
-                  <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-700 border-slate-600">
-                    <SelectItem value="Open">Open</SelectItem>
-                    <SelectItem value="In Progress">In Progress</SelectItem>
-                    <SelectItem value="Resolved">Resolved</SelectItem>
-                    <SelectItem value="False Positive">False Positive</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Assign To</label>
-              <Select
-                value={triageForm.assignedTo}
-                onValueChange={(value) =>
-                  setTriageForm(prev => ({ ...prev, assignedTo: value }))
-                }
-              >
-                <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
-                  <SelectValue placeholder="Select assignee" />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-700 border-slate-600">
-                  {teamMembers.map((member) => (
-                    <SelectItem key={member} value={member}>
-                      {member}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Remediation Plan</label>
-              <Select
-                value={triageForm.remediationPlan}
-                onValueChange={(value) =>
-                  setTriageForm(prev => ({ ...prev, remediationPlan: value }))
-                }
-              >
-                <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
-                  <SelectValue placeholder="Select or create plan" />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-700 border-slate-600">
-                  {remediationPlans.map((plan) => (
-                    <SelectItem key={plan.id} value={plan.name}>
-                      {plan.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Notes</label>
-              <Textarea
-                placeholder="Add any additional notes or comments..."
-                value={triageForm.notes}
-                onChange={(e) =>
-                  setTriageForm(prev => ({ ...prev, notes: e.target.value }))
-                }
-                rows={3}
-                className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsTriageDialogOpen(false)}
-              className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleSaveTriage} className="bg-orange-500 hover:bg-orange-600 text-white">
-              <Save className="mr-2 h-4 w-4" />
-              Save Triage
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* New Remediation Plan Dialog */}
-      <Dialog open={isNewPlanDialogOpen} onOpenChange={setIsNewPlanDialogOpen}>
-        <DialogContent className="sm:max-w-[500px] bg-slate-800 border-slate-700">
-          <DialogHeader>
-            <DialogTitle className="text-white">Create New Remediation Plan</DialogTitle>
-            <DialogDescription className="text-slate-300">
-              Create a new plan to organize and track vulnerability remediation
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Plan Name</label>
-              <Input
-                placeholder="Enter plan name"
-                value={newPlanForm.name}
-                onChange={(e) =>
-                  setNewPlanForm(prev => ({ ...prev, name: e.target.value }))
-                }
-                className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Description</label>
-              <Textarea
-                placeholder="Describe the remediation plan..."
-                value={newPlanForm.description}
-                onChange={(e) =>
-                  setNewPlanForm(prev => ({ ...prev, description: e.target.value }))
-                }
-                rows={3}
-                className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Assign To</label>
-              <Select
-                value={newPlanForm.assignedTo}
-                onValueChange={(value) =>
-                  setNewPlanForm(prev => ({ ...prev, assignedTo: value }))
-                }
-              >
-                <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
-                  <SelectValue placeholder="Select assignee" />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-700 border-slate-600">
-                  {teamMembers.map((member) => (
-                    <SelectItem key={member} value={member}>
-                      {member}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Due Date</label>
-              <Input
-                type="date"
-                value={newPlanForm.dueDate}
-                onChange={(e) =>
-                  setNewPlanForm(prev => ({ ...prev, dueDate: e.target.value }))
-                }
-                className="bg-slate-700 border-slate-600 text-white"
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsNewPlanDialogOpen(false)}
-              className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleCreateRemediationPlan} className="bg-orange-500 hover:bg-orange-600 text-white">
+    }>
+      <div className="bg-slate-800 p-6 space-y-6 rounded-lg border border-slate-700">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-white">Triage Interface</h1>
+          <PermissionGuard permission="vulnerabilities.remediation_plan">
+            <Button onClick={() => setIsNewPlanDialogOpen(true)} className="bg-orange-500 hover:bg-orange-600 text-white">
               <Plus className="mr-2 h-4 w-4" />
-              Create Plan
+              New Remediation Plan
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+          </PermissionGuard>
+        </div>
+
+        <Tabs defaultValue="untriaged" className="w-full">
+          <TabsList className="bg-slate-600">
+            <TabsTrigger value="untriaged" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white">
+              Untriaged CVEs ({untriagedCVEs.length})
+            </TabsTrigger>
+            <TabsTrigger value="triaged" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white">
+              Triaged CVEs ({triagedCVEs.length})
+            </TabsTrigger>
+            <TabsTrigger value="plans" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white">
+              Remediation Plans ({remediationPlans.length})
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="untriaged" className="space-y-4">
+            <Card className="bg-slate-700 border-slate-600">
+              <CardHeader>
+                <CardTitle className="text-white">Untriaged Vulnerabilities</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-md border border-slate-600">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-slate-600 hover:bg-slate-600">
+                        <TableHead className="text-slate-300">CVE ID</TableHead>
+                        <TableHead className="text-slate-300">Title</TableHead>
+                        <TableHead className="text-slate-300">Severity</TableHead>
+                        <TableHead className="text-slate-300">Environment</TableHead>
+                        <TableHead className="text-slate-300">CVSS Score</TableHead>
+                        <TableHead className="text-slate-300">Affected Endpoints</TableHead>
+                        <TableHead className="text-right text-slate-300">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {untriagedCVEs.length > 0 ? (
+                        untriagedCVEs.map((cve) => (
+                          <TableRow key={cve.id} className="border-slate-600 hover:bg-slate-600">
+                            <TableCell className="font-mono text-white">{cve.cveId}</TableCell>
+                            <TableCell className="max-w-[200px] truncate text-slate-300">
+                              {cve.title}
+                            </TableCell>
+                            <TableCell>{getSeverityBadge(cve.severity)}</TableCell>
+                            <TableCell className="text-slate-300">{cve.environment}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="border-slate-500 text-slate-300">{cve.cvssScore}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1">
+                                {cve.affectedEndpoints.slice(0, 2).map((endpoint, i) => (
+                                  <Badge key={i} variant="secondary" className="text-xs bg-slate-600 text-slate-200">
+                                    {endpoint}
+                                  </Badge>
+                                ))}
+                                {cve.affectedEndpoints.length > 2 && (
+                                  <Badge variant="secondary" className="text-xs bg-slate-600 text-slate-200">
+                                    +{cve.affectedEndpoints.length - 2}
+                                  </Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                size="sm"
+                                onClick={() => handleTriageCVE(cve)}
+                                className="bg-orange-500 hover:bg-orange-600 text-white"
+                              >
+                                <Edit className="mr-2 h-4 w-4" />
+                                Triage
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={7} className="h-24 text-center text-slate-400">
+                            No untriaged vulnerabilities found.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="triaged" className="space-y-4">
+            <Card className="bg-slate-700 border-slate-600">
+              <CardHeader>
+                <CardTitle className="text-white">Triaged Vulnerabilities</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-md border border-slate-600">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-slate-600 hover:bg-slate-600">
+                        <TableHead className="text-slate-300">CVE ID</TableHead>
+                        <TableHead className="text-slate-300">Title</TableHead>
+                        <TableHead className="text-slate-300">Priority</TableHead>
+                        <TableHead className="text-slate-300">Status</TableHead>
+                        <TableHead className="text-slate-300">Assigned To</TableHead>
+                        <TableHead className="text-slate-300">Remediation Plan</TableHead>
+                        <TableHead className="text-slate-300">Triage Date</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {triagedCVEs.length > 0 ? (
+                        triagedCVEs.map((cve) => (
+                          <TableRow key={cve.id} className="border-slate-600 hover:bg-slate-600">
+                            <TableCell className="font-mono text-white">{cve.cveId}</TableCell>
+                            <TableCell className="max-w-[200px] truncate text-slate-300">
+                              {cve.title}
+                            </TableCell>
+                            <TableCell>{getPriorityBadge(cve.priority)}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                {getStatusIcon(cve.status)}
+                                <span className="text-sm text-slate-300">{cve.status}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-slate-300">{cve.assignedTo || "Unassigned"}</TableCell>
+                            <TableCell>
+                              {cve.remediationPlan ? (
+                                <Badge variant="outline" className="border-slate-500 text-slate-300">{cve.remediationPlan}</Badge>
+                              ) : (
+                                <span className="text-slate-400">None</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-slate-300">
+                              {cve.triageDate ? 
+                                new Date(cve.triageDate).toLocaleDateString() : 
+                                "N/A"
+                              }
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={7} className="h-24 text-center text-slate-400">
+                            No triaged vulnerabilities yet.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="plans" className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {remediationPlans.map((plan) => (
+                <Card key={plan.id} className="bg-slate-700 border-slate-600">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between text-white">
+                      <span className="truncate">{plan.name}</span>
+                      <Badge 
+                        className={
+                          plan.status === "Active" ? "bg-blue-700 text-white" :
+                          plan.status === "Completed" ? "bg-green-700 text-white" : 
+                          plan.status === "Cancelled" ? "bg-red-700 text-white" : "bg-gray-700 text-white"
+                        }
+                      >
+                        {plan.status}
+                      </Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <p className="text-sm text-slate-300 line-clamp-2">
+                      {plan.description}
+                    </p>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Assigned to:</span>
+                        <span className="font-medium text-slate-200">{plan.assignedTo}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Due date:</span>
+                        <span className="text-slate-200">{new Date(plan.dueDate).toLocaleDateString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">CVEs:</span>
+                        <Badge variant="outline" className="border-slate-500 text-slate-300">{plan.cveCount}</Badge>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </TabsContent>
+        </Tabs>
+
+        {/* Triage Dialog */}
+        <Dialog open={isTriageDialogOpen} onOpenChange={setIsTriageDialogOpen}>
+          <DialogContent className="sm:max-w-[600px] bg-slate-800 border-slate-700">
+            <DialogHeader>
+              <DialogTitle className="text-white">Triage CVE: {selectedCVE?.cveId}</DialogTitle>
+              <DialogDescription className="text-slate-300">
+                Set priority, assign responsibility, and add to remediation plan
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">Priority</label>
+                  <Select
+                    value={triageForm.priority}
+                    onValueChange={(value) =>
+                      setTriageForm(prev => ({ ...prev, priority: value }))
+                    }
+                  >
+                    <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
+                      <SelectValue placeholder="Select priority" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-700 border-slate-600">
+                      <SelectItem value="Critical">Critical</SelectItem>
+                      <SelectItem value="High">High</SelectItem>
+                      <SelectItem value="Medium">Medium</SelectItem>
+                      <SelectItem value="Low">Low</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">Status</label>
+                  <Select
+                    value={triageForm.status}
+                    onValueChange={(value) =>
+                      setTriageForm(prev => ({ ...prev, status: value }))
+                    }
+                  >
+                    <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-700 border-slate-600">
+                      <SelectItem value="Open">Open</SelectItem>
+                      <SelectItem value="In Progress">In Progress</SelectItem>
+                      <SelectItem value="Resolved">Resolved</SelectItem>
+                      <SelectItem value="False Positive">False Positive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-300">Assign To</label>
+                <Select
+                  value={triageForm.assignedTo}
+                  onValueChange={(value) =>
+                    setTriageForm(prev => ({ ...prev, assignedTo: value }))
+                  }
+                >
+                  <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
+                    <SelectValue placeholder="Select assignee" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-700 border-slate-600">
+                    {teamMembers.map((member) => (
+                      <SelectItem key={member} value={member}>
+                        {member}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-300">Remediation Plan</label>
+                <Select
+                  value={triageForm.remediationPlan}
+                  onValueChange={(value) =>
+                    setTriageForm(prev => ({ ...prev, remediationPlan: value }))
+                  }
+                >
+                  <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
+                    <SelectValue placeholder="Select or create plan" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-700 border-slate-600">
+                    {remediationPlans.map((plan) => (
+                      <SelectItem key={plan.id} value={plan.name}>
+                        {plan.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-300">Notes</label>
+                <Textarea
+                  placeholder="Add any additional notes or comments..."
+                  value={triageForm.notes}
+                  onChange={(e) =>
+                    setTriageForm(prev => ({ ...prev, notes: e.target.value }))
+                  }
+                  rows={3}
+                  className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setIsTriageDialogOpen(false)}
+                className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleSaveTriage} className="bg-orange-500 hover:bg-orange-600 text-white">
+                <Save className="mr-2 h-4 w-4" />
+                Save Triage
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* New Remediation Plan Dialog */}
+        <Dialog open={isNewPlanDialogOpen} onOpenChange={setIsNewPlanDialogOpen}>
+          <DialogContent className="sm:max-w-[500px] bg-slate-800 border-slate-700">
+            <DialogHeader>
+              <DialogTitle className="text-white">Create New Remediation Plan</DialogTitle>
+              <DialogDescription className="text-slate-300">
+                Create a new plan to organize and track vulnerability remediation
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-300">Plan Name</label>
+                <Input
+                  placeholder="Enter plan name"
+                  value={newPlanForm.name}
+                  onChange={(e) =>
+                    setNewPlanForm(prev => ({ ...prev, name: e.target.value }))
+                  }
+                  className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-300">Description</label>
+                <Textarea
+                  placeholder="Describe the remediation plan..."
+                  value={newPlanForm.description}
+                  onChange={(e) =>
+                    setNewPlanForm(prev => ({ ...prev, description: e.target.value }))
+                  }
+                  rows={3}
+                  className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-300">Assign To</label>
+                <Select
+                  value={newPlanForm.assignedTo}
+                  onValueChange={(value) =>
+                    setNewPlanForm(prev => ({ ...prev, assignedTo: value }))
+                  }
+                >
+                  <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
+                    <SelectValue placeholder="Select assignee" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-700 border-slate-600">
+                    {teamMembers.map((member) => (
+                      <SelectItem key={member} value={member}>
+                        {member}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-300">Due Date</label>
+                <Input
+                  type="date"
+                  value={newPlanForm.dueDate}
+                  onChange={(e) =>
+                    setNewPlanForm(prev => ({ ...prev, dueDate: e.target.value }))
+                  }
+                  className="bg-slate-700 border-slate-600 text-white"
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setIsNewPlanDialogOpen(false)}
+                className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleCreateRemediationPlan} className="bg-orange-500 hover:bg-orange-600 text-white">
+                <Plus className="mr-2 h-4 w-4" />
+                Create Plan
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </PermissionGuard>
   );
 }

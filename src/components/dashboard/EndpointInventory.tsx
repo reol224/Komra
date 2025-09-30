@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DashboardDataService, { DashboardEndpoint, DashboardPackage } from "@/lib/dashboardDataService";
+import { PermissionGuard } from "@/components/auth/PermissionGuard";
 
 const EndpointInventory = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -184,377 +185,389 @@ const EndpointInventory = () => {
   }
 
   return (
-    <div className="bg-slate-800 p-6 h-full rounded-lg border border-slate-700">
-      <div className="flex flex-col space-y-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-white">Endpoint Inventory</h1>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={handleRefresh}
-              className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
-            <Button
-              variant="outline"
-              className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
-            >
-              Scan Endpoints
-            </Button>
+    <PermissionGuard permission="endpoints.view" fallback={
+      <div className="bg-slate-800 p-6 h-full rounded-lg border border-slate-700">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <p className="text-slate-300">You don't have permission to view endpoint data.</p>
           </div>
         </div>
+      </div>
+    }>
+      <div className="bg-slate-800 p-6 h-full rounded-lg border border-slate-700">
+        <div className="flex flex-col space-y-6">
+          <div className="flex justify-between items-center">
+            <h1 className="text-2xl font-bold text-white">Endpoint Inventory</h1>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={handleRefresh}
+                className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+              <PermissionGuard permission="endpoints.scan">
+                <Button
+                  variant="outline"
+                  className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+                >
+                  Scan Endpoints
+                </Button>
+              </PermissionGuard>
+            </div>
+          </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="md:col-span-1 bg-slate-700 border-slate-600">
-            <CardHeader>
-              <CardTitle className="text-white">Filters</CardTitle>
-              <CardDescription className="text-slate-300">
-                Filter endpoints by various criteria
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
-                <Input
-                  placeholder="Search endpoints..."
-                  className="pl-8 bg-slate-600 border-slate-500 text-white placeholder:text-slate-400 focus:border-orange-500"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="md:col-span-1 bg-slate-700 border-slate-600">
+              <CardHeader>
+                <CardTitle className="text-white">Filters</CardTitle>
+                <CardDescription className="text-slate-300">
+                  Filter endpoints by various criteria
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="relative">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
+                  <Input
+                    placeholder="Search endpoints..."
+                    className="pl-8 bg-slate-600 border-slate-500 text-white placeholder:text-slate-400 focus:border-orange-500"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-300">
-                  OS Type
-                </label>
-                <Select value={osTypeFilter} onValueChange={setOsTypeFilter}>
-                  <SelectTrigger className="bg-slate-600 border-slate-500 text-white">
-                    <SelectValue placeholder="All OS Types" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-700 border-slate-600">
-                    <SelectItem value="all">All OS Types</SelectItem>
-                    <SelectItem value="Windows 10">Windows 10</SelectItem>
-                    <SelectItem value="Windows Server">Windows Server</SelectItem>
-                    <SelectItem value="Red Hat Linux">Red Hat Linux</SelectItem>
-                    <SelectItem value="Ubuntu">Ubuntu</SelectItem>
-                    <SelectItem value="CentOS">CentOS</SelectItem>
-                    <SelectItem value="macOS">macOS</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    OS Type
+                  </label>
+                  <Select value={osTypeFilter} onValueChange={setOsTypeFilter}>
+                    <SelectTrigger className="bg-slate-600 border-slate-500 text-white">
+                      <SelectValue placeholder="All OS Types" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-700 border-slate-600">
+                      <SelectItem value="all">All OS Types</SelectItem>
+                      <SelectItem value="Windows 10">Windows 10</SelectItem>
+                      <SelectItem value="Windows Server">Windows Server</SelectItem>
+                      <SelectItem value="Red Hat Linux">Red Hat Linux</SelectItem>
+                      <SelectItem value="Ubuntu">Ubuntu</SelectItem>
+                      <SelectItem value="CentOS">CentOS</SelectItem>
+                      <SelectItem value="macOS">macOS</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-300">
-                  Status
-                </label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="bg-slate-600 border-slate-500 text-white">
-                    <SelectValue placeholder="All Statuses" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-700 border-slate-600">
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="healthy">Healthy</SelectItem>
-                    <SelectItem value="vulnerable">Vulnerable</SelectItem>
-                    <SelectItem value="critical">Critical</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Status
+                  </label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="bg-slate-600 border-slate-500 text-white">
+                      <SelectValue placeholder="All Statuses" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-700 border-slate-600">
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="healthy">Healthy</SelectItem>
+                      <SelectItem value="vulnerable">Vulnerable</SelectItem>
+                      <SelectItem value="critical">Critical</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
 
-          <Card className="md:col-span-2 bg-slate-700 border-slate-600">
-            <CardHeader>
-              <CardTitle className="text-white">
-                Endpoints ({filteredEndpoints.length})
-              </CardTitle>
-              <CardDescription className="text-slate-300">
-                Select an endpoint to view details
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-md border border-slate-600">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-slate-600 hover:bg-slate-600">
-                      <TableHead className="text-slate-300">Name</TableHead>
-                      <TableHead className="text-slate-300">IP Address</TableHead>
-                      <TableHead className="text-slate-300">OS Type</TableHead>
-                      <TableHead className="text-slate-300">Status</TableHead>
-                      <TableHead className="text-slate-300">Last Scan</TableHead>
-                      <TableHead className="text-slate-300">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredEndpoints.length > 0 ? (
-                      filteredEndpoints.map((endpoint) => (
-                        <TableRow
-                          key={endpoint.id}
-                          className={`cursor-pointer border-slate-600 hover:bg-slate-600 ${selectedEndpoint?.id === endpoint.id ? "bg-slate-600" : ""}`}
-                          onClick={() => handleEndpointSelect(endpoint)}
-                        >
-                          <TableCell className="font-medium text-white">
-                            {endpoint.name}
-                          </TableCell>
-                          <TableCell className="text-slate-300">
-                            {endpoint.ipAddress}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              {getOsIcon(endpoint.osType)}
-                              <span className="text-slate-300">
-                                {endpoint.osType}
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              {getStatusIcon(endpoint.status)}
-                              <span className="text-slate-300 capitalize">
-                                {endpoint.status}
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-slate-300">
-                            {formatLastScan(endpoint.lastScan)}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleVulnerabilityAssessment(endpoint.id);
-                              }}
-                              className="text-slate-300 hover:bg-slate-500 hover:text-white"
-                            >
-                              Assess
-                            </Button>
+            <Card className="md:col-span-2 bg-slate-700 border-slate-600">
+              <CardHeader>
+                <CardTitle className="text-white">
+                  Endpoints ({filteredEndpoints.length})
+                </CardTitle>
+                <CardDescription className="text-slate-300">
+                  Select an endpoint to view details
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-md border border-slate-600">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-slate-600 hover:bg-slate-600">
+                        <TableHead className="text-slate-300">Name</TableHead>
+                        <TableHead className="text-slate-300">IP Address</TableHead>
+                        <TableHead className="text-slate-300">OS Type</TableHead>
+                        <TableHead className="text-slate-300">Status</TableHead>
+                        <TableHead className="text-slate-300">Last Scan</TableHead>
+                        <TableHead className="text-slate-300">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredEndpoints.length > 0 ? (
+                        filteredEndpoints.map((endpoint) => (
+                          <TableRow
+                            key={endpoint.id}
+                            className={`cursor-pointer border-slate-600 hover:bg-slate-600 ${selectedEndpoint?.id === endpoint.id ? "bg-slate-600" : ""}`}
+                            onClick={() => handleEndpointSelect(endpoint)}
+                          >
+                            <TableCell className="font-medium text-white">
+                              {endpoint.name}
+                            </TableCell>
+                            <TableCell className="text-slate-300">
+                              {endpoint.ipAddress}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                {getOsIcon(endpoint.osType)}
+                                <span className="text-slate-300">
+                                  {endpoint.osType}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                {getStatusIcon(endpoint.status)}
+                                <span className="text-slate-300 capitalize">
+                                  {endpoint.status}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-slate-300">
+                              {formatLastScan(endpoint.lastScan)}
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleVulnerabilityAssessment(endpoint.id);
+                                }}
+                                className="text-slate-300 hover:bg-slate-500 hover:text-white"
+                              >
+                                Assess
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell
+                            colSpan={6}
+                            className="text-center py-4 text-slate-400"
+                          >
+                            No endpoints found
                           </TableCell>
                         </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell
-                          colSpan={6}
-                          className="text-center py-4 text-slate-400"
-                        >
-                          No endpoints found
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {selectedEndpoint && (
-          <Card className="bg-slate-700 border-slate-600">
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-white">
-                    {getOsIcon(selectedEndpoint.osType)}
-                    {selectedEndpoint.name}
-                    <Badge
-                      variant="outline"
-                      className="ml-2 border-slate-500 text-slate-300"
-                    >
-                      {selectedEndpoint.ipAddress}
-                    </Badge>
-                  </CardTitle>
-                  <CardDescription className="text-slate-300">
-                    {selectedEndpoint.osType} | Environment: {selectedEndpoint.environment} | Last scanned:{" "}
-                    {formatLastScan(selectedEndpoint.lastScan)}
-                  </CardDescription>
+                      )}
+                    </TableBody>
+                  </Table>
                 </div>
-                <Badge
-                  className={`
-                    ${selectedEndpoint.status === "healthy" ? "bg-green-600 text-white border-green-700" : ""}
-                    ${selectedEndpoint.status === "vulnerable" ? "bg-orange-600 text-white border-orange-700" : ""}
-                    ${selectedEndpoint.status === "critical" ? "bg-violet-800 text-white border-violet-900" : ""}
-                  `}
-                >
-                  {selectedEndpoint.status.charAt(0).toUpperCase() + selectedEndpoint.status.slice(1)}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid w-full grid-cols-3 bg-slate-600">
-                  <TabsTrigger
-                    value="overview"
-                    className="data-[state=active]:bg-slate-800 data-[state=active]:text-white"
-                  >
-                    Overview
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="packages"
-                    className="data-[state=active]:bg-slate-800 data-[state=active]:text-white"
-                  >
-                    Installed Packages
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="vulnerabilities"
-                    className="data-[state=active]:bg-slate-800 data-[state=active]:text-white"
-                  >
-                    Vulnerabilities
-                  </TabsTrigger>
-                </TabsList>
-                <TabsContent value="overview" className="pt-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Card className="bg-slate-600 border-slate-500">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-slate-300">
-                          Total Packages
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold text-white">
-                          {selectedEndpoint.totalPackages}
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card className="bg-slate-600 border-slate-500">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-slate-300">
-                          Vulnerable Packages
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold text-white">
-                          {selectedEndpoint.vulnerablePackages}
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card className="bg-slate-600 border-slate-500">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-slate-300">
-                          Vulnerability Rate
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold text-white">
-                          {selectedEndpoint.totalPackages > 0 
-                            ? ((selectedEndpoint.vulnerablePackages / selectedEndpoint.totalPackages) * 100).toFixed(1)
-                            : '0'
-                          }%
-                        </div>
-                      </CardContent>
-                    </Card>
+              </CardContent>
+            </Card>
+          </div>
+
+          {selectedEndpoint && (
+            <Card className="bg-slate-700 border-slate-600">
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle className="flex items-center gap-2 text-white">
+                      {getOsIcon(selectedEndpoint.osType)}
+                      {selectedEndpoint.name}
+                      <Badge
+                        variant="outline"
+                        className="ml-2 border-slate-500 text-slate-300"
+                      >
+                        {selectedEndpoint.ipAddress}
+                      </Badge>
+                    </CardTitle>
+                    <CardDescription className="text-slate-300">
+                      {selectedEndpoint.osType} | Environment: {selectedEndpoint.environment} | Last scanned:{" "}
+                      {formatLastScan(selectedEndpoint.lastScan)}
+                    </CardDescription>
                   </div>
-                </TabsContent>
-                <TabsContent value="packages" className="pt-4">
-                  {packagesLoading ? (
-                    <div className="flex items-center justify-center h-32">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
+                  <Badge
+                    className={`
+                      ${selectedEndpoint.status === "healthy" ? "bg-green-600 text-white border-green-700" : ""}
+                      ${selectedEndpoint.status === "vulnerable" ? "bg-orange-600 text-white border-orange-700" : ""}
+                      ${selectedEndpoint.status === "critical" ? "bg-violet-800 text-white border-violet-900" : ""}
+                    `}
+                  >
+                    {selectedEndpoint.status.charAt(0).toUpperCase() + selectedEndpoint.status.slice(1)}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Tabs value={activeTab} onValueChange={setActiveTab}>
+                  <TabsList className="grid w-full grid-cols-3 bg-slate-600">
+                    <TabsTrigger
+                      value="overview"
+                      className="data-[state=active]:bg-slate-800 data-[state=active]:text-white"
+                    >
+                      Overview
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="packages"
+                      className="data-[state=active]:bg-slate-800 data-[state=active]:text-white"
+                    >
+                      Installed Packages
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="vulnerabilities"
+                      className="data-[state=active]:bg-slate-800 data-[state=active]:text-white"
+                    >
+                      Vulnerabilities
+                    </TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="overview" className="pt-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <Card className="bg-slate-600 border-slate-500">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm font-medium text-slate-300">
+                            Total Packages
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-2xl font-bold text-white">
+                            {selectedEndpoint.totalPackages}
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card className="bg-slate-600 border-slate-500">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm font-medium text-slate-300">
+                            Vulnerable Packages
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-2xl font-bold text-white">
+                            {selectedEndpoint.vulnerablePackages}
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card className="bg-slate-600 border-slate-500">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm font-medium text-slate-300">
+                            Vulnerability Rate
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-2xl font-bold text-white">
+                            {selectedEndpoint.totalPackages > 0 
+                              ? ((selectedEndpoint.vulnerablePackages / selectedEndpoint.totalPackages) * 100).toFixed(1)
+                              : '0'
+                            }%
+                          </div>
+                        </CardContent>
+                      </Card>
                     </div>
-                  ) : (
+                  </TabsContent>
+                  <TabsContent value="packages" className="pt-4">
+                    {packagesLoading ? (
+                      <div className="flex items-center justify-center h-32">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
+                      </div>
+                    ) : (
+                      <div className="rounded-md border border-slate-600">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="border-slate-600 hover:bg-slate-600">
+                              <TableHead className="text-slate-300">Package Name</TableHead>
+                              <TableHead className="text-slate-300">Version</TableHead>
+                              <TableHead className="text-slate-300">Type</TableHead>
+                              <TableHead className="text-slate-300">Vulnerabilities</TableHead>
+                              <TableHead className="text-slate-300">Severity</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {packages.length > 0 ? (
+                              packages.map((pkg) => (
+                                <TableRow
+                                  key={pkg.id}
+                                  className="border-slate-600 hover:bg-slate-600"
+                                >
+                                  <TableCell className="font-medium text-white">
+                                    {pkg.name}
+                                  </TableCell>
+                                  <TableCell className="text-slate-300">
+                                    {pkg.version}
+                                  </TableCell>
+                                  <TableCell className="text-slate-300">
+                                    {pkg.packageType}
+                                  </TableCell>
+                                  <TableCell className="text-slate-300">
+                                    {pkg.vulnerabilities}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge className={getSeverityColor(pkg.severity)}>
+                                      {pkg.severity.charAt(0).toUpperCase() + pkg.severity.slice(1)}
+                                    </Badge>
+                                  </TableCell>
+                                </TableRow>
+                              ))
+                            ) : (
+                              <TableRow>
+                                <TableCell colSpan={5} className="text-center py-4 text-slate-400">
+                                  No packages found
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </TabsContent>
+                  <TabsContent value="vulnerabilities" className="pt-4">
                     <div className="rounded-md border border-slate-600">
                       <Table>
                         <TableHeader>
                           <TableRow className="border-slate-600 hover:bg-slate-600">
-                            <TableHead className="text-slate-300">Package Name</TableHead>
-                            <TableHead className="text-slate-300">Version</TableHead>
-                            <TableHead className="text-slate-300">Type</TableHead>
-                            <TableHead className="text-slate-300">Vulnerabilities</TableHead>
+                            <TableHead className="text-slate-300">Package</TableHead>
+                            <TableHead className="text-slate-300">CVE ID</TableHead>
                             <TableHead className="text-slate-300">Severity</TableHead>
+                            <TableHead className="text-slate-300">Description</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {packages.length > 0 ? (
-                            packages.map((pkg) => (
-                              <TableRow
-                                key={pkg.id}
-                                className="border-slate-600 hover:bg-slate-600"
-                              >
-                                <TableCell className="font-medium text-white">
-                                  {pkg.name}
-                                </TableCell>
-                                <TableCell className="text-slate-300">
-                                  {pkg.version}
-                                </TableCell>
-                                <TableCell className="text-slate-300">
-                                  {pkg.packageType}
-                                </TableCell>
-                                <TableCell className="text-slate-300">
-                                  {pkg.vulnerabilities}
-                                </TableCell>
-                                <TableCell>
-                                  <Badge className={getSeverityColor(pkg.severity)}>
-                                    {pkg.severity.charAt(0).toUpperCase() + pkg.severity.slice(1)}
-                                  </Badge>
-                                </TableCell>
-                              </TableRow>
-                            ))
+                          {packages.filter(pkg => pkg.vulnerabilities > 0).length > 0 ? (
+                            packages
+                              .filter(pkg => pkg.vulnerabilities > 0)
+                              .map((pkg) => (
+                                <TableRow
+                                  key={`vuln-${pkg.id}`}
+                                  className="border-slate-600 hover:bg-slate-600"
+                                >
+                                  <TableCell className="font-medium text-white">
+                                    {pkg.name} {pkg.version}
+                                  </TableCell>
+                                  <TableCell className="text-slate-300">
+                                    CVE-2024-{Math.floor(Math.random() * 10000)}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge className={getSeverityColor(pkg.severity)}>
+                                      {pkg.severity.charAt(0).toUpperCase() + pkg.severity.slice(1)}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="max-w-md truncate text-slate-300">
+                                    Potential security vulnerability that could allow unauthorized access or code execution.
+                                  </TableCell>
+                                </TableRow>
+                              ))
                           ) : (
                             <TableRow>
-                              <TableCell colSpan={5} className="text-center py-4 text-slate-400">
-                                No packages found
+                              <TableCell colSpan={4} className="text-center py-4 text-slate-400">
+                                No vulnerabilities found
                               </TableCell>
                             </TableRow>
                           )}
                         </TableBody>
                       </Table>
                     </div>
-                  )}
-                </TabsContent>
-                <TabsContent value="vulnerabilities" className="pt-4">
-                  <div className="rounded-md border border-slate-600">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="border-slate-600 hover:bg-slate-600">
-                          <TableHead className="text-slate-300">Package</TableHead>
-                          <TableHead className="text-slate-300">CVE ID</TableHead>
-                          <TableHead className="text-slate-300">Severity</TableHead>
-                          <TableHead className="text-slate-300">Description</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {packages.filter(pkg => pkg.vulnerabilities > 0).length > 0 ? (
-                          packages
-                            .filter(pkg => pkg.vulnerabilities > 0)
-                            .map((pkg) => (
-                              <TableRow
-                                key={`vuln-${pkg.id}`}
-                                className="border-slate-600 hover:bg-slate-600"
-                              >
-                                <TableCell className="font-medium text-white">
-                                  {pkg.name} {pkg.version}
-                                </TableCell>
-                                <TableCell className="text-slate-300">
-                                  CVE-2024-{Math.floor(Math.random() * 10000)}
-                                </TableCell>
-                                <TableCell>
-                                  <Badge className={getSeverityColor(pkg.severity)}>
-                                    {pkg.severity.charAt(0).toUpperCase() + pkg.severity.slice(1)}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="max-w-md truncate text-slate-300">
-                                  Potential security vulnerability that could allow unauthorized access or code execution.
-                                </TableCell>
-                              </TableRow>
-                            ))
-                        ) : (
-                          <TableRow>
-                            <TableCell colSpan={4} className="text-center py-4 text-slate-400">
-                              No vulnerabilities found
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        )}
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
-    </div>
+    </PermissionGuard>
   );
 };
 

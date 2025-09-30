@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { PermissionGuard } from '@/components/auth/PermissionGuard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -220,276 +221,288 @@ export default function AdminAuditTrail() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <FileText className="h-5 w-5" />
-          <h3 className="text-lg font-semibold">Access Control Audit Trail</h3>
-        </div>
-        <Button onClick={exportAuditLogs} className="flex items-center space-x-2">
-          <Download className="h-4 w-4" />
-          <span>Export Logs</span>
-        </Button>
-      </div>
-
-      {/* Filters */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Search logs..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <Select value={selectedSeverity} onValueChange={setSelectedSeverity}>
-              <SelectTrigger>
-                <SelectValue placeholder="All Severities" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Severities</SelectItem>
-                <SelectItem value="critical">Critical</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-              <SelectTrigger>
-                <SelectValue placeholder="All Statuses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="success">Success</SelectItem>
-                <SelectItem value="failure">Failure</SelectItem>
-                <SelectItem value="warning">Warning</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={selectedTimeRange} onValueChange={setSelectedTimeRange}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1h">Last Hour</SelectItem>
-                <SelectItem value="24h">Last 24 Hours</SelectItem>
-                <SelectItem value="7d">Last 7 Days</SelectItem>
-                <SelectItem value="30d">Last 30 Days</SelectItem>
-                <SelectItem value="90d">Last 90 Days</SelectItem>
-              </SelectContent>
-            </Select>
+    <PermissionGuard permission="system.audit_logs" fallback={
+      <div className="space-y-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <p className="text-slate-300">You don't have permission to view audit trail data.</p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+    }>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <FileText className="h-5 w-5" />
+            <h3 className="text-lg font-semibold">Access Control Audit Trail</h3>
+          </div>
+          <PermissionGuard permission="reports.download">
+            <Button onClick={exportAuditLogs} className="flex items-center space-x-2">
+              <Download className="h-4 w-4" />
+              <span>Export Logs</span>
+            </Button>
+          </PermissionGuard>
+        </div>
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Filters */}
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold">{filteredLogs.length}</div>
-            <div className="text-sm text-gray-500">Total Events</div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search logs..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Select value={selectedSeverity} onValueChange={setSelectedSeverity}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Severities" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Severities</SelectItem>
+                  <SelectItem value="critical">Critical</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="success">Success</SelectItem>
+                  <SelectItem value="failure">Failure</SelectItem>
+                  <SelectItem value="warning">Warning</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={selectedTimeRange} onValueChange={setSelectedTimeRange}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1h">Last Hour</SelectItem>
+                  <SelectItem value="24h">Last 24 Hours</SelectItem>
+                  <SelectItem value="7d">Last 7 Days</SelectItem>
+                  <SelectItem value="30d">Last 30 Days</SelectItem>
+                  <SelectItem value="90d">Last 90 Days</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </CardContent>
         </Card>
+
+        {/* Summary Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-2xl font-bold">{filteredLogs.length}</div>
+              <div className="text-sm text-gray-500">Total Events</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-2xl font-bold text-red-600">
+                {filteredLogs.filter(log => log.severity === 'critical' || log.severity === 'high').length}
+              </div>
+              <div className="text-sm text-gray-500">High Priority</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-2xl font-bold text-red-600">
+                {filteredLogs.filter(log => log.status === 'failure').length}
+              </div>
+              <div className="text-sm text-gray-500">Failed Actions</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-2xl font-bold">
+                {new Set(filteredLogs.map(log => log.user)).size}
+              </div>
+              <div className="text-sm text-gray-500">Unique Users</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Audit Logs Table */}
         <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-red-600">
-              {filteredLogs.filter(log => log.severity === 'critical' || log.severity === 'high').length}
-            </div>
-            <div className="text-sm text-gray-500">High Priority</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-red-600">
-              {filteredLogs.filter(log => log.status === 'failure').length}
-            </div>
-            <div className="text-sm text-gray-500">Failed Actions</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold">
-              {new Set(filteredLogs.map(log => log.user)).size}
-            </div>
-            <div className="text-sm text-gray-500">Unique Users</div>
+          <CardHeader>
+            <CardTitle>Audit Events ({filteredLogs.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Timestamp</TableHead>
+                  <TableHead>User</TableHead>
+                  <TableHead>Action</TableHead>
+                  <TableHead>Resource</TableHead>
+                  <TableHead>Severity</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>IP Address</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredLogs.map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell>
+                      <div className="text-sm">
+                        {new Date(log.timestamp).toLocaleDateString()}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {new Date(log.timestamp).toLocaleTimeString()}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-medium">{log.user}</div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-medium">{log.action.replace(/_/g, ' ')}</div>
+                      <div className="text-sm text-gray-500">{log.details}</div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm font-mono">{log.resource}</div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={`capitalize ${getSeverityColor(log.severity)}`}>
+                        {log.severity}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={`capitalize ${getStatusColor(log.status)}`}>
+                        {log.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm font-mono">{log.ip_address}</div>
+                    </TableCell>
+                    <TableCell>
+                      <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleViewDetails(log)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl">
+                          <DialogHeader>
+                            <DialogTitle>Audit Log Details</DialogTitle>
+                          </DialogHeader>
+                          {selectedLog && (
+                            <div className="space-y-6">
+                              {/* Basic Information */}
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-sm font-medium text-gray-500">Event ID</label>
+                                  <div className="font-mono text-sm">{selectedLog.id}</div>
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium text-gray-500">Timestamp</label>
+                                  <div className="text-sm">
+                                    {new Date(selectedLog.timestamp).toLocaleString()}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <Separator />
+
+                              {/* User & Action Information */}
+                              <div className="space-y-4">
+                                <div>
+                                  <label className="text-sm font-medium text-gray-500">User</label>
+                                  <div className="font-medium">{selectedLog.user}</div>
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium text-gray-500">Action</label>
+                                  <div className="font-medium">{selectedLog.action.replace(/_/g, ' ')}</div>
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium text-gray-500">Resource</label>
+                                  <div className="font-mono text-sm p-2 rounded" style={{backgroundColor: '#344256'}}>
+                                    {selectedLog.resource}
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium text-gray-500">Details</label>
+                                  <div className="text-sm p-3 rounded" style={{backgroundColor: '#344256'}}>
+                                    {selectedLog.details}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <Separator />
+
+                              {/* Status & Severity */}
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-sm font-medium text-gray-500">Severity</label>
+                                  <div className="mt-1">
+                                    <Badge className={`capitalize ${getSeverityColor(selectedLog.severity)}`}>
+                                      {selectedLog.severity}
+                                    </Badge>
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium text-gray-500">Status</label>
+                                  <div className="mt-1">
+                                    <Badge className={`capitalize ${getStatusColor(selectedLog.status)}`}>
+                                      {selectedLog.status}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <Separator />
+
+                              {/* Technical Information */}
+                              <div className="space-y-4">
+                                <div>
+                                  <label className="text-sm font-medium text-gray-500">IP Address</label>
+                                  <div className="font-mono text-sm">{selectedLog.ip_address}</div>
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium text-gray-500">User Agent</label>
+                                  <div className="text-sm p-2 rounded break-all" style={{backgroundColor: '#344256'}}>
+                                    {selectedLog.user_agent}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Action Buttons */}
+                              <div className="flex justify-end space-x-2 pt-4 border-t">
+                                <Button variant="outline" onClick={() => setIsDetailDialogOpen(false)}>
+                                  Close
+                                </Button>
+                                <Button onClick={() => {
+                                  exportSingleLog(selectedLog);
+                                  setIsDetailDialogOpen(false);
+                                }}>
+                                  Export This Log
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </DialogContent>
+                      </Dialog>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       </div>
-
-      {/* Audit Logs Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Audit Events ({filteredLogs.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Timestamp</TableHead>
-                <TableHead>User</TableHead>
-                <TableHead>Action</TableHead>
-                <TableHead>Resource</TableHead>
-                <TableHead>Severity</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>IP Address</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredLogs.map((log) => (
-                <TableRow key={log.id}>
-                  <TableCell>
-                    <div className="text-sm">
-                      {new Date(log.timestamp).toLocaleDateString()}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {new Date(log.timestamp).toLocaleTimeString()}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="font-medium">{log.user}</div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="font-medium">{log.action.replace(/_/g, ' ')}</div>
-                    <div className="text-sm text-gray-500">{log.details}</div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-sm font-mono">{log.resource}</div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={`capitalize ${getSeverityColor(log.severity)}`}>
-                      {log.severity}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={`capitalize ${getStatusColor(log.status)}`}>
-                      {log.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-sm font-mono">{log.ip_address}</div>
-                  </TableCell>
-                  <TableCell>
-                    <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
-                      <DialogTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleViewDetails(log)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-2xl">
-                        <DialogHeader>
-                          <DialogTitle>Audit Log Details</DialogTitle>
-                        </DialogHeader>
-                        {selectedLog && (
-                          <div className="space-y-6">
-                            {/* Basic Information */}
-                            <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                <label className="text-sm font-medium text-gray-500">Event ID</label>
-                                <div className="font-mono text-sm">{selectedLog.id}</div>
-                              </div>
-                              <div>
-                                <label className="text-sm font-medium text-gray-500">Timestamp</label>
-                                <div className="text-sm">
-                                  {new Date(selectedLog.timestamp).toLocaleString()}
-                                </div>
-                              </div>
-                            </div>
-
-                            <Separator />
-
-                            {/* User & Action Information */}
-                            <div className="space-y-4">
-                              <div>
-                                <label className="text-sm font-medium text-gray-500">User</label>
-                                <div className="font-medium">{selectedLog.user}</div>
-                              </div>
-                              <div>
-                                <label className="text-sm font-medium text-gray-500">Action</label>
-                                <div className="font-medium">{selectedLog.action.replace(/_/g, ' ')}</div>
-                              </div>
-                              <div>
-                                <label className="text-sm font-medium text-gray-500">Resource</label>
-                                <div className="font-mono text-sm p-2 rounded" style={{backgroundColor: '#344256'}}>
-                                  {selectedLog.resource}
-                                </div>
-                              </div>
-                              <div>
-                                <label className="text-sm font-medium text-gray-500">Details</label>
-                                <div className="text-sm p-3 rounded" style={{backgroundColor: '#344256'}}>
-                                  {selectedLog.details}
-                                </div>
-                              </div>
-                            </div>
-
-                            <Separator />
-
-                            {/* Status & Severity */}
-                            <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                <label className="text-sm font-medium text-gray-500">Severity</label>
-                                <div className="mt-1">
-                                  <Badge className={`capitalize ${getSeverityColor(selectedLog.severity)}`}>
-                                    {selectedLog.severity}
-                                  </Badge>
-                                </div>
-                              </div>
-                              <div>
-                                <label className="text-sm font-medium text-gray-500">Status</label>
-                                <div className="mt-1">
-                                  <Badge className={`capitalize ${getStatusColor(selectedLog.status)}`}>
-                                    {selectedLog.status}
-                                  </Badge>
-                                </div>
-                              </div>
-                            </div>
-
-                            <Separator />
-
-                            {/* Technical Information */}
-                            <div className="space-y-4">
-                              <div>
-                                <label className="text-sm font-medium text-gray-500">IP Address</label>
-                                <div className="font-mono text-sm">{selectedLog.ip_address}</div>
-                              </div>
-                              <div>
-                                <label className="text-sm font-medium text-gray-500">User Agent</label>
-                                <div className="text-sm p-2 rounded break-all" style={{backgroundColor: '#344256'}}>
-                                  {selectedLog.user_agent}
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Action Buttons */}
-                            <div className="flex justify-end space-x-2 pt-4 border-t">
-                              <Button variant="outline" onClick={() => setIsDetailDialogOpen(false)}>
-                                Close
-                              </Button>
-                              <Button onClick={() => {
-                                exportSingleLog(selectedLog);
-                                setIsDetailDialogOpen(false);
-                              }}>
-                                Export This Log
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                      </DialogContent>
-                    </Dialog>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </div>
+    </PermissionGuard>
   );
 }

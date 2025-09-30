@@ -30,6 +30,7 @@ import {
   Cell,
 } from "recharts";
 import DashboardDataService from "@/lib/dashboardDataService";
+import { PermissionGuard } from "@/components/auth/PermissionGuard";
 
 const COLORS = ["#7C3AED", "#DC2626", "#F97316", "#16A34A", "#64748B"];
 
@@ -143,128 +144,211 @@ const RiskAssessment = () => {
   }
 
   return (
-    <div className="w-full h-full p-6 bg-slate-800 rounded-lg border border-slate-700">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-white">Risk Assessment</h1>
-        <Select value={timeRange} onValueChange={setTimeRange}>
-          <SelectTrigger className="w-[180px] bg-slate-700 border-slate-600 text-white">
-            <SelectValue placeholder="Select time range" />
-          </SelectTrigger>
-          <SelectContent className="bg-slate-700 border-slate-600">
-            <SelectItem value="7days">Last 7 days</SelectItem>
-            <SelectItem value="30days">Last 30 days</SelectItem>
-            <SelectItem value="90days">Last 90 days</SelectItem>
-            <SelectItem value="1year">Last year</SelectItem>
-          </SelectContent>
-        </Select>
+    <PermissionGuard permission="dashboard.risk_assessment" fallback={
+      <div className="w-full h-full p-6 bg-slate-800 rounded-lg border border-slate-700">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <p className="text-slate-300">You don't have permission to view risk assessment data.</p>
+          </div>
+        </div>
       </div>
+    }>
+      <div className="w-full h-full p-6 bg-slate-800 rounded-lg border border-slate-700">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold text-white">Risk Assessment</h1>
+          <Select value={timeRange} onValueChange={setTimeRange}>
+            <SelectTrigger className="w-[180px] bg-slate-700 border-slate-600 text-white">
+              <SelectValue placeholder="Select time range" />
+            </SelectTrigger>
+            <SelectContent className="bg-slate-700 border-slate-600">
+              <SelectItem value="7days">Last 7 days</SelectItem>
+              <SelectItem value="30days">Last 30 days</SelectItem>
+              <SelectItem value="90days">Last 90 days</SelectItem>
+              <SelectItem value="1year">Last year</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-      <Tabs defaultValue="distribution" className="w-full">
-        <TabsList className="mb-4 bg-slate-600">
-          <TabsTrigger value="distribution" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white">
-            Vulnerability Distribution
-          </TabsTrigger>
-          <TabsTrigger value="trends" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white">
-            Remediation Trends
-          </TabsTrigger>
-        </TabsList>
+        <Tabs defaultValue="distribution" className="w-full">
+          <TabsList className="mb-4 bg-slate-600">
+            <TabsTrigger value="distribution" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white">
+              Vulnerability Distribution
+            </TabsTrigger>
+            <TabsTrigger value="trends" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white">
+              Remediation Trends
+            </TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="distribution" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <TabsContent value="distribution" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card className="bg-slate-700 border-slate-600">
+                <CardHeader>
+                  <div className="flex justify-between items-center">
+                    <CardTitle className="text-white">Vulnerability Distribution</CardTitle>
+                    <Select
+                      value={selectedChart}
+                      onValueChange={setSelectedChart}
+                    >
+                      <SelectTrigger className="w-[180px] bg-slate-600 border-slate-500 text-white">
+                        <SelectValue placeholder="Select chart type" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-700 border-slate-600">
+                        <SelectItem value="severity">By Severity</SelectItem>
+                        <SelectItem value="environment">By Environment</SelectItem>
+                        <SelectItem value="osType">By OS Type</SelectItem>
+                        <SelectItem value="status">By Status</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <CardDescription className="text-slate-300">
+                    {selectedChart === "severity" &&
+                      "Distribution of vulnerabilities by severity level"}
+                    {selectedChart === "environment" &&
+                      "Distribution of vulnerabilities by environment"}
+                    {selectedChart === "osType" &&
+                      "Distribution of vulnerabilities by operating system"}
+                    {selectedChart === "status" &&
+                      "Distribution of vulnerabilities by remediation status"}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={getChartData()}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          outerRadius={100}
+                          fill="#8884d8"
+                          dataKey="value"
+                          nameKey="name"
+                          label={(props: any) => {
+                            const { name, percent } = props;
+                            return `${name}: ${(percent * 100).toFixed(0)}%`;
+                          }}
+                          onClick={handleChartClick}
+                        >
+                          {getChartData().map((entry, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={entry.color || COLORS[index % COLORS.length]}
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(value) => [
+                            `${value} vulnerabilities`,
+                            "Count",
+                          ]}
+                          contentStyle={{
+                            backgroundColor: '#334155',
+                            border: '1px solid #475569',
+                            borderRadius: '6px',
+                            color: 'white'
+                          }}
+                        />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-slate-700 border-slate-600">
+                <CardHeader>
+                  <CardTitle className="text-white">Vulnerability Count by Category</CardTitle>
+                  <CardDescription className="text-slate-300">
+                    Comparison of vulnerability counts across categories
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={getChartData()} barSize={40}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
+                        <XAxis dataKey="name" tick={{ fill: '#CBD5E1' }} />
+                        <YAxis tick={{ fill: '#CBD5E1' }} />
+                        <Tooltip
+                          formatter={(value) => [
+                            `${value} vulnerabilities`,
+                            "Count",
+                          ]}
+                          contentStyle={{
+                            backgroundColor: '#334155',
+                            border: '1px solid #475569',
+                            borderRadius: '6px',
+                            color: 'white'
+                          }}
+                        />
+                        <Legend />
+                        <Bar
+                          dataKey="value"
+                          name="Vulnerabilities"
+                          onClick={handleChartClick}
+                          fill="#8884d8"
+                        >
+                          {getChartData().map((entry, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={entry.color || COLORS[index % COLORS.length]}
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {selectedCVE && (
+              <Card className="bg-slate-700 border-slate-600">
+                <CardHeader>
+                  <CardTitle className="text-white">Vulnerabilities for {selectedCVE}</CardTitle>
+                  <CardDescription className="text-slate-300">
+                    Detailed list of CVEs in this category
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="border border-slate-600 rounded-md p-4 bg-slate-600">
+                    <p className="text-slate-300">
+                      Showing vulnerabilities for the selected category. In a full implementation, 
+                      this would display a filtered table of specific CVEs.
+                    </p>
+                    <p className="mt-2 text-slate-200">
+                      Selected category:{" "}
+                      <span className="font-medium text-white">{selectedCVE}</span>
+                    </p>
+                    <p className="mt-1 text-slate-300">
+                      Count: {getChartData().find(item => item.name === selectedCVE)?.value || 0} vulnerabilities
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="trends">
             <Card className="bg-slate-700 border-slate-600">
               <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle className="text-white">Vulnerability Distribution</CardTitle>
-                  <Select
-                    value={selectedChart}
-                    onValueChange={setSelectedChart}
-                  >
-                    <SelectTrigger className="w-[180px] bg-slate-600 border-slate-500 text-white">
-                      <SelectValue placeholder="Select chart type" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-700 border-slate-600">
-                      <SelectItem value="severity">By Severity</SelectItem>
-                      <SelectItem value="environment">By Environment</SelectItem>
-                      <SelectItem value="osType">By OS Type</SelectItem>
-                      <SelectItem value="status">By Status</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <CardTitle className="text-white">Remediation Progress Over Time</CardTitle>
                 <CardDescription className="text-slate-300">
-                  {selectedChart === "severity" &&
-                    "Distribution of vulnerabilities by severity level"}
-                  {selectedChart === "environment" &&
-                    "Distribution of vulnerabilities by environment"}
-                  {selectedChart === "osType" &&
-                    "Distribution of vulnerabilities by operating system"}
-                  {selectedChart === "status" &&
-                    "Distribution of vulnerabilities by remediation status"}
+                  Tracking open vs. resolved vulnerabilities (sample data)
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-[300px]">
+                <div className="h-[400px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={getChartData()}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        outerRadius={100}
-                        fill="#8884d8"
-                        dataKey="value"
-                        nameKey="name"
-                        label={(props: any) => {
-                          const { name, percent } = props;
-                          return `${name}: ${(percent * 100).toFixed(0)}%`;
-                        }}
-                        onClick={handleChartClick}
-                      >
-                        {getChartData().map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={entry.color || COLORS[index % COLORS.length]}
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        formatter={(value) => [
-                          `${value} vulnerabilities`,
-                          "Count",
-                        ]}
-                        contentStyle={{
-                          backgroundColor: '#334155',
-                          border: '1px solid #475569',
-                          borderRadius: '6px',
-                          color: 'white'
-                        }}
-                      />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-slate-700 border-slate-600">
-              <CardHeader>
-                <CardTitle className="text-white">Vulnerability Count by Category</CardTitle>
-                <CardDescription className="text-slate-300">
-                  Comparison of vulnerability counts across categories
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={getChartData()} barSize={40}>
+                    <BarChart
+                      data={remediationProgressData}
+                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                    >
                       <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
                       <XAxis dataKey="name" tick={{ fill: '#CBD5E1' }} />
                       <YAxis tick={{ fill: '#CBD5E1' }} />
                       <Tooltip
-                        formatter={(value) => [
-                          `${value} vulnerabilities`,
-                          "Count",
-                        ]}
                         contentStyle={{
                           backgroundColor: '#334155',
                           border: '1px solid #475569',
@@ -274,99 +358,26 @@ const RiskAssessment = () => {
                       />
                       <Legend />
                       <Bar
-                        dataKey="value"
-                        name="Vulnerabilities"
-                        onClick={handleChartClick}
-                        fill="#8884d8"
-                      >
-                        {getChartData().map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={entry.color || COLORS[index % COLORS.length]}
-                          />
-                        ))}
-                      </Bar>
+                        dataKey="open"
+                        name="Open Vulnerabilities"
+                        stackId="a"
+                        fill="#DC2626"
+                      />
+                      <Bar
+                        dataKey="resolved"
+                        name="Resolved Vulnerabilities"
+                        stackId="a"
+                        fill="#16A34A"
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
               </CardContent>
             </Card>
-          </div>
-
-          {selectedCVE && (
-            <Card className="bg-slate-700 border-slate-600">
-              <CardHeader>
-                <CardTitle className="text-white">Vulnerabilities for {selectedCVE}</CardTitle>
-                <CardDescription className="text-slate-300">
-                  Detailed list of CVEs in this category
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="border border-slate-600 rounded-md p-4 bg-slate-600">
-                  <p className="text-slate-300">
-                    Showing vulnerabilities for the selected category. In a full implementation, 
-                    this would display a filtered table of specific CVEs.
-                  </p>
-                  <p className="mt-2 text-slate-200">
-                    Selected category:{" "}
-                    <span className="font-medium text-white">{selectedCVE}</span>
-                  </p>
-                  <p className="mt-1 text-slate-300">
-                    Count: {getChartData().find(item => item.name === selectedCVE)?.value || 0} vulnerabilities
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        <TabsContent value="trends">
-          <Card className="bg-slate-700 border-slate-600">
-            <CardHeader>
-              <CardTitle className="text-white">Remediation Progress Over Time</CardTitle>
-              <CardDescription className="text-slate-300">
-                Tracking open vs. resolved vulnerabilities (sample data)
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[400px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={remediationProgressData}
-                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
-                    <XAxis dataKey="name" tick={{ fill: '#CBD5E1' }} />
-                    <YAxis tick={{ fill: '#CBD5E1' }} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#334155',
-                        border: '1px solid #475569',
-                        borderRadius: '6px',
-                        color: 'white'
-                      }}
-                    />
-                    <Legend />
-                    <Bar
-                      dataKey="open"
-                      name="Open Vulnerabilities"
-                      stackId="a"
-                      fill="#DC2626"
-                    />
-                    <Bar
-                      dataKey="resolved"
-                      name="Resolved Vulnerabilities"
-                      stackId="a"
-                      fill="#16A34A"
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </PermissionGuard>
   );
 };
 
