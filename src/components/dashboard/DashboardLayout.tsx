@@ -914,7 +914,7 @@ export default function DashboardLayout() {
   };
 
   return (
-    <div className="bg-background p-6 w-[2956px] h-[1959px]">
+    <div className="bg-background p-6 min-h-screen w-full">
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
