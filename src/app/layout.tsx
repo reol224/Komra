@@ -54,9 +54,9 @@ export const metadata: Metadata = {
   },
   manifest: "/manifest.json",
   icons: {
-    icon: "https://komrasec.com/images/icon-rounded-corners.png",
-    shortcut: "https://komrasec.com/images/icon-rounded-corners.png",
-    apple: "https://komrasec.com/images/icon-rounded-corners.png",
+    icon: "images/icon-rounded-corners.png",
+    shortcut: "images/icon-rounded-corners.png",
+    apple: "images/icon-rounded-corners.png",
   },
   category: "technology",
 };
