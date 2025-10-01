@@ -33,6 +33,12 @@ interface RolePermission {
   granted: boolean;
 }
 
+interface RolePermissions {
+  [role: string]: {
+    [permissionId: string]: boolean;
+  };
+}
+
 export default function PermissionMatrix() {
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [rolePermissions, setRolePermissions] = useState<RolePermissions>({});
@@ -181,9 +187,10 @@ export default function PermissionMatrix() {
       });
     } catch (error) {
       console.error('Error saving permissions:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       toast({
         title: "Error",
-        description: `Failed to save permissions: ${error.message || 'Unknown error'}`,
+        description: `Failed to save permissions: ${errorMessage}`,
         variant: "destructive",
       });
     } finally {

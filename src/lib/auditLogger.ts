@@ -137,8 +137,8 @@ export class AuditLogger {
         total_changes: changedPermissions.length,
         changes: changedPermissions,
         matrix_update_timestamp: new Date().toISOString(),
-        affected_roles: [...new Set(changedPermissions.map(c => c.role))],
-        affected_permissions: [...new Set(changedPermissions.map(c => c.permission))],
+        affected_roles: Array.from(new Set(changedPermissions.map(c => c.role))),
+        affected_permissions: Array.from(new Set(changedPermissions.map(c => c.permission))),
       },
       {
         severity: 'critical',
