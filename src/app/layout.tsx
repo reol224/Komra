@@ -8,6 +8,7 @@ import ClientToaster from "@/components/ClientToaster";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://komrasec.com/"),
   title: "Komra",
   description:
     "Security Intelligence Simplified - Enterprise-grade security monitoring for everyone",
@@ -19,9 +20,9 @@ export const metadata: Metadata = {
     "audit",
     "compliance",
   ],
-  authors: [{ name: "Komra Security" }],
-  creator: "Komra Security",
-  publisher: "Komra Security",
+  authors: [{ name: "Komra" }],
+  creator: "Komra",
+  publisher: "Komra",
   robots: {
     index: true,
     follow: true,
