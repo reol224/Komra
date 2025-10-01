@@ -1,0 +1,33 @@
+# Robots.txt for Komra
+# https://komrasec.com/
+
+User-agent: *
+Allow: /
+
+# Allow crawling of public pages
+Allow: /homepage
+Allow: /waitlist
+Allow: /privacy
+Allow: /terms
+Allow: /cookies
+Allow: /support
+
+# Disallow sensitive areas
+Disallow: /dashboard
+Disallow: /security
+Disallow: /compliance
+Disallow: /notifications
+Disallow: /status
+Disallow: /security-report
+Disallow: /api/
+Disallow: /tempobook/
+
+# Allow specific bots for security scanning (optional)
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+# Sitemap location
+Sitemap: https://komrasec.com/sitemap.xml

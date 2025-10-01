@@ -19,6 +19,7 @@ export const metadata: Metadata = {
     "cybersecurity",
     "audit",
     "compliance",
+    "SIEM",
   ],
   authors: [{ name: "Komra" }],
   creator: "Komra",
@@ -37,14 +38,14 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://www.linkedin.com/company/komra/",
+    url: "https://komrasec.com/",
     title: "Komra - Security Intelligence Simplified",
     description:
       "Enterprise-grade security monitoring and vulnerability assessment platform for distributed infrastructure",
     siteName: "Komra Security",
     images: [
       {
-        url: "/images/icon rounded corners.png",
+        url: "https://komrasec.com/images/icon-rounded-corners.png",
         width: 1200,
         height: 630,
         alt: "Komra Security Platform",
@@ -53,9 +54,9 @@ export const metadata: Metadata = {
   },
   manifest: "/manifest.json",
   icons: {
-    icon: "/images/icon rounded corners.png",
-    shortcut: "/images/icon rounded corners.png",
-    apple: "/images/icon rounded corners.png",
+    icon: "https://komrasec.com/images/icon-rounded-corners.png",
+    shortcut: "https://komrasec.com/images/icon-rounded-corners.png",
+    apple: "https://komrasec.com/images/icon-rounded-corners.png",
   },
   category: "technology",
 };
@@ -77,6 +78,22 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        {/* Schema.org JSON-LD for rich results */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              name: "Komra",
+              url: "https://komrasec.com",
+              logo: "https://komrasec.com/images/icon-rounded-corners.png",
+              sameAs: ["https://www.linkedin.com/company/komra/"],
+            }),
+          }}
+        />
+      </head>
       <body className={inter.className}>
         <NotificationProvider>
           <AuthProvider>
