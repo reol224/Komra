@@ -172,7 +172,7 @@ export default function PreLaunchPage() {
           <div className="flex items-center justify-center">
             <div className="flex items-center space-x-2">
               <Image 
-                src="/images/icon rounded corners.png" 
+                src="/images/icon-rounded-corners.png" 
                 alt="Komra Logo" 
                 width={32} 
                 height={32}
@@ -553,7 +553,7 @@ export default function PreLaunchPage() {
               <div className="flex flex-col md:flex-row gap-6 items-start">
                 <div className="w-20 h-20 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden bg-slate-700">
                   <Image 
-                    src="/images/icon rounded corners.png" 
+                    src="/images/icon-rounded-corners.png" 
                     alt="Komra Logo" 
                     width={60} 
                     height={60}
@@ -597,7 +597,7 @@ export default function PreLaunchPage() {
           <div className="text-center">
             <div className="flex items-center justify-center space-x-2 mb-4">
               <Image 
-                src="/images/icon rounded corners.png" 
+                src="/images/icon-rounded-corners.png" 
                 alt="Komra Logo" 
                 width={24} 
                 height={24}
