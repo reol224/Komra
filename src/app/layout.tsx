@@ -54,8 +54,11 @@ export const metadata: Metadata = {
   },
   manifest: "/manifest.json",
   icons: {
-    icon: "/images/icon-rounded-corners.png",
-    shortcut: "/images/icon-rounded-corners.png",
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/images/icon-rounded-corners.png", type: "image/png" }
+    ],
+    shortcut: "/favicon.ico",
     apple: "/images/icon-rounded-corners.png",
   },
   category: "technology",
@@ -79,6 +82,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" href="/images/icon-rounded-corners.png" type="image/png" />
         {/* Schema.org JSON-LD for rich results */}
         <script
           type="application/ld+json"
