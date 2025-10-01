@@ -122,6 +122,38 @@ export class AuditLogger {
   }
 
   // Specific logging methods for common actions
+  public async logPermissionMatrixUpdate(
+    changedPermissions: Array<{
+      role: string;
+      permission: string;
+      action: 'granted' | 'revoked';
+      permissionDescription?: string;
+    }>
+  ): Promise<void> {
+    await this.log(
+      'PERMISSION_MATRIX_UPDATED',
+      'permission_matrix',
+      {
+        total_changes: changedPermissions.length,
+        changes: changedPermissions,
+        matrix_update_timestamp: new Date().toISOString(),
+        affected_roles: [...new Set(changedPermissions.map(c => c.role))],
+        affected_permissions: [...new Set(changedPermissions.map(c => c.permission))],
+      },
+      {
+        severity: 'critical',
+        status: 'success',
+        metadata: {
+          action_category: 'permission_management',
+          compliance_relevant: true,
+          security_relevant: true,
+          change_type: 'bulk_update',
+          requires_notification: true,
+        },
+      }
+    );
+  }
+
   public async logReportGeneration(reportData: any): Promise<void> {
     await this.log(
       'REPORT_GENERATED',

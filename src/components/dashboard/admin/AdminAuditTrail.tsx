@@ -1,16 +1,42 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { PermissionGuard } from '@/components/auth/PermissionGuard';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { FileText, Search, Download, Filter, Eye, Calendar } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Separator } from '@/components/ui/separator';
+import React, { useState } from "react";
+import { PermissionGuard } from "@/components/auth/PermissionGuard";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  FileText,
+  Search,
+  Download,
+  Filter,
+  Eye,
+  Calendar,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
 
 interface AuditLog {
   id: string;
@@ -19,126 +45,129 @@ interface AuditLog {
   action: string;
   resource: string;
   details: string;
-  severity: 'low' | 'medium' | 'high' | 'critical';
+  severity: "low" | "medium" | "high" | "critical";
   ip_address: string;
   user_agent: string;
-  status: 'success' | 'failure' | 'warning';
+  status: "success" | "failure" | "warning";
 }
 
 export default function AdminAuditTrail() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSeverity, setSelectedSeverity] = useState<string>('all');
-  const [selectedStatus, setSelectedStatus] = useState<string>('all');
-  const [selectedTimeRange, setSelectedTimeRange] = useState<string>('24h');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedSeverity, setSelectedSeverity] = useState<string>("all");
+  const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [selectedTimeRange, setSelectedTimeRange] = useState<string>("24h");
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
 
   const auditLogs: AuditLog[] = [
     {
-      id: '1',
-      timestamp: '2024-03-22T14:30:15Z',
-      user: 'admin@koma.security',
-      action: 'USER_ROLE_CHANGED',
-      resource: 'users/analyst@koma.security',
-      details: 'Changed role from viewer to analyst',
-      severity: 'high',
-      ip_address: '192.168.1.100',
-      user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-      status: 'success'
+      id: "1",
+      timestamp: "2024-03-22T14:30:15Z",
+      user: "admin@koma.security",
+      action: "USER_ROLE_CHANGED",
+      resource: "users/analyst@koma.security",
+      details: "Changed role from viewer to analyst",
+      severity: "high",
+      ip_address: "192.168.1.100",
+      user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+      status: "success",
     },
     {
-      id: '2',
-      timestamp: '2024-03-22T14:15:32Z',
-      user: 'analyst@koma.security',
-      action: 'REPORT_GENERATED',
-      resource: 'reports/vulnerability-summary-2024-03-22',
-      details: 'Generated vulnerability summary report',
-      severity: 'medium',
-      ip_address: '192.168.1.105',
-      user_agent: 'Mozilla/5.0 (macOS; Intel Mac OS X 10_15_7)',
-      status: 'success'
+      id: "2",
+      timestamp: "2024-03-22T14:15:32Z",
+      user: "analyst@koma.security",
+      action: "REPORT_GENERATED",
+      resource: "reports/vulnerability-summary-2024-03-22",
+      details: "Generated vulnerability summary report",
+      severity: "medium",
+      ip_address: "192.168.1.105",
+      user_agent: "Mozilla/5.0 (macOS; Intel Mac OS X 10_15_7)",
+      status: "success",
     },
     {
-      id: '3',
-      timestamp: '2024-03-22T13:45:18Z',
-      user: 'system',
-      action: 'VULNERABILITY_DETECTED',
-      resource: 'endpoints/web-server-01',
-      details: 'Critical vulnerability CVE-2024-1234 detected',
-      severity: 'critical',
-      ip_address: '10.0.0.15',
-      user_agent: 'Koma-Scanner/1.0',
-      status: 'warning'
+      id: "3",
+      timestamp: "2024-03-22T13:45:18Z",
+      user: "system",
+      action: "VULNERABILITY_DETECTED",
+      resource: "endpoints/web-server-01",
+      details: "Critical vulnerability CVE-2024-1234 detected",
+      severity: "critical",
+      ip_address: "10.0.0.15",
+      user_agent: "Koma-Scanner/1.0",
+      status: "warning",
     },
     {
-      id: '4',
-      timestamp: '2024-03-22T13:30:45Z',
-      user: 'unknown',
-      action: 'LOGIN_FAILED',
-      resource: 'auth/login',
-      details: 'Failed login attempt with invalid credentials',
-      severity: 'high',
-      ip_address: '203.0.113.42',
-      user_agent: 'curl/7.68.0',
-      status: 'failure'
+      id: "4",
+      timestamp: "2024-03-22T13:30:45Z",
+      user: "unknown",
+      action: "LOGIN_FAILED",
+      resource: "auth/login",
+      details: "Failed login attempt with invalid credentials",
+      severity: "high",
+      ip_address: "203.0.113.42",
+      user_agent: "curl/7.68.0",
+      status: "failure",
     },
     {
-      id: '5',
-      timestamp: '2024-03-22T13:15:22Z',
-      user: 'viewer@koma.security',
-      action: 'DATA_ACCESSED',
-      resource: 'vulnerabilities/list',
-      details: 'Accessed vulnerability list view',
-      severity: 'low',
-      ip_address: '192.168.1.110',
-      user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-      status: 'success'
+      id: "5",
+      timestamp: "2024-03-22T13:15:22Z",
+      user: "viewer@koma.security",
+      action: "DATA_ACCESSED",
+      resource: "vulnerabilities/list",
+      details: "Accessed vulnerability list view",
+      severity: "low",
+      ip_address: "192.168.1.110",
+      user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+      status: "success",
     },
     {
-      id: '6',
-      timestamp: '2024-03-22T12:45:33Z',
-      user: 'admin@koma.security',
-      action: 'USER_CREATED',
-      resource: 'users/newuser@company.com',
-      details: 'Created new user account with analyst role',
-      severity: 'medium',
-      ip_address: '192.168.1.100',
-      user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-      status: 'success'
+      id: "6",
+      timestamp: "2024-03-22T12:45:33Z",
+      user: "admin@koma.security",
+      action: "USER_CREATED",
+      resource: "users/newuser@company.com",
+      details: "Created new user account with analyst role",
+      severity: "medium",
+      ip_address: "192.168.1.100",
+      user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+      status: "success",
     },
     {
-      id: '7',
-      timestamp: '2024-03-22T12:30:15Z',
-      user: 'system',
-      action: 'BACKUP_COMPLETED',
-      resource: 'database/audit_logs',
-      details: 'Automated database backup completed successfully',
-      severity: 'low',
-      ip_address: '127.0.0.1',
-      user_agent: 'Koma-Backup/1.0',
-      status: 'success'
+      id: "7",
+      timestamp: "2024-03-22T12:30:15Z",
+      user: "system",
+      action: "BACKUP_COMPLETED",
+      resource: "database/audit_logs",
+      details: "Automated database backup completed successfully",
+      severity: "low",
+      ip_address: "127.0.0.1",
+      user_agent: "Koma-Backup/1.0",
+      status: "success",
     },
     {
-      id: '8',
-      timestamp: '2024-03-22T11:15:44Z',
-      user: 'analyst@koma.security',
-      action: 'CVE_TRIAGED',
-      resource: 'vulnerabilities/CVE-2024-5678',
-      details: 'Triaged CVE-2024-5678 as high priority',
-      severity: 'medium',
-      ip_address: '192.168.1.105',
-      user_agent: 'Mozilla/5.0 (macOS; Intel Mac OS X 10_15_7)',
-      status: 'success'
-    }
+      id: "8",
+      timestamp: "2024-03-22T11:15:44Z",
+      user: "analyst@koma.security",
+      action: "CVE_TRIAGED",
+      resource: "vulnerabilities/CVE-2024-5678",
+      details: "Triaged CVE-2024-5678 as high priority",
+      severity: "medium",
+      ip_address: "192.168.1.105",
+      user_agent: "Mozilla/5.0 (macOS; Intel Mac OS X 10_15_7)",
+      status: "success",
+    },
   ];
 
-  const filteredLogs = auditLogs.filter(log => {
-    const matchesSearch = log.user.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         log.resource.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         log.details.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesSeverity = selectedSeverity === 'all' || log.severity === selectedSeverity;
-    const matchesStatus = selectedStatus === 'all' || log.status === selectedStatus;
+  const filteredLogs = auditLogs.filter((log) => {
+    const matchesSearch =
+      log.user.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.resource.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.details.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSeverity =
+      selectedSeverity === "all" || log.severity === selectedSeverity;
+    const matchesStatus =
+      selectedStatus === "all" || log.status === selectedStatus;
     return matchesSearch && matchesSeverity && matchesStatus;
   });
 
@@ -149,27 +178,47 @@ export default function AdminAuditTrail() {
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
-      case 'critical': return 'bg-violet-800 text-white border-violet-900';
-      case 'high': return 'bg-red-600 text-white border-red-700';
-      case 'medium': return 'bg-orange-600 text-white border-orange-700';
-      case 'low': return 'bg-green-600 text-white border-green-700';
-      default: return '';
+      case "critical":
+        return "bg-violet-800 text-white border-violet-900";
+      case "high":
+        return "bg-red-600 text-white border-red-700";
+      case "medium":
+        return "bg-orange-600 text-white border-orange-700";
+      case "low":
+        return "bg-green-600 text-white border-green-700";
+      default:
+        return "";
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'success': return 'bg-green-600 text-white border-green-700';
-      case 'failure': return 'bg-red-600 text-white border-red-700';
-      case 'warning': return 'bg-orange-600 text-white border-orange-700';
-      default: return '';
+      case "success":
+        return "bg-green-600 text-white border-green-700";
+      case "failure":
+        return "bg-red-600 text-white border-red-700";
+      case "warning":
+        return "bg-orange-600 text-white border-orange-700";
+      default:
+        return "";
     }
   };
 
   const exportAuditLogs = () => {
     const csvContent = [
-      ['ID', 'Timestamp', 'User', 'Action', 'Resource', 'Details', 'Severity', 'Status', 'IP Address', 'User Agent'],
-      ...filteredLogs.map(log => [
+      [
+        "ID",
+        "Timestamp",
+        "User",
+        "Action",
+        "Resource",
+        "Details",
+        "Severity",
+        "Status",
+        "IP Address",
+        "User Agent",
+      ],
+      ...filteredLogs.map((log) => [
         log.id,
         log.timestamp,
         log.user,
@@ -179,16 +228,21 @@ export default function AdminAuditTrail() {
         log.severity,
         log.status,
         log.ip_address,
-        log.user_agent
-      ])
-    ].map(row => row.map(field => `"${field}"`).join(',')).join('\n');
+        log.user_agent,
+      ]),
+    ]
+      .map((row) => row.map((field) => `"${field}"`).join(","))
+      .join("\n");
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `audit-logs-${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `audit-logs-${new Date().toISOString().split("T")[0]}.csv`,
+    );
+    link.style.visibility = "hidden";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -196,49 +250,64 @@ export default function AdminAuditTrail() {
 
   const exportSingleLog = (log: AuditLog) => {
     const logData = {
-      'Event ID': log.id,
-      'Timestamp': new Date(log.timestamp).toLocaleString(),
-      'User': log.user,
-      'Action': log.action.replace(/_/g, ' '),
-      'Resource': log.resource,
-      'Details': log.details,
-      'Severity': log.severity,
-      'Status': log.status,
-      'IP Address': log.ip_address,
-      'User Agent': log.user_agent
+      "Event ID": log.id,
+      Timestamp: new Date(log.timestamp).toLocaleString(),
+      User: log.user,
+      Action: log.action.replace(/_/g, " "),
+      Resource: log.resource,
+      Details: log.details,
+      Severity: log.severity,
+      Status: log.status,
+      "IP Address": log.ip_address,
+      "User Agent": log.user_agent,
     };
 
     const jsonContent = JSON.stringify(logData, null, 2);
-    const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
-    const link = document.createElement('a');
+    const blob = new Blob([jsonContent], {
+      type: "application/json;charset=utf-8;",
+    });
+    const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `audit-log-${log.id}-${new Date().toISOString().split('T')[0]}.json`);
-    link.style.visibility = 'hidden';
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `audit-log-${log.id}-${new Date().toISOString().split("T")[0]}.json`,
+    );
+    link.style.visibility = "hidden";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
   return (
-    <PermissionGuard permission="system.audit_logs" fallback={
-      <div className="space-y-6">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <p className="text-slate-300">You don't have permission to view audit trail data.</p>
+    <PermissionGuard
+      permission="system.audit_logs"
+      fallback={
+        <div className="space-y-6">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <p className="text-slate-300">
+                You don't have permission to view audit trail data.
+              </p>
+            </div>
           </div>
         </div>
-      </div>
-    }>
+      }
+    >
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <FileText className="h-5 w-5" />
-            <h3 className="text-lg font-semibold">Access Control Audit Trail</h3>
+            <h3 className="text-lg font-semibold">
+              Access Control Audit Trail
+            </h3>
           </div>
           <PermissionGuard permission="reports.download">
-            <Button onClick={exportAuditLogs} className="flex items-center space-x-2">
+            <Button
+              onClick={exportAuditLogs}
+              className="flex items-center space-x-2"
+            >
               <Download className="h-4 w-4" />
               <span>Export Logs</span>
             </Button>
@@ -258,7 +327,10 @@ export default function AdminAuditTrail() {
                   className="pl-10"
                 />
               </div>
-              <Select value={selectedSeverity} onValueChange={setSelectedSeverity}>
+              <Select
+                value={selectedSeverity}
+                onValueChange={setSelectedSeverity}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="All Severities" />
                 </SelectTrigger>
@@ -281,7 +353,10 @@ export default function AdminAuditTrail() {
                   <SelectItem value="warning">Warning</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={selectedTimeRange} onValueChange={setSelectedTimeRange}>
+              <Select
+                value={selectedTimeRange}
+                onValueChange={setSelectedTimeRange}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -308,7 +383,12 @@ export default function AdminAuditTrail() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-2xl font-bold text-red-600">
-                {filteredLogs.filter(log => log.severity === 'critical' || log.severity === 'high').length}
+                {
+                  filteredLogs.filter(
+                    (log) =>
+                      log.severity === "critical" || log.severity === "high",
+                  ).length
+                }
               </div>
               <div className="text-sm text-gray-500">High Priority</div>
             </CardContent>
@@ -316,7 +396,7 @@ export default function AdminAuditTrail() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-2xl font-bold text-red-600">
-                {filteredLogs.filter(log => log.status === 'failure').length}
+                {filteredLogs.filter((log) => log.status === "failure").length}
               </div>
               <div className="text-sm text-gray-500">Failed Actions</div>
             </CardContent>
@@ -324,7 +404,7 @@ export default function AdminAuditTrail() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-2xl font-bold">
-                {new Set(filteredLogs.map(log => log.user)).size}
+                {new Set(filteredLogs.map((log) => log.user)).size}
               </div>
               <div className="text-sm text-gray-500">Unique Users</div>
             </CardContent>
@@ -334,7 +414,9 @@ export default function AdminAuditTrail() {
         {/* Audit Logs Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Audit Events ({filteredLogs.length})</CardTitle>
+            <CardTitle className="h-[22px]">
+              Audit Events ({filteredLogs.length})
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <Table>
@@ -365,19 +447,25 @@ export default function AdminAuditTrail() {
                       <div className="font-medium">{log.user}</div>
                     </TableCell>
                     <TableCell>
-                      <div className="font-medium">{log.action.replace(/_/g, ' ')}</div>
+                      <div className="font-medium">
+                        {log.action.replace(/_/g, " ")}
+                      </div>
                       <div className="text-sm text-gray-500">{log.details}</div>
                     </TableCell>
                     <TableCell>
                       <div className="text-sm font-mono">{log.resource}</div>
                     </TableCell>
                     <TableCell>
-                      <Badge className={`capitalize ${getSeverityColor(log.severity)}`}>
+                      <Badge
+                        className={`capitalize ${getSeverityColor(log.severity)}`}
+                      >
                         {log.severity}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge className={`capitalize ${getStatusColor(log.status)}`}>
+                      <Badge
+                        className={`capitalize ${getStatusColor(log.status)}`}
+                      >
                         {log.status}
                       </Badge>
                     </TableCell>
@@ -385,10 +473,13 @@ export default function AdminAuditTrail() {
                       <div className="text-sm font-mono">{log.ip_address}</div>
                     </TableCell>
                     <TableCell>
-                      <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
+                      <Dialog
+                        open={isDetailDialogOpen}
+                        onOpenChange={setIsDetailDialogOpen}
+                      >
                         <DialogTrigger asChild>
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="sm"
                             onClick={() => handleViewDetails(log)}
                           >
@@ -404,13 +495,21 @@ export default function AdminAuditTrail() {
                               {/* Basic Information */}
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                  <label className="text-sm font-medium text-gray-500">Event ID</label>
-                                  <div className="font-mono text-sm">{selectedLog.id}</div>
+                                  <label className="text-sm font-medium text-gray-500">
+                                    Event ID
+                                  </label>
+                                  <div className="font-mono text-sm">
+                                    {selectedLog.id}
+                                  </div>
                                 </div>
                                 <div>
-                                  <label className="text-sm font-medium text-gray-500">Timestamp</label>
+                                  <label className="text-sm font-medium text-gray-500">
+                                    Timestamp
+                                  </label>
                                   <div className="text-sm">
-                                    {new Date(selectedLog.timestamp).toLocaleString()}
+                                    {new Date(
+                                      selectedLog.timestamp,
+                                    ).toLocaleString()}
                                   </div>
                                 </div>
                               </div>
@@ -420,22 +519,40 @@ export default function AdminAuditTrail() {
                               {/* User & Action Information */}
                               <div className="space-y-4">
                                 <div>
-                                  <label className="text-sm font-medium text-gray-500">User</label>
-                                  <div className="font-medium">{selectedLog.user}</div>
+                                  <label className="text-sm font-medium text-gray-500">
+                                    User
+                                  </label>
+                                  <div className="font-medium">
+                                    {selectedLog.user}
+                                  </div>
                                 </div>
                                 <div>
-                                  <label className="text-sm font-medium text-gray-500">Action</label>
-                                  <div className="font-medium">{selectedLog.action.replace(/_/g, ' ')}</div>
+                                  <label className="text-sm font-medium text-gray-500">
+                                    Action
+                                  </label>
+                                  <div className="font-medium">
+                                    {selectedLog.action.replace(/_/g, " ")}
+                                  </div>
                                 </div>
                                 <div>
-                                  <label className="text-sm font-medium text-gray-500">Resource</label>
-                                  <div className="font-mono text-sm p-2 rounded" style={{backgroundColor: '#344256'}}>
+                                  <label className="text-sm font-medium text-gray-500">
+                                    Resource
+                                  </label>
+                                  <div
+                                    className="font-mono text-sm p-2 rounded"
+                                    style={{ backgroundColor: "#344256" }}
+                                  >
                                     {selectedLog.resource}
                                   </div>
                                 </div>
                                 <div>
-                                  <label className="text-sm font-medium text-gray-500">Details</label>
-                                  <div className="text-sm p-3 rounded" style={{backgroundColor: '#344256'}}>
+                                  <label className="text-sm font-medium text-gray-500">
+                                    Details
+                                  </label>
+                                  <div
+                                    className="text-sm p-3 rounded"
+                                    style={{ backgroundColor: "#344256" }}
+                                  >
                                     {selectedLog.details}
                                   </div>
                                 </div>
@@ -446,17 +563,25 @@ export default function AdminAuditTrail() {
                               {/* Status & Severity */}
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                  <label className="text-sm font-medium text-gray-500">Severity</label>
+                                  <label className="text-sm font-medium text-gray-500">
+                                    Severity
+                                  </label>
                                   <div className="mt-1">
-                                    <Badge className={`capitalize ${getSeverityColor(selectedLog.severity)}`}>
+                                    <Badge
+                                      className={`capitalize ${getSeverityColor(selectedLog.severity)}`}
+                                    >
                                       {selectedLog.severity}
                                     </Badge>
                                   </div>
                                 </div>
                                 <div>
-                                  <label className="text-sm font-medium text-gray-500">Status</label>
+                                  <label className="text-sm font-medium text-gray-500">
+                                    Status
+                                  </label>
                                   <div className="mt-1">
-                                    <Badge className={`capitalize ${getStatusColor(selectedLog.status)}`}>
+                                    <Badge
+                                      className={`capitalize ${getStatusColor(selectedLog.status)}`}
+                                    >
                                       {selectedLog.status}
                                     </Badge>
                                   </div>
@@ -468,12 +593,21 @@ export default function AdminAuditTrail() {
                               {/* Technical Information */}
                               <div className="space-y-4">
                                 <div>
-                                  <label className="text-sm font-medium text-gray-500">IP Address</label>
-                                  <div className="font-mono text-sm">{selectedLog.ip_address}</div>
+                                  <label className="text-sm font-medium text-gray-500">
+                                    IP Address
+                                  </label>
+                                  <div className="font-mono text-sm">
+                                    {selectedLog.ip_address}
+                                  </div>
                                 </div>
                                 <div>
-                                  <label className="text-sm font-medium text-gray-500">User Agent</label>
-                                  <div className="text-sm p-2 rounded break-all" style={{backgroundColor: '#344256'}}>
+                                  <label className="text-sm font-medium text-gray-500">
+                                    User Agent
+                                  </label>
+                                  <div
+                                    className="text-sm p-2 rounded break-all"
+                                    style={{ backgroundColor: "#344256" }}
+                                  >
                                     {selectedLog.user_agent}
                                   </div>
                                 </div>
@@ -481,13 +615,18 @@ export default function AdminAuditTrail() {
 
                               {/* Action Buttons */}
                               <div className="flex justify-end space-x-2 pt-4 border-t">
-                                <Button variant="outline" onClick={() => setIsDetailDialogOpen(false)}>
+                                <Button
+                                  variant="outline"
+                                  onClick={() => setIsDetailDialogOpen(false)}
+                                >
                                   Close
                                 </Button>
-                                <Button onClick={() => {
-                                  exportSingleLog(selectedLog);
-                                  setIsDetailDialogOpen(false);
-                                }}>
+                                <Button
+                                  onClick={() => {
+                                    exportSingleLog(selectedLog);
+                                    setIsDetailDialogOpen(false);
+                                  }}
+                                >
                                   Export This Log
                                 </Button>
                               </div>

@@ -11,6 +11,7 @@ import { Shield, Save, RotateCcw, AlertTriangle } from 'lucide-react';
 import { UserRole } from '@/contexts/AuthContext';
 import { createClient } from '@supabase/supabase-js';
 import { useToast } from '@/components/ui/use-toast';
+import { auditLogger } from '@/lib/auditLogger';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -34,11 +35,8 @@ interface RolePermission {
 
 export default function PermissionMatrix() {
   const [permissions, setPermissions] = useState<Permission[]>([]);
-  const [rolePermissions, setRolePermissions] = useState<Record<UserRole, Record<string, boolean>>>({
-    admin: {},
-    analyst: {},
-    viewer: {}
-  });
+  const [rolePermissions, setRolePermissions] = useState<RolePermissions>({});
+  const [originalRolePermissions, setOriginalRolePermissions] = useState<RolePermissions>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -50,17 +48,16 @@ export default function PermissionMatrix() {
 
   const loadPermissions = async () => {
     try {
-      setLoading(true);
-      
-      // Load all permissions
+      // Fetch permissions
       const { data: permissionsData, error: permissionsError } = await supabase
         .from('permissions')
         .select('*')
-        .order('category, name');
+        .order('category', { ascending: true })
+        .order('name', { ascending: true });
 
       if (permissionsError) throw permissionsError;
 
-      // Load role permissions
+      // Fetch role permissions
       const { data: rolePermissionsData, error: rolePermissionsError } = await supabase
         .from('role_permissions')
         .select('*');
@@ -70,32 +67,28 @@ export default function PermissionMatrix() {
       setPermissions(permissionsData || []);
 
       // Build role permissions object
-      const rolePermissionsMap: Record<UserRole, Record<string, boolean>> = {
-        admin: {},
-        analyst: {},
-        viewer: {}
-      };
-
-      // Initialize all permissions as false
-      (permissionsData || []).forEach(permission => {
-        rolePermissionsMap.admin[permission.id] = false;
-        rolePermissionsMap.analyst[permission.id] = false;
-        rolePermissionsMap.viewer[permission.id] = false;
+      const rolePermsObj: RolePermissions = {};
+      const roles = ['admin', 'analyst', 'viewer'];
+      
+      roles.forEach(role => {
+        rolePermsObj[role] = {};
+        (permissionsData || []).forEach(permission => {
+          const rolePermission = rolePermissionsData?.find(
+            rp => rp.role === role && rp.permission_id === permission.id
+          );
+          rolePermsObj[role][permission.id] = rolePermission?.granted || false;
+        });
       });
 
-      // Set granted permissions to true
-      (rolePermissionsData || []).forEach(rp => {
-        if (rolePermissionsMap[rp.role as UserRole]) {
-          rolePermissionsMap[rp.role as UserRole][rp.permission_id] = rp.granted;
-        }
-      });
-
-      setRolePermissions(rolePermissionsMap);
+      setRolePermissions(rolePermsObj);
+      // Store original state for change tracking
+      setOriginalRolePermissions(JSON.parse(JSON.stringify(rolePermsObj)));
+      setHasChanges(false);
     } catch (error) {
       console.error('Error loading permissions:', error);
       toast({
         title: "Error",
-        description: "Failed to load permissions from database.",
+        description: "Failed to load permissions",
         variant: "destructive",
       });
     } finally {
@@ -119,43 +112,78 @@ export default function PermissionMatrix() {
     try {
       // Prepare data for upsert
       const rolePermissionUpdates: any[] = [];
+      const changedPermissions: Array<{
+        role: string;
+        permission: string;
+        action: 'granted' | 'revoked';
+        permissionDescription?: string;
+      }> = [];
       
-      Object.entries(rolePermissions).forEach(([role, permissions]) => {
-        Object.entries(permissions).forEach(([permissionId, granted]) => {
+      Object.entries(rolePermissions).forEach(([role, rolePerms]) => {
+        Object.entries(rolePerms).forEach(([permissionId, granted]) => {
           rolePermissionUpdates.push({
             role,
             permission_id: permissionId,
             granted,
             updated_at: new Date().toISOString()
           });
+
+          // Only track actual changes by comparing with original state
+          const originalGranted = originalRolePermissions[role]?.[permissionId] || false;
+          if (originalGranted !== granted) {
+            const permission = permissions.find(p => p.id === permissionId);
+            const permissionName = permission?.name || permissionId;
+            const permissionDescription = permission?.description;
+            
+            changedPermissions.push({
+              role,
+              permission: permissionName,
+              action: granted ? 'granted' : 'revoked',
+              permissionDescription
+            });
+          }
         });
       });
 
-      // Delete existing role permissions and insert new ones
-      const { error: deleteError } = await supabase
+      // Use upsert instead of delete/insert to avoid conflicts
+      const { error: upsertError } = await supabase
         .from('role_permissions')
-        .delete()
-        .neq('role', 'nonexistent'); // Delete all
+        .upsert(rolePermissionUpdates, {
+          onConflict: 'role,permission_id'
+        });
 
-      if (deleteError) throw deleteError;
+      if (upsertError) {
+        console.error('Upsert error:', upsertError);
+        throw upsertError;
+      }
 
-      // Insert new permissions
-      const { error: insertError } = await supabase
-        .from('role_permissions')
-        .insert(rolePermissionUpdates);
+      // Log only actual changes
+      try {
+        if (changedPermissions.length > 0) {
+          await auditLogger.logPermissionMatrixUpdate(changedPermissions);
+        }
+      } catch (auditError) {
+        console.warn('Audit logging failed:', auditError);
+        // Don't fail the entire operation if audit logging fails
+      }
 
-      if (insertError) throw insertError;
-      
+      // Update original state to current state after successful save
+      setOriginalRolePermissions(JSON.parse(JSON.stringify(rolePermissions)));
       setHasChanges(false);
+      
+      const changeMessage = changedPermissions.length > 0 
+        ? `${changedPermissions.length} permission changes saved and logged.`
+        : 'Permission matrix saved (no changes detected).';
+      
       toast({
         title: "Success",
-        description: "Permission matrix updated successfully.",
+        description: changeMessage,
       });
     } catch (error) {
       console.error('Error saving permissions:', error);
       toast({
         title: "Error",
-        description: "Failed to save permissions. Please try again.",
+        description: `Failed to save permissions: ${error.message || 'Unknown error'}`,
         variant: "destructive",
       });
     } finally {
