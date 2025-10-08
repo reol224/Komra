@@ -12,6 +12,7 @@ import { UserRole } from '@/contexts/AuthContext';
 import { createClient } from '@supabase/supabase-js';
 import { useToast } from '@/components/ui/use-toast';
 import { auditLogger } from '@/lib/auditLogger';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -38,6 +39,127 @@ interface RolePermissions {
     [permissionId: string]: boolean;
   };
 }
+
+// Define the default permissions for each role based on the provided data
+const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Record<string, boolean>> = {
+  admin: {
+    'api.access': true,
+    'api.keys': true,
+    'dashboard.alerts': true,
+    'dashboard.export': true,
+    'dashboard.risk_assessment': true,
+    'dashboard.view': true,
+    'endpoints.manage': true,
+    'endpoints.scan': true,
+    'endpoints.view': true,
+    'integrations.manage': true,
+    'reports.create': true,
+    'reports.download': true,
+    'reports.export': true,
+    'reports.generate': true,
+    'reports.schedule': true,
+    'reports.share': true,
+    'reports.view': true,
+    'system.audit_logs': true,
+    'system.backup': true,
+    'system.config': true,
+    'system.escalate_threats': true,
+    'system.health_monitoring': true,
+    'system.logs': true,
+    'system.maintenance': true,
+    'system.settings': true,
+    'system.threat_summary': true,
+    'users.create': true,
+    'users.delete': true,
+    'users.edit': true,
+    'users.permissions': true,
+    'users.view': true,
+    'vulnerabilities.assign': true,
+    'vulnerabilities.delete': true,
+    'vulnerabilities.remediation_plan': true,
+    'vulnerabilities.resolve': true,
+    'vulnerabilities.triage': true,
+    'vulnerabilities.view': true
+  },
+  analyst: {
+    'api.access': true,
+    'api.keys': false,
+    'dashboard.alerts': true,
+    'dashboard.export': true,
+    'dashboard.risk_assessment': true,
+    'dashboard.view': true,
+    'endpoints.manage': false,
+    'endpoints.scan': true,
+    'endpoints.view': true,
+    'integrations.manage': false,
+    'reports.create': true,
+    'reports.download': true,
+    'reports.export': true,
+    'reports.generate': true,
+    'reports.schedule': false,
+    'reports.share': true,
+    'reports.view': true,
+    'system.audit_logs': false,
+    'system.backup': false,
+    'system.config': false,
+    'system.escalate_threats': false,
+    'system.health_monitoring': false,
+    'system.logs': true,
+    'system.maintenance': false,
+    'system.settings': false,
+    'system.threat_summary': false,
+    'users.create': false,
+    'users.delete': false,
+    'users.edit': false,
+    'users.permissions': false,
+    'users.view': true,
+    'vulnerabilities.assign': true,
+    'vulnerabilities.delete': false,
+    'vulnerabilities.remediation_plan': true,
+    'vulnerabilities.resolve': true,
+    'vulnerabilities.triage': true,
+    'vulnerabilities.view': true
+  },
+  viewer: {
+    'api.access': false,
+    'api.keys': false,
+    'dashboard.alerts': true,
+    'dashboard.export': false,
+    'dashboard.risk_assessment': false,
+    'dashboard.view': true,
+    'endpoints.manage': false,
+    'endpoints.scan': false,
+    'endpoints.view': true,
+    'integrations.manage': false,
+    'reports.create': false,
+    'reports.download': false,
+    'reports.export': false,
+    'reports.generate': false,
+    'reports.schedule': false,
+    'reports.share': false,
+    'reports.view': true,
+    'system.audit_logs': false,
+    'system.backup': false,
+    'system.config': false,
+    'system.escalate_threats': false,
+    'system.health_monitoring': false,
+    'system.logs': false,
+    'system.maintenance': false,
+    'system.settings': false,
+    'system.threat_summary': false,
+    'users.create': false,
+    'users.delete': false,
+    'users.edit': false,
+    'users.permissions': false,
+    'users.view': true,
+    'vulnerabilities.assign': false,
+    'vulnerabilities.delete': false,
+    'vulnerabilities.remediation_plan': false,
+    'vulnerabilities.resolve': false,
+    'vulnerabilities.triage': false,
+    'vulnerabilities.view': true
+  }
+};
 
 export default function PermissionMatrix() {
   const [permissions, setPermissions] = useState<Permission[]>([]);
@@ -200,12 +322,13 @@ export default function PermissionMatrix() {
 
   const resetToDefaults = async () => {
     try {
+      setLoading(true);
       // Reset to default permissions by reloading from database
       await loadPermissions();
       setHasChanges(false);
       toast({
         title: "Reset Complete",
-        description: "Permissions have been reset to current database values.",
+        description: "All changes have been discarded and permissions reset to database values.",
       });
     } catch (error) {
       console.error('Error resetting permissions:', error);
@@ -214,17 +337,71 @@ export default function PermissionMatrix() {
         description: "Failed to reset permissions.",
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetToRoleDefaults = async () => {
+    try {
+      setLoading(true);
+      
+      // Create new role permissions object with role defaults
+      const defaultRolePermissions: RolePermissions = {};
+      const roles = ['admin', 'analyst', 'viewer'];
+      
+      // Initialize with all permissions set to false
+      roles.forEach(role => {
+        defaultRolePermissions[role] = {};
+        permissions.forEach(permission => {
+          defaultRolePermissions[role][permission.id] = false;
+        });
+      });
+      
+      // Set default permissions for each role based on the provided data
+      Object.entries(DEFAULT_ROLE_PERMISSIONS).forEach(([role, rolePermissions]) => {
+        Object.entries(rolePermissions).forEach(([permissionName, granted]) => {
+          // Find the permission by matching resource.action pattern
+          const permission = permissions.find(p => {
+            const fullName = `${p.resource}.${p.action}`;
+            return fullName === permissionName || p.name === permissionName;
+          });
+          if (permission && defaultRolePermissions[role]) {
+            defaultRolePermissions[role][permission.id] = granted;
+          }
+        });
+      });
+      
+      setRolePermissions(defaultRolePermissions);
+      setHasChanges(true);
+      
+      toast({
+        title: "Reset to Role Defaults",
+        description: "Permission matrix has been reset to the standard role defaults. Remember to save your changes.",
+      });
+    } catch (error) {
+      console.error('Error resetting to role defaults:', error);
+      toast({
+        title: "Error",
+        description: "Failed to reset to role defaults.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
   const getPermissionsByCategory = () => {
     const categories: Record<string, Permission[]> = {};
-    permissions.forEach(permission => {
-      if (!categories[permission.category]) {
-        categories[permission.category] = [];
-      }
-      categories[permission.category].push(permission);
-    });
+    // Ensure permissions is an array before calling forEach
+    if (Array.isArray(permissions)) {
+      permissions.forEach(permission => {
+        if (!categories[permission.category]) {
+          categories[permission.category] = [];
+        }
+        categories[permission.category].push(permission);
+      });
+    }
     return categories;
   };
 
@@ -251,10 +428,57 @@ export default function PermissionMatrix() {
           <h3 className="text-lg font-semibold">Permission Matrix</h3>
         </div>
         <div className="flex space-x-2">
-          <Button variant="outline" onClick={resetToDefaults}>
-            <RotateCcw className="h-4 w-4 mr-2" />
-            Reset to Database
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" disabled={loading}>
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Reset to Role Defaults
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Reset to Role Defaults</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will reset the permission matrix to the standard default permissions for each role:
+                  <br />• <strong>Admin:</strong> Full system access and management
+                  <br />• <strong>Analyst:</strong> Investigation, reporting, and limited management
+                  <br />• <strong>Viewer:</strong> Read-only access to all systems
+                  <br /><br />
+                  This will overwrite current settings but won't save automatically.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={resetToRoleDefaults} className="bg-blue-600 hover:bg-blue-700">
+                  Reset to Defaults
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" disabled={!hasChanges || loading}>
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Reset to Database Defaults
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Reset to Database Defaults</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will reset the permission matrix to the current database state, discarding all unsaved changes. The database contains the established default permissions for each role.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={resetToRoleDefaults} className="bg-blue-600 hover:bg-blue-700">
+                  Reset to Database Defaults
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          
           <Button onClick={savePermissions} disabled={!hasChanges || saving}>
             <Save className="h-4 w-4 mr-2" />
             {saving ? 'Saving...' : 'Save Changes'}
