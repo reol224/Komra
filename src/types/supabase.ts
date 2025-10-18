@@ -616,6 +616,47 @@ export type Database = {
         }
         Relationships: []
       }
+      mfa_audit_log: {
+        Row: {
+          created_at: string | null
+          event_type: string
+          id: string
+          ip_address: unknown | null
+          metadata: Json | null
+          success: boolean | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          event_type: string
+          id?: string
+          ip_address?: unknown | null
+          metadata?: Json | null
+          success?: boolean | null
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          event_type?: string
+          id?: string
+          ip_address?: unknown | null
+          metadata?: Json | null
+          success?: boolean | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mfa_audit_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mfa_secrets: {
         Row: {
           backup_codes: string[] | null
@@ -1038,7 +1079,10 @@ export type Database = {
           id: string
           last_activity: string | null
           locked_until: string | null
+          mfa_backup_codes: string[] | null
           mfa_enabled: boolean | null
+          mfa_enabled_at: string | null
+          mfa_secret: string | null
           role: string | null
           session_timeout: number | null
           status: string | null
@@ -1052,7 +1096,10 @@ export type Database = {
           id?: string
           last_activity?: string | null
           locked_until?: string | null
+          mfa_backup_codes?: string[] | null
           mfa_enabled?: boolean | null
+          mfa_enabled_at?: string | null
+          mfa_secret?: string | null
           role?: string | null
           session_timeout?: number | null
           status?: string | null
@@ -1066,7 +1113,10 @@ export type Database = {
           id?: string
           last_activity?: string | null
           locked_until?: string | null
+          mfa_backup_codes?: string[] | null
           mfa_enabled?: boolean | null
+          mfa_enabled_at?: string | null
+          mfa_secret?: string | null
           role?: string | null
           session_timeout?: number | null
           status?: string | null
@@ -1182,6 +1232,17 @@ export type Database = {
           hash: string
           salt: string
         }[]
+      }
+      log_mfa_event: {
+        Args: {
+          p_event_type: string
+          p_ip_address?: unknown
+          p_metadata?: Json
+          p_success?: boolean
+          p_user_agent?: string
+          p_user_id: string
+        }
+        Returns: string
       }
       update_user_password: {
         Args: { password: string; user_id: string }

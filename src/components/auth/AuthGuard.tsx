@@ -3,6 +3,7 @@
 import React from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import LoginForm from "@/components/auth/LoginForm";
+import { MFAEnforcementGuard } from "@/components/auth/MFAEnforcementGuard";
 import { Loader2 } from "lucide-react";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -24,8 +25,12 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     return <LoginForm />;
   }
 
-  // Show authenticated content
-  return <>{children}</>;
+  // Check MFA enforcement after authentication
+  return (
+    <MFAEnforcementGuard>
+      {children}
+    </MFAEnforcementGuard>
+  );
 }
 
 // Also export as default for flexibility

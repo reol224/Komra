@@ -28,7 +28,8 @@ import {
   Square, 
   BellOff,
   Server,
-  FileText
+  FileText,
+  LogOut
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
@@ -38,6 +39,7 @@ import { Input } from '@/components/ui/input';
 import { DashboardDataService, RiskMetrics } from '@/lib/dashboardDataService';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useSecurityNotifications } from '@/hooks/useSecurityNotifications';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Import role-specific components
 import AdminUserManagement from "./admin/AdminUserManagement";
@@ -84,6 +86,7 @@ const mockStats: DashboardStats = {
 };
 
 export default function DashboardLayout() {
+  const { signOut } = useAuth();
   const [currentUser, setCurrentUser] = useState(mockUser);
   const [selectedTab, setSelectedTab] = useState("overview");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -964,6 +967,18 @@ export default function DashboardLayout() {
           <div className="flex items-center gap-2">
             {getRoleIcon(currentUser.role)}
             {getRoleBadge(currentUser.role)}
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={async () => {
+                await signOut();
+                window.location.href = '/';
+              }}
+              className="flex items-center gap-2"
+            >
+              <LogOut className="h-4 w-4" />
+              Logout
+            </Button>
           </div>
         </div>
       </div>
