@@ -39,7 +39,7 @@ export default function HomePage() {
               <span className="text-xl font-bold text-white">Komra</span>
             </div>
             <div className="flex items-center gap-4">
-              <Link href="/tempobook/storyboards/a55ca037-8222-4539-9d44-6096b9338007">
+              <Link href="/dashboard">
                 <Button
                   variant="outline"
                   className="border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white"
@@ -79,7 +79,7 @@ export default function HomePage() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-              <Link href="/tempobook/storyboards/a55ca037-8222-4539-9d44-6096b9338007">
+              <Link href="/dashboard">
                 <Button
                   size="lg"
                   className="px-8 py-3 bg-orange-500 hover:bg-orange-600 text-white"
