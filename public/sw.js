@@ -26,8 +26,8 @@ self.addEventListener('push', (event) => {
       notificationData = {
         title: 'Komra Security Alert',
         body: event.data.text() || 'New security notification',
-        icon: '/images/icon rounded corners.png',
-        badge: '/images/icon rounded corners.png'
+        icon: '/images/icon-rounded-corners.png',
+        badge: '/images/icon-rounded-corners.png'
       };
     }
   }
@@ -35,15 +35,15 @@ self.addEventListener('push', (event) => {
   const options = {
     title: notificationData.title || 'Komra Security Alert',
     body: notificationData.body || 'New security notification',
-    icon: notificationData.icon || '/images/icon rounded corners.png',
-    badge: notificationData.badge || '/images/icon rounded corners.png',
+    icon: notificationData.icon || '/images/icon-rounded-corners.png',
+    badge: notificationData.badge || '/images/icon-rounded-corners.png',
     tag: notificationData.tag || 'komra-security',
     data: notificationData.data || {},
     actions: [
       {
         action: 'view',
         title: 'View Details',
-        icon: '/images/icon rounded corners.png'
+        icon: '/images/icon-rounded-corners.png'
       },
       {
         action: 'dismiss',

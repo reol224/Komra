@@ -75,8 +75,8 @@ export const useSecurityNotifications = () => {
       const notificationData = {
         title: getNotificationTitle(event),
         body: event.description,
-        icon: '/images/icon rounded corners.png',
-        badge: '/images/icon rounded corners.png',
+        icon: '/images/icon-rounded-corners.png',
+        badge: '/images/icon-rounded-corners.png',
         tag: `security-${event.type}`,
         data: {
           eventId: event.id,

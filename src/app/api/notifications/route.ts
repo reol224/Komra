@@ -1,55 +1,59 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import webpush from "web-push";
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import webpush from 'web-push';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!,
+  process.env.SUPABASE_SERVICE_KEY!
 );
 
-// Configure web-push with VAPID keys
-webpush.setVapidDetails(
-  "mailto:security@komrasec.com",
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!,
-);
+// Configure web-push with VAPID keys only if they exist
+if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    'mailto:security@komrasec.com',
+    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+}
 
 export async function POST(request: NextRequest) {
   try {
+    // Check if VAPID keys are configured
+    if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
+      return NextResponse.json({
+        success: false,
+        error: 'Push notifications not configured. VAPID keys missing.'
+      }, { status: 503 });
+    }
+
     const body = await request.json();
     const { action, subscription, notification } = body;
 
     switch (action) {
-      case "subscribe":
+      case 'subscribe':
         return await handleSubscribe(subscription);
-
-      case "unsubscribe":
+      
+      case 'unsubscribe':
         return await handleUnsubscribe(subscription);
-
-      case "send":
+      
+      case 'send':
         return await handleSendNotification(notification);
-
-      case "trigger-security":
+      
+      case 'trigger-security':
         return await handleSecurityNotification(notification);
-
+      
       default:
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Invalid action",
-          },
-          { status: 400 },
-        );
+        return NextResponse.json({
+          success: false,
+          error: 'Invalid action'
+        }, { status: 400 });
     }
   } catch (error) {
-    console.error("Notification API error:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 },
-    );
+    console.error('Notification API error:', error);
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 }
 

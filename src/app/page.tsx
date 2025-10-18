@@ -8,7 +8,7 @@ export default function HomePage() {
 
   useEffect(() => {
     // Redirect to waitlist page immediately
-    router.replace("/waitlist");
+    router.replace("/homepage");
   }, [router]);
 
   // Show loading state while redirecting

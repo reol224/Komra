@@ -190,7 +190,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
           notification: {
             title: 'Komra Security Test',
             body: 'This is a test notification from Komra Security Dashboard',
-            icon: '/images/icon rounded corners.png',
+            icon: '/images/icon-rounded-corners.png',
             tag: 'test-notification'
           }
         })

@@ -14,12 +14,12 @@
       "type": "image/x-icon"
     },
     {
-      "src": "/images/icon-rounded-corners.pn",
+      "src": "/images/icon-rounded-corners.png",
       "sizes": "16x16",
       "type": "image/png"
     },
     {
-      "src": "/images/icon-rounded-corners.pn",
+      "src": "/images/icon-rounded-corners.png",
       "sizes": "180x180",
       "type": "image/png"
     }
