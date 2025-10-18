@@ -18,6 +18,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import PermissionMatrix from './PermissionMatrix';
 import { PermissionGuard } from '@/components/auth/PermissionGuard';
 import { PERMISSIONS } from '@/lib/permissionService';
+import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -32,6 +34,17 @@ interface User {
   created_at: string;
   last_login?: string;
   status: 'active' | 'inactive' | 'suspended';
+}
+
+interface RelatedRecords {
+  remediationPlans: any[];
+  triageActions: any[];
+  auditLogs: any[];
+}
+
+interface ReassignmentData {
+  remediationPlans: { [planId: string]: string }; // planId -> userId
+  triageActions: { [actionId: string]: string }; // actionId -> userId
 }
 
 export default function AdminUserManagement() {
@@ -56,6 +69,14 @@ export default function AdminUserManagement() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [showReassignmentDialog, setShowReassignmentDialog] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<any>(null);
+  const [relatedRecords, setRelatedRecords] = useState<RelatedRecords | null>(null);
+  const [reassignmentData, setReassignmentData] = useState<ReassignmentData>({
+    remediationPlans: {},
+    triageActions: {}
+  });
+  const [isReassigning, setIsReassigning] = useState(false);
 
   // Load users from database
   useEffect(() => {
@@ -297,8 +318,78 @@ export default function AdminUserManagement() {
   };
 
   const handleDeleteUser = async (userId: string) => {
+    const user = users.find(u => u.id === userId);
+    if (!user) return;
+
     setIsDeleting(userId);
     
+    try {
+      // Check for related records - check ALL foreign key references
+      const [remediationPlansAssigned, remediationPlansCreated, triageActionsAssigned, triageActionsTriaged, auditLogs] = await Promise.all([
+        supabase
+          .from('remediation_plans')
+          .select('id, title, priority, status, created_at')
+          .eq('assigned_to', userId),
+        supabase
+          .from('remediation_plans')
+          .select('id, title, priority, status, created_at')
+          .eq('created_by', userId),
+        supabase
+          .from('triage_actions')
+          .select('id, action_type, description, status, created_at')
+          .eq('assigned_to', userId),
+        supabase
+          .from('triage_actions')
+          .select('id, action_type, description, status, created_at')
+          .eq('triaged_by', userId),
+        supabase.from('audit_logs').select('*').eq('user_id', userId)
+      ]);
+
+      // Combine remediation plans (remove duplicates if user is both creator and assignee)
+      const allRemediationPlans = [
+        ...(remediationPlansAssigned.data || []),
+        ...(remediationPlansCreated.data || [])
+      ].filter((plan, index, self) => 
+        index === self.findIndex(p => p.id === plan.id)
+      );
+
+      // Combine triage actions (remove duplicates if user is both assignee and triager)
+      const allTriageActions = [
+        ...(triageActionsAssigned.data || []),
+        ...(triageActionsTriaged.data || [])
+      ].filter((action, index, self) => 
+        index === self.findIndex(a => a.id === action.id)
+      );
+
+      const hasRelatedRecords = 
+        allRemediationPlans.length > 0 ||
+        allTriageActions.length > 0 ||
+        (auditLogs.data && auditLogs.data.length > 0);
+
+      if (hasRelatedRecords) {
+        // Show info dialog with what they're assigned to
+        setUserToDelete(user);
+        setRelatedRecords({
+          remediationPlans: allRemediationPlans,
+          triageActions: allTriageActions,
+          auditLogs: auditLogs.data || []
+        });
+        setShowReassignmentDialog(true);
+        return;
+      }
+
+      // If no related records, proceed with deletion
+      await performUserDeletion(userId);
+      
+    } catch (error) {
+      console.error('Error checking user dependencies:', error);
+      alert('An error occurred while checking user dependencies.');
+    } finally {
+      setIsDeleting(null);
+    }
+  };
+
+  const performUserDeletion = async (userId: string) => {
     try {
       const { error } = await supabase
         .from('users')
@@ -307,20 +398,170 @@ export default function AdminUserManagement() {
 
       if (error) {
         console.error('Error deleting user:', error);
-        // You could add a toast notification here for better UX
         alert('Failed to delete user. Please try again.');
         return;
       }
 
-      // Remove from local state only after successful database deletion
       setUsers(users.filter(user => user.id !== userId));
+      alert('User deleted successfully.');
       
     } catch (error) {
       console.error('Error deleting user:', error);
       alert('An unexpected error occurred while deleting the user.');
-    } finally {
-      setIsDeleting(null);
     }
+  };
+
+  const handleReassignAndDelete = async () => {
+    if (!userToDelete || !relatedRecords) return;
+
+    setIsReassigning(true);
+    
+    try {
+      const updates = [];
+
+      // Reassign remediation plans individually (both assigned_to and created_by)
+      Object.entries(reassignmentData.remediationPlans).forEach(([planId, assignedTo]) => {
+        if (assignedTo) {
+          // Update both assigned_to and created_by if they reference the deleted user
+          updates.push(
+            supabase
+              .from('remediation_plans')
+              .update({ 
+                assigned_to: assignedTo,
+                created_by: assignedTo 
+              })
+              .eq('id', planId)
+              .or(`assigned_to.eq.${userToDelete.id},created_by.eq.${userToDelete.id}`)
+          );
+        }
+      });
+
+      // Reassign triage actions individually (both assigned_to and triaged_by)
+      Object.entries(reassignmentData.triageActions).forEach(([actionId, assignedTo]) => {
+        if (assignedTo) {
+          updates.push(
+            supabase
+              .from('triage_actions')
+              .update({ 
+                assigned_to: assignedTo,
+                triaged_by: assignedTo
+              })
+              .eq('id', actionId)
+              .or(`assigned_to.eq.${userToDelete.id},triaged_by.eq.${userToDelete.id}`)
+          );
+        }
+      });
+
+      // Execute all reassignments
+      if (updates.length > 0) {
+        const results = await Promise.all(updates);
+        const hasErrors = results.some(result => result.error);
+        
+        if (hasErrors) {
+          console.error('Reassignment errors:', results.filter(r => r.error));
+          alert('Failed to reassign some records. Please try again.');
+          return;
+        }
+      }
+
+      // Log the reassignment actions with details
+      const reassignmentDetails = {
+        remediation_plans: Object.entries(reassignmentData.remediationPlans)
+          .filter(([_, assignedTo]) => assignedTo)
+          .map(([planId, assignedTo]) => ({
+            plan_id: planId,
+            plan_title: relatedRecords.remediationPlans.find(p => p.id === planId)?.title,
+            reassigned_to: users.find(u => u.id === assignedTo)?.full_name
+          })),
+        triage_actions: Object.entries(reassignmentData.triageActions)
+          .filter(([_, assignedTo]) => assignedTo)
+          .map(([actionId, assignedTo]) => ({
+            action_id: actionId,
+            action_type: relatedRecords.triageActions.find(a => a.id === actionId)?.action_type,
+            reassigned_to: users.find(u => u.id === assignedTo)?.full_name
+          }))
+      };
+
+      const reassignmentLog = {
+        action: 'user_deletion_reassignment',
+        user_id: userToDelete.id,
+        details: {
+          deleted_user: userToDelete.full_name,
+          reassignments: reassignmentDetails,
+          counts: {
+            remediation_plans: relatedRecords.remediationPlans.length,
+            triage_actions: relatedRecords.triageActions.length,
+            audit_logs: relatedRecords.auditLogs.length
+          }
+        }
+      };
+
+      await supabase.from('audit_logs').insert(reassignmentLog);
+
+      // Now delete the user
+      await performUserDeletion(userToDelete.id);
+      
+      // Close dialog and reset state
+      setShowReassignmentDialog(false);
+      setUserToDelete(null);
+      setRelatedRecords(null);
+      
+    } catch (error) {
+      console.error('Error during reassignment and deletion:', error);
+      alert('An error occurred during reassignment. Please try again.');
+    } finally {
+      setIsReassigning(false);
+    }
+  };
+
+  const canProceedWithDeletion = () => {
+    if (!relatedRecords) return false;
+    
+    // Check if all items that need reassignment have been assigned
+    const unassignedRemediation = relatedRecords.remediationPlans.some(
+      plan => !reassignmentData.remediationPlans[plan.id]
+    );
+    const unassignedTriage = relatedRecords.triageActions.some(
+      action => !reassignmentData.triageActions[action.id]
+    );
+    
+    return !unassignedRemediation && !unassignedTriage;
+  };
+
+  const updateRemediationAssignment = (planId: string, userId: string) => {
+    setReassignmentData(prev => ({
+      ...prev,
+      remediationPlans: {
+        ...prev.remediationPlans,
+        [planId]: userId
+      }
+    }));
+  };
+
+  const updateTriageAssignment = (actionId: string, userId: string) => {
+    setReassignmentData(prev => ({
+      ...prev,
+      triageActions: {
+        ...prev.triageActions,
+        [actionId]: userId
+      }
+    }));
+  };
+
+  const getAvailableUsersForRemediation = () => {
+    // Remediation plans should be assigned to Analysts or Admins
+    return users.filter(user => 
+      user.id !== userToDelete?.id && 
+      (user.role === 'analyst' || user.role === 'admin')
+    );
+  };
+
+  const getAvailableUsersForTriage = () => {
+    // Triage actions should be assigned to Analysts or Admins
+    return users.filter(user => 
+      user.id !== userToDelete?.id && 
+      (user.role === 'analyst' || user.role === 'admin')
+    );
   };
 
   const handleUpdateUserRole = async (userId: string, newRole: UserRole) => {
@@ -557,7 +798,11 @@ export default function AdminUserManagement() {
                                   <AlertDialogHeader>
                                     <AlertDialogTitle>Delete User</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                      Are you sure you want to delete {user.full_name}? This action cannot be undone and will permanently remove the user from the database.
+                                      Are you sure you want to delete {user.full_name}? 
+                                      <br /><br />
+                                      This will check for any related records (remediation plans, triage actions, audit logs) that reference this user. If any are found, you'll need to reassign them before deletion can proceed.
+                                      <br /><br />
+                                      <strong>This action cannot be undone.</strong>
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
@@ -653,6 +898,113 @@ export default function AdminUserManagement() {
           <PermissionMatrix />
         </TabsContent>
       </Tabs>
+
+      {/* Reassignment Dialog */}
+      <AlertDialog open={showReassignmentDialog} onOpenChange={setShowReassignmentDialog}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reassign Records Before Deletion</AlertDialogTitle>
+            <AlertDialogDescription>
+              {userToDelete?.full_name} has related records that must be reassigned before deletion can proceed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {relatedRecords?.remediationPlans && relatedRecords.remediationPlans.length > 0 && (
+              <div>
+                <h4 className="font-medium mb-2">
+                  Remediation Plans ({relatedRecords.remediationPlans.length})
+                </h4>
+                <div className="space-y-2">
+                  {relatedRecords.remediationPlans.map(plan => (
+                    <div key={plan.id} className="flex items-center space-x-2">
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">{plan.title}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {plan.priority} • {plan.status}
+                        </div>
+                      </div>
+                      <Select 
+                        value={reassignmentData.remediationPlans[plan.id] || ''} 
+                        onValueChange={(value) => updateRemediationAssignment(plan.id, value)}
+                      >
+                        <SelectTrigger className="w-32">
+                          <SelectValue placeholder="Select user" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getAvailableUsersForRemediation().map(user => (
+                            <SelectItem key={user.id} value={user.id}>
+                              {user.full_name} ({user.role})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {relatedRecords?.triageActions && relatedRecords.triageActions.length > 0 && (
+              <div>
+                <h4 className="font-medium mb-2">
+                  Triage Actions ({relatedRecords.triageActions.length})
+                </h4>
+                <div className="space-y-2">
+                  {relatedRecords.triageActions.map(action => (
+                    <div key={action.id} className="flex items-center space-x-2">
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">{action.action_type}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {action.description}
+                        </div>
+                      </div>
+                      <Select 
+                        value={reassignmentData.triageActions[action.id] || ''} 
+                        onValueChange={(value) => updateTriageAssignment(action.id, value)}
+                      >
+                        <SelectTrigger className="w-32">
+                          <SelectValue placeholder="Select user" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getAvailableUsersForTriage().map(user => (
+                            <SelectItem key={user.id} value={user.id}>
+                              {user.full_name} ({user.role})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {relatedRecords?.auditLogs && relatedRecords.auditLogs.length > 0 && (
+              <div>
+                <h4 className="font-medium mb-2">
+                  Audit Logs ({relatedRecords.auditLogs.length})
+                </h4>
+                <p className="text-sm text-muted-foreground">
+                  Audit logs will be preserved for historical accuracy. No reassignment needed.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowReassignmentDialog(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleReassignAndDelete}
+              disabled={!canProceedWithDeletion() || isReassigning}
+            >
+              {isReassigning ? 'Processing...' : 'Reassign & Delete User'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Edit User Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>

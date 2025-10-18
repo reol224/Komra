@@ -30,7 +30,7 @@ export default function HomePage() {
           <div className="flex items-center justify-between h-[40px]">
             <div className="flex items-center gap-3">
               <Image
-                src="/images/icon rounded corners.png"
+                src="/images/icon-rounded-corners.png"
                 alt="Komra Logo"
                 width={32}
                 height={32}
@@ -402,7 +402,7 @@ export default function HomePage() {
             <div className="col-span-1 md:col-span-2">
               <div className="flex items-center space-x-2 mb-4">
                 <Image
-                  src="/images/icon rounded corners.png"
+                  src="/images/icon-rounded-corners.png"
                   alt="Komra Logo"
                   width={32}
                   height={32}
