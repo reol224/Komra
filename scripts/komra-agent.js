@@ -16,7 +16,9 @@ const execAsync = promisify(exec);
 
 class KomraAgent {
   constructor(options = {}) {
-    this.apiEndpoint = options.apiEndpoint || 'http://localhost:3000/api/system-data';
+    // Priority: CLI arg > env var > production default
+    // For local testing: set KOMRA_API_ENDPOINT=http://localhost:3000/api/agent/ingest
+    this.apiEndpoint = options.apiEndpoint || process.env.KOMRA_API_ENDPOINT || 'https://komrasec.com/api/agent/ingest';
     this.apiKey = options.apiKey || process.env.KOMRA_API_KEY;
     this.platform = os.platform();
     this.configPath = path.join(os.homedir(), '.komra-agent.json');
@@ -359,27 +361,40 @@ class KomraAgent {
   async sendDataToServer(data) {
     this.log('Sending data to Komra server...');
     
+    if (!this.apiKey) {
+      throw new Error('API key not configured. Set KOMRA_API_KEY environment variable or use --apiKey option');
+    }
+    
     try {
       const fetch = (await import('node-fetch')).default;
+      
+      this.log(`Endpoint: ${this.apiEndpoint}`);
       
       const response = await fetch(this.apiEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(this.apiKey && { 'Authorization': `Bearer ${this.apiKey}` })
+          'Authorization': `Bearer ${this.apiKey}`
         },
         body: JSON.stringify(data)
       });
 
+      const result = await response.json();
+
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        throw new Error(`HTTP ${response.status}: ${result.error || response.statusText}`);
       }
 
-      const result = await response.json();
-      this.log('Data sent successfully to Komra server');
+      this.log('✅ Data sent successfully to Komra server');
+      this.log(`   - Endpoint ID: ${result.data?.endpoint_id}`);
+      this.log(`   - Packages processed: ${result.data?.packages_processed}`);
+      if (result.data?.packages_skipped > 0) {
+        this.log(`   - Packages skipped: ${result.data?.packages_skipped}`);
+      }
+      
       return result;
     } catch (error) {
-      this.log(`Error sending data to server: ${error.message}`);
+      this.log(`❌ Error sending data to server: ${error.message}`);
       throw error;
     }
   }
@@ -388,18 +403,18 @@ class KomraAgent {
     try {
       await this.loadConfig();
       
-      this.log('Komra Agent starting...');
-      this.log(`Platform: ${this.platform}`);
-      this.log(`Hostname: ${os.hostname()}`);
-      this.log(`API Endpoint: ${this.apiEndpoint}`);
+      this.log('🚀 Komra Agent starting...');
+      this.log(`   Platform: ${this.platform}`);
+      this.log(`   Hostname: ${os.hostname()}`);
+      this.log(`   API Endpoint: ${this.apiEndpoint}`);
       
       const data = await this.collectSystemData();
       const result = await this.sendDataToServer(data);
       
-      this.log('Komra Agent completed successfully');
+      this.log('✅ Komra Agent completed successfully');
       return result;
     } catch (error) {
-      this.log(`Komra Agent failed: ${error.message}`);
+      this.log(`❌ Komra Agent failed: ${error.message}`);
       process.exit(1);
     }
   }
