@@ -13,7 +13,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Shield, ExternalLink } from "lucide-react";
+import { Loader2, Shield, ExternalLink, ArrowLeft } from "lucide-react";
+import Link from "next/link";
 
 function LoginForm() {
   const [email, setEmail] = useState("");
@@ -63,6 +64,18 @@ function LoginForm() {
     <div className="min-h-screen flex items-center justify-center bg-slate-900 py-12 px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md bg-slate-800 border-slate-700">
         <CardHeader className="text-center">
+          <div className="flex justify-start mb-2">
+            <Link href="/homepage">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                className="text-slate-400 hover:text-white hover:bg-slate-700"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Go Back
+              </Button>
+            </Link>
+          </div>
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-orange-100">
             <Shield className="h-6 w-6 text-orange-600" />
           </div>
