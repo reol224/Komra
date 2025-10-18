@@ -417,21 +417,25 @@ export default function AdminUserManagement() {
     setIsReassigning(true);
     
     try {
-      const updates = [];
+      const updates: Promise<any>[] = [];
 
       // Reassign remediation plans individually (both assigned_to and created_by)
       Object.entries(reassignmentData.remediationPlans).forEach(([planId, assignedTo]) => {
         if (assignedTo) {
           // Update both assigned_to and created_by if they reference the deleted user
           updates.push(
-            supabase
-              .from('remediation_plans')
-              .update({ 
-                assigned_to: assignedTo,
-                created_by: assignedTo 
-              })
-              .eq('id', planId)
-              .or(`assigned_to.eq.${userToDelete.id},created_by.eq.${userToDelete.id}`)
+            new Promise(async (resolve, reject) => {
+              const { error } = await supabase
+                .from('remediation_plans')
+                .update({ 
+                  assigned_to: assignedTo,
+                  created_by: assignedTo
+                })
+                .eq('id', planId);
+              
+              if (error) reject(error);
+              else resolve(null);
+            })
           );
         }
       });
@@ -439,15 +443,20 @@ export default function AdminUserManagement() {
       // Reassign triage actions individually (both assigned_to and triaged_by)
       Object.entries(reassignmentData.triageActions).forEach(([actionId, assignedTo]) => {
         if (assignedTo) {
+          // Update both assigned_to and triaged_by if they reference the deleted user
           updates.push(
-            supabase
-              .from('triage_actions')
-              .update({ 
-                assigned_to: assignedTo,
-                triaged_by: assignedTo
-              })
-              .eq('id', actionId)
-              .or(`assigned_to.eq.${userToDelete.id},triaged_by.eq.${userToDelete.id}`)
+            new Promise(async (resolve, reject) => {
+              const { error } = await supabase
+                .from('triage_actions')
+                .update({ 
+                  assigned_to: assignedTo,
+                  triaged_by: assignedTo
+                })
+                .eq('id', actionId);
+              
+              if (error) reject(error);
+              else resolve(null);
+            })
           );
         }
       });
