@@ -90,8 +90,12 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     if (!serviceWorkerRegistration || permission !== 'granted') return false;
     
     try {
-      // Generate VAPID keys (in production, these should be stored securely)
-      const vapidPublicKey = 'BEl62iUYgUivxIkv69yViEuiBIa40HI0DLLuxazjqAKUrXK5acbva7akSSJ88RcGfHeyGWyUzjgGpXYM2EM90MI';
+      // Get VAPID public key from environment
+      const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      
+      if (!vapidPublicKey) {
+        throw new Error('VAPID public key not configured');
+      }
       
       const subscription = await serviceWorkerRegistration.pushManager.subscribe({
         userVisibleOnly: true,
