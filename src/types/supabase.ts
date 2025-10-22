@@ -1083,6 +1083,8 @@ export type Database = {
           mfa_enabled: boolean | null
           mfa_enabled_at: string | null
           mfa_secret: string | null
+          reset_token: string | null
+          reset_token_expiry: string | null
           role: string | null
           session_timeout: number | null
           status: string | null
@@ -1100,6 +1102,8 @@ export type Database = {
           mfa_enabled?: boolean | null
           mfa_enabled_at?: string | null
           mfa_secret?: string | null
+          reset_token?: string | null
+          reset_token_expiry?: string | null
           role?: string | null
           session_timeout?: number | null
           status?: string | null
@@ -1117,6 +1121,8 @@ export type Database = {
           mfa_enabled?: boolean | null
           mfa_enabled_at?: string | null
           mfa_secret?: string | null
+          reset_token?: string | null
+          reset_token_expiry?: string | null
           role?: string | null
           session_timeout?: number | null
           status?: string | null
@@ -1253,7 +1259,7 @@ export type Database = {
         Returns: boolean
       }
       verify_user_password: {
-        Args: { input_user_id: string; password: string }
+        Args: { input_password: string; input_user_id: string }
         Returns: boolean
       }
     }

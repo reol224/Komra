@@ -7,6 +7,6 @@ export default function HomePage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/waitlist");
+    router.replace("/homepage");
   }, [router]);
 }

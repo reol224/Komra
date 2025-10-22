@@ -27,6 +27,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   hasPermission: (requiredRole: UserRole) => boolean;
   canAccess: (resource: string, action: string) => boolean;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -99,6 +100,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const userData = JSON.parse(demoUser);
         setUser(userData);
+        // Refresh user data from database to get latest MFA status
+        refreshUserFromDB(userData.id);
       } catch (error) {
         console.error('Error parsing demo user:', error);
         localStorage.removeItem('demo_user');
@@ -107,6 +110,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
+  const refreshUserFromDB = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, email, full_name, role, mfa_enabled, last_activity')
+        .eq('id', userId)
+        .single();
+
+      if (!error && data) {
+        const updatedUser = {
+          ...data,
+          session_timeout: getSessionTimeoutByRole(data.role as UserRole),
+        };
+        setUser(updatedUser);
+        localStorage.setItem('demo_user', JSON.stringify(updatedUser));
+      }
+    } catch (error) {
+      console.error('Error refreshing user data:', error);
+    }
+  };
+
+  const refreshUser = async () => {
+    if (user?.id) {
+      await refreshUserFromDB(user.id);
+    }
+  };
+
   const signIn = async (email: string, password: string) => {
     // Check if it's a demo user
     const demoUser = DEMO_USERS[email as keyof typeof DEMO_USERS];
@@ -114,8 +144,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (demoUser) {
       // For demo users, verify password using the database function
       const { data: isValid, error } = await supabase.rpc('verify_user_password', {
-        user_id: demoUser.id,
-        password: password
+        input_user_id: demoUser.id,
+        input_password: password
       });
 
       if (error) {
@@ -208,6 +238,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signOut,
     hasPermission,
     canAccess,
+    refreshUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
