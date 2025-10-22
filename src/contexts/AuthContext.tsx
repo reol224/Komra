@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { SessionManagementService } from '@/lib/sessionManagementService';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -178,6 +179,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         mfa_enabled: dbUser.mfa_enabled,
         session_timeout: getSessionTimeoutByRole(dbUser.role as UserRole),
       };
+      
+      // Get client IP address
+      let clientIp = 'unknown';
+      try {
+        const ipResponse = await fetch('/api/auth/get-client-ip');
+        const ipData = await ipResponse.json();
+        clientIp = ipData.ip;
+        console.log('Client IP detected:', clientIp);
+      } catch (error) {
+        console.error('Failed to get client IP:', error);
+      }
+      
+      // Create session tracking
+      const sessionTimeout = getSessionTimeoutByRole(dbUser.role as UserRole) / 1000; // Convert to seconds
+      console.log('Creating session with:', {
+        userId: dbUser.id,
+        clientIp,
+        userAgent: navigator.userAgent,
+        sessionTimeout
+      });
+      
+      const sessionId = await SessionManagementService.createSession(
+        dbUser.id,
+        clientIp,
+        navigator.userAgent,
+        sessionTimeout
+      );
+      
+      console.log('Session created with ID:', sessionId);
       
       setUser(userData);
       localStorage.setItem('demo_user', JSON.stringify(userData));
