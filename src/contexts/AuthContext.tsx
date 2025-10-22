@@ -35,9 +35,9 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // Demo users for testing
 const DEMO_USERS = {
   'admin@komra.security': {
-    id: '11111111-1111-1111-1111-111111111111',
+    id: '550e8400-e29b-41d4-a716-446655440001', // Fixed: actual admin ID from database
     email: 'admin@komra.security',
-    full_name: 'Admin User',
+    full_name: 'Alice Johnson',
     role: 'admin' as UserRole,
     mfa_enabled: false,
   },
@@ -157,14 +157,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Invalid login credentials');
       }
 
-      // Demo user login successful
+      // Fetch actual user data from database (including current MFA status)
+      const { data: dbUser, error: dbError } = await supabase
+        .from('users')
+        .select('id, email, full_name, role, mfa_enabled, last_activity')
+        .eq('id', demoUser.id)
+        .single();
+
+      if (dbError || !dbUser) {
+        console.error('Error fetching user data:', dbError);
+        throw new Error('Failed to load user data');
+      }
+
+      // Use database values instead of hardcoded ones
       const userData = {
-        id: demoUser.id,
-        email: demoUser.email,
-        full_name: demoUser.full_name,
-        role: demoUser.role,
-        mfa_enabled: demoUser.mfa_enabled,
-        session_timeout: getSessionTimeoutByRole(demoUser.role),
+        id: dbUser.id,
+        email: dbUser.email,
+        full_name: dbUser.full_name,
+        role: dbUser.role as UserRole,
+        mfa_enabled: dbUser.mfa_enabled,
+        session_timeout: getSessionTimeoutByRole(dbUser.role as UserRole),
       };
       
       setUser(userData);
