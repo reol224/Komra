@@ -55,6 +55,37 @@ export class SessionManagementService {
   }
 
   /**
+   * End a session (called on logout)
+   */
+  static async endSession(sessionId: string): Promise<boolean> {
+    try {
+      console.log('🟢 endSession called for:', sessionId);
+      
+      const { data, error } = await supabase
+        .from('auth_sessions')
+        .update({ 
+          is_active: false,
+          last_activity: new Date().toISOString()
+        })
+        .eq('id', sessionId)
+        .select();
+
+      console.log('🟢 endSession update result:', { data, error });
+
+      if (error) {
+        console.error('🟢 Error ending session:', error);
+        return false;
+      }
+
+      console.log('🟢 Session ended successfully:', data);
+      return true;
+    } catch (error) {
+      console.error('🟢 Exception ending session:', error);
+      return false;
+    }
+  }
+
+  /**
    * Get all active sessions for all users (admin only)
    */
   static async getAllActiveSessions(): Promise<ActiveSession[]> {

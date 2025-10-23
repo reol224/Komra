@@ -19,6 +19,7 @@ export interface User {
   mfa_enabled?: boolean;
   last_activity?: string;
   session_timeout?: number;
+  session_id?: string; // Add session ID tracking
 }
 
 interface AuthContextType {
@@ -93,6 +94,44 @@ const permissions: Record<UserRole, Record<string, string[]>> = {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Real-time session monitoring only (no polling)
+  useEffect(() => {
+    if (!user?.session_id) return;
+
+    console.log('Setting up real-time session monitoring for session:', user.session_id);
+
+    // Set up real-time subscription
+    const channel = supabase
+      .channel(`session-${user.session_id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'auth_sessions',
+          filter: `id=eq.${user.session_id}`,
+        },
+        (payload) => {
+          console.log('Real-time session update detected:', payload);
+          const newSession = payload.new as any;
+          
+          // If session is terminated, log out immediately
+          if (!newSession.is_active) {
+            console.log('Session terminated by admin, logging out...');
+            signOut();
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('Real-time subscription status:', status);
+      });
+
+    return () => {
+      console.log('Cleaning up session monitoring');
+      supabase.removeChannel(channel);
+    };
+  }, [user?.session_id]);
 
   useEffect(() => {
     // Check for demo user in localStorage
@@ -170,16 +209,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Failed to load user data');
       }
 
-      // Use database values instead of hardcoded ones
-      const userData = {
-        id: dbUser.id,
-        email: dbUser.email,
-        full_name: dbUser.full_name,
-        role: dbUser.role as UserRole,
-        mfa_enabled: dbUser.mfa_enabled,
-        session_timeout: getSessionTimeoutByRole(dbUser.role as UserRole),
-      };
-      
       // Get client IP address
       let clientIp = 'unknown';
       try {
@@ -208,6 +237,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       );
       
       console.log('Session created with ID:', sessionId);
+
+      // Use database values and include session ID
+      const userData = {
+        id: dbUser.id,
+        email: dbUser.email,
+        full_name: dbUser.full_name,
+        role: dbUser.role as UserRole,
+        mfa_enabled: dbUser.mfa_enabled,
+        session_timeout: getSessionTimeoutByRole(dbUser.role as UserRole),
+        session_id: sessionId, // Store session ID
+      };
       
       setUser(userData);
       localStorage.setItem('demo_user', JSON.stringify(userData));
@@ -226,6 +266,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    console.log('🔴 SignOut called, user session_id:', user?.session_id);
+    
+    // End the session if it exists (marks is_active = false)
+    if (user?.session_id) {
+      try {
+        console.log('🔴 Calling endSession for:', user.session_id);
+        const success = await SessionManagementService.endSession(user.session_id);
+        console.log('🔴 endSession result:', success);
+      } catch (error) {
+        console.error('🔴 Error ending session:', error);
+      }
+    }
+
     // Clear demo user
     localStorage.removeItem('demo_user');
     setUser(null);
