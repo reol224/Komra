@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
         const subscription = event.data.object as Stripe.Subscription;
         
         // Update billing account status
-        await supabase
+        await getSupabase()
           .from('billing_accounts')
           .update({
             status: subscription.status === 'active' ? 'active' : 'inactive',
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
         const subscription = event.data.object as Stripe.Subscription;
         
         // Deactivate billing account
-        await supabase
+        await getSupabase()
           .from('billing_accounts')
           .update({
             status: 'cancelled',
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
         const invoice = event.data.object as Stripe.Invoice;
         
         // Update billing account status
-        await supabase
+        await getSupabase()
           .from('billing_accounts')
           .update({
             status: 'payment_failed',
