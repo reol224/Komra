@@ -1,45 +1,57 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Shield, 
-  AlertTriangle, 
-  Activity, 
-  Users, 
-  Settings, 
-  Eye, 
-  Search, 
-  Bell, 
-  CheckCircle, 
-  TrendingUp, 
-  Database, 
-  Lock, 
-  UserCheck, 
-  BarChart3, 
-  Clock, 
-  Plus, 
-  Trash2, 
-  RefreshCw, 
-  Play, 
-  Square, 
+import React, { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Shield,
+  AlertTriangle,
+  Activity,
+  Users,
+  Settings,
+  Eye,
+  Search,
+  Bell,
+  CheckCircle,
+  TrendingUp,
+  Database,
+  Lock,
+  UserCheck,
+  BarChart3,
+  Clock,
+  Plus,
+  Trash2,
+  RefreshCw,
+  Play,
+  Square,
   BellOff,
   Server,
   FileText,
-  LogOut
-} from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
-import { DashboardDataService, RiskMetrics } from '@/lib/dashboardDataService';
-import { useNotifications } from '@/contexts/NotificationContext';
-import { useSecurityNotifications } from '@/hooks/useSecurityNotifications';
-import { useAuth } from '@/contexts/AuthContext';
+  LogOut,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { DashboardDataService, RiskMetrics } from "@/lib/dashboardDataService";
+import { useNotifications } from "@/contexts/NotificationContext";
+import { useSecurityNotifications } from "@/hooks/useSecurityNotifications";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Import role-specific components
 import AdminUserManagement from "./admin/AdminUserManagement";
@@ -105,48 +117,62 @@ export default function DashboardLayout() {
     refreshInterval: "30",
     notifications: true,
     logSources: [
-      { id: '1', name: 'Windows Event Logs', enabled: true, type: 'windows' },
-      { id: '2', name: 'Linux Syslog', enabled: true, type: 'linux' },
-      { id: '3', name: 'Application Logs', enabled: false, type: 'application' },
-      { id: '4', name: 'Network Logs', enabled: true, type: 'network' },
-      { id: '5', name: 'Security Logs', enabled: true, type: 'security' }
-    ]
+      { id: "1", name: "Windows Event Logs", enabled: true, type: "windows" },
+      { id: "2", name: "Linux Syslog", enabled: true, type: "linux" },
+      {
+        id: "3",
+        name: "Application Logs",
+        enabled: false,
+        type: "application",
+      },
+      { id: "4", name: "Network Logs", enabled: true, type: "network" },
+      { id: "5", name: "Security Logs", enabled: true, type: "security" },
+    ],
   });
 
-  const [newLogSource, setNewLogSource] = useState({ name: '', type: 'application' });
+  const [newLogSource, setNewLogSource] = useState({
+    name: "",
+    type: "application",
+  });
 
   const dashboardService = new DashboardDataService();
 
-  const { permission, isSubscribed, requestPermission, subscribe } = useNotifications();
+  const { permission, isSubscribed, requestPermission, subscribe } =
+    useNotifications();
   const { triggerTestNotification } = useSecurityNotifications();
 
   // Load real dashboard data
   useEffect(() => {
     loadDashboardData();
-    
+
     // Set up auto-refresh if enabled - this overrides the 30 second default
     let interval: NodeJS.Timeout;
     if (settings.autoRefresh) {
       const intervalMs = parseInt(settings.refreshInterval) * 1000;
-      console.log(`🔄 Auto-refresh enabled: ${settings.refreshInterval}s interval`);
-      
+      console.log(
+        `🔄 Auto-refresh enabled: ${settings.refreshInterval}s interval`,
+      );
+
       interval = setInterval(() => {
-        console.log('🔄 Auto-refreshing dashboard data...');
+        console.log("🔄 Auto-refreshing dashboard data...");
         loadDashboardData();
-        
+
         // Show notification if enabled
-        if (settings.notifications && 'Notification' in window) {
+        if (settings.notifications && "Notification" in window) {
           // Request permission if not granted
-          if (Notification.permission === 'default') {
+          if (Notification.permission === "default") {
             Notification.requestPermission();
           }
-          
+
           // Show notification for critical updates
-          if (Notification.permission === 'granted' && dashboardStats.criticalVulns > 0) {
-            new Notification('Komra Security Alert', {
+          if (
+            Notification.permission === "granted" &&
+            dashboardStats.criticalVulns > 0
+          ) {
+            new Notification("Komra Security Alert", {
               body: `${dashboardStats.criticalVulns} critical vulnerabilities detected`,
-              icon: '/favicon.ico',
-              tag: 'security-alert'
+              icon: "/favicon.ico",
+              tag: "security-alert",
             });
           }
         }
@@ -156,21 +182,34 @@ export default function DashboardLayout() {
     return () => {
       if (interval) {
         clearInterval(interval);
-        console.log('🔄 Auto-refresh interval cleared');
+        console.log("🔄 Auto-refresh interval cleared");
       }
     };
-  }, [settings.autoRefresh, settings.refreshInterval, settings.notifications, dashboardStats.criticalVulns]);
+  }, [
+    settings.autoRefresh,
+    settings.refreshInterval,
+    settings.notifications,
+    dashboardStats.criticalVulns,
+  ]);
 
   const loadDashboardData = async () => {
     try {
       setIsLoading(true);
       const [endpoints, riskMetrics] = await Promise.all([
         dashboardService.getEndpoints(),
-        dashboardService.getRiskMetrics()
+        dashboardService.getRiskMetrics(),
       ]);
 
       // Calculate compliance score based on vulnerability ratio
-      const complianceScore = Math.max(0, 100 - Math.round((riskMetrics.criticalCount + riskMetrics.highCount) / Math.max(riskMetrics.totalEndpoints, 1) * 100));
+      const complianceScore = Math.max(
+        0,
+        100 -
+          Math.round(
+            ((riskMetrics.criticalCount + riskMetrics.highCount) /
+              Math.max(riskMetrics.totalEndpoints, 1)) *
+              100,
+          ),
+      );
 
       setDashboardStats({
         totalEndpoints: riskMetrics.totalEndpoints,
@@ -182,13 +221,13 @@ export default function DashboardLayout() {
         criticalEndpoints: riskMetrics.criticalEndpoints,
       });
 
-      console.log('📊 Dashboard data loaded:', {
+      console.log("📊 Dashboard data loaded:", {
         endpoints: endpoints.length,
         critical: riskMetrics.criticalCount,
-        compliance: complianceScore
+        compliance: complianceScore,
       });
     } catch (error) {
-      console.error('❌ Error loading dashboard data:', error);
+      console.error("❌ Error loading dashboard data:", error);
       // Keep existing mock data on error
     } finally {
       setIsLoading(false);
@@ -199,57 +238,59 @@ export default function DashboardLayout() {
   const handleRoleChange = (newRole: "admin" | "analyst" | "viewer") => {
     const roleNames = {
       admin: "John Admin",
-      analyst: "Jane Analyst", 
-      viewer: "Bob Viewer"
+      analyst: "Jane Analyst",
+      viewer: "Bob Viewer",
     };
-    
+
     const roleEmails = {
       admin: "admin@company.com",
       analyst: "analyst@company.com",
-      viewer: "viewer@company.com"
+      viewer: "viewer@company.com",
     };
 
     setCurrentUser({
       ...currentUser,
       role: newRole,
       name: roleNames[newRole],
-      email: roleEmails[newRole]
+      email: roleEmails[newRole],
     });
-    
+
     // Reset tab when switching roles
     setSelectedTab("overview");
-    
+
     console.log(`🔧 Switched to ${newRole} role for testing`);
   };
 
   const handleSettingsChange = (key: string, value: boolean | string) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
-    
-    if (key === 'notifications' && value === true) {
+    setSettings((prev) => ({ ...prev, [key]: value }));
+
+    if (key === "notifications" && value === true) {
       // Request notification permission when enabling notifications
-      if ('Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission().then(permission => {
-          if (permission === 'granted') {
-            new Notification('Komra Security Dashboard', {
-              body: 'Push notifications enabled successfully',
-              icon: '/favicon.ico'
+      if ("Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission().then((permission) => {
+          if (permission === "granted") {
+            new Notification("Komra Security Dashboard", {
+              body: "Push notifications enabled successfully",
+              icon: "/favicon.ico",
             });
           }
         });
       }
     }
-    
+
     console.log(`⚙️ Settings updated: ${key} = ${value}`);
   };
 
   const handleLogSourceToggle = (sourceId: string, enabled: boolean) => {
-    setSettings(prev => ({
+    setSettings((prev) => ({
       ...prev,
-      logSources: prev.logSources.map(source => 
-        source.id === sourceId ? { ...source, enabled } : source
-      )
+      logSources: prev.logSources.map((source) =>
+        source.id === sourceId ? { ...source, enabled } : source,
+      ),
     }));
-    console.log(`📋 Log source ${sourceId} ${enabled ? 'enabled' : 'disabled'}`);
+    console.log(
+      `📋 Log source ${sourceId} ${enabled ? "enabled" : "disabled"}`,
+    );
   };
 
   const handleAddLogSource = () => {
@@ -258,23 +299,23 @@ export default function DashboardLayout() {
         id: Date.now().toString(),
         name: newLogSource.name.trim(),
         type: newLogSource.type,
-        enabled: true
+        enabled: true,
       };
-      
-      setSettings(prev => ({
+
+      setSettings((prev) => ({
         ...prev,
-        logSources: [...prev.logSources, newSource]
+        logSources: [...prev.logSources, newSource],
       }));
-      
-      setNewLogSource({ name: '', type: 'application' });
+
+      setNewLogSource({ name: "", type: "application" });
       console.log(`📋 Added new log source: ${newSource.name}`);
     }
   };
 
   const handleRemoveLogSource = (sourceId: string) => {
-    setSettings(prev => ({
+    setSettings((prev) => ({
       ...prev,
-      logSources: prev.logSources.filter(source => source.id !== sourceId)
+      logSources: prev.logSources.filter((source) => source.id !== sourceId),
     }));
     console.log(`📋 Removed log source: ${sourceId}`);
   };
@@ -295,7 +336,8 @@ export default function DashboardLayout() {
               {isLoading ? "..." : dashboardStats.totalEndpoints}
             </div>
             <p className="text-xs text-muted-foreground">
-              {dashboardStats.healthyEndpoints} healthy, {dashboardStats.vulnerableEndpoints} vulnerable
+              {dashboardStats.healthyEndpoints} healthy,{" "}
+              {dashboardStats.vulnerableEndpoints} vulnerable
             </p>
           </CardContent>
         </Card>
@@ -342,15 +384,23 @@ export default function DashboardLayout() {
             <CheckCircle className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${
-              dashboardStats.complianceScore >= 80 ? 'text-green-600' : 
-              dashboardStats.complianceScore >= 60 ? 'text-yellow-600' : 'text-red-600'
-            }`}>
+            <div
+              className={`text-2xl font-bold ${
+                dashboardStats.complianceScore >= 80
+                  ? "text-green-600"
+                  : dashboardStats.complianceScore >= 60
+                    ? "text-yellow-600"
+                    : "text-red-600"
+              }`}
+            >
               {isLoading ? "..." : `${dashboardStats.complianceScore}%`}
             </div>
             <p className="text-xs text-muted-foreground">
-              {dashboardStats.complianceScore >= 80 ? 'Good' : 
-               dashboardStats.complianceScore >= 60 ? 'Needs improvement' : 'Critical'}
+              {dashboardStats.complianceScore >= 80
+                ? "Good"
+                : dashboardStats.complianceScore >= 60
+                  ? "Needs improvement"
+                  : "Critical"}
             </p>
           </CardContent>
         </Card>
@@ -394,14 +444,22 @@ export default function DashboardLayout() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-semibold">Push Notification Management</h3>
+                <h3 className="text-lg font-semibold">
+                  Push Notification Management
+                </h3>
                 <p className="text-sm text-muted-foreground">
                   Configure and manage push notifications for security events
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant={permission === 'granted' && isSubscribed ? "default" : "secondary"}>
-                  {permission === 'granted' && isSubscribed ? (
+                <Badge
+                  variant={
+                    permission === "granted" && isSubscribed
+                      ? "default"
+                      : "secondary"
+                  }
+                >
+                  {permission === "granted" && isSubscribed ? (
                     <>
                       <Bell className="h-3 w-3 mr-1" />
                       Active
@@ -419,17 +477,17 @@ export default function DashboardLayout() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    if (permission === 'granted' && isSubscribed) {
+                    if (permission === "granted" && isSubscribed) {
                       triggerTestNotification();
                     } else {
-                      requestPermission().then(granted => {
+                      requestPermission().then((granted) => {
                         if (granted) subscribe();
                       });
                     }
                   }}
                   className="flex items-center gap-1"
                 >
-                  {permission === 'granted' && isSubscribed ? (
+                  {permission === "granted" && isSubscribed ? (
                     <>
                       <Bell className="h-4 w-4" />
                       Test Alert
@@ -443,7 +501,7 @@ export default function DashboardLayout() {
                 </Button>
               </div>
             </div>
-            
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -458,19 +516,23 @@ export default function DashboardLayout() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm">Permission Status</Label>
-                        <Badge variant={permission === 'granted' ? 'default' : 'destructive'}>
+                        <Badge
+                          variant={
+                            permission === "granted" ? "default" : "destructive"
+                          }
+                        >
                           {permission}
                         </Badge>
                       </div>
                       <div className="flex items-center justify-between">
                         <Label className="text-sm">Push Subscription</Label>
-                        <Badge variant={isSubscribed ? 'default' : 'secondary'}>
-                          {isSubscribed ? 'Subscribed' : 'Not Subscribed'}
+                        <Badge variant={isSubscribed ? "default" : "secondary"}>
+                          {isSubscribed ? "Subscribed" : "Not Subscribed"}
                         </Badge>
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-3">
                     <h4 className="font-medium">Service Worker</h4>
                     <div className="space-y-2">
@@ -485,23 +547,23 @@ export default function DashboardLayout() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="pt-4 border-t">
                   <div className="flex gap-2">
-                    <Button 
+                    <Button
                       onClick={() => {
-                        if (permission === 'granted' && isSubscribed) {
+                        if (permission === "granted" && isSubscribed) {
                           triggerTestNotification();
                         }
                       }}
-                      disabled={permission !== 'granted' || !isSubscribed}
+                      disabled={permission !== "granted" || !isSubscribed}
                       variant="outline"
                     >
                       <Bell className="h-4 w-4 mr-2" />
                       Send Test Notification
                     </Button>
-                    <Button 
-                      onClick={() => window.open('/notifications', '_blank')}
+                    <Button
+                      onClick={() => window.open("/notifications", "_blank")}
                       variant="outline"
                     >
                       <Settings className="h-4 w-4 mr-2" />
@@ -619,15 +681,23 @@ export default function DashboardLayout() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">System Status</CardTitle>
-            <Activity className={`h-4 w-4 ${
-              dashboardStats.criticalEndpoints === 0 ? 'text-green-500' : 'text-red-500'
-            }`} />
+            <Activity
+              className={`h-4 w-4 ${
+                dashboardStats.criticalEndpoints === 0
+                  ? "text-green-500"
+                  : "text-red-500"
+              }`}
+            />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${
-              dashboardStats.criticalEndpoints === 0 ? 'text-green-600' : 'text-red-600'
-            }`}>
-              {dashboardStats.criticalEndpoints === 0 ? 'Healthy' : 'At Risk'}
+            <div
+              className={`text-2xl font-bold ${
+                dashboardStats.criticalEndpoints === 0
+                  ? "text-green-600"
+                  : "text-red-600"
+              }`}
+            >
+              {dashboardStats.criticalEndpoints === 0 ? "Healthy" : "At Risk"}
             </div>
             <p className="text-xs text-muted-foreground">
               {dashboardStats.totalEndpoints} systems monitored
@@ -658,14 +728,21 @@ export default function DashboardLayout() {
             <CheckCircle className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${
-              dashboardStats.complianceScore >= 80 ? 'text-green-600' : 
-              dashboardStats.complianceScore >= 60 ? 'text-yellow-600' : 'text-red-600'
-            }`}>
+            <div
+              className={`text-2xl font-bold ${
+                dashboardStats.complianceScore >= 80
+                  ? "text-green-600"
+                  : dashboardStats.complianceScore >= 60
+                    ? "text-yellow-600"
+                    : "text-red-600"
+              }`}
+            >
               {isLoading ? "..." : `${dashboardStats.complianceScore}%`}
             </div>
             <p className="text-xs text-muted-foreground">
-              {dashboardStats.complianceScore >= 80 ? 'Within acceptable range' : 'Needs attention'}
+              {dashboardStats.complianceScore >= 80
+                ? "Within acceptable range"
+                : "Needs attention"}
             </p>
           </CardContent>
         </Card>
@@ -677,10 +754,12 @@ export default function DashboardLayout() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {settings.autoRefresh ? `${settings.refreshInterval}s` : 'Manual'}
+              {settings.autoRefresh ? `${settings.refreshInterval}s` : "Manual"}
             </div>
             <p className="text-xs text-muted-foreground">
-              {settings.autoRefresh ? 'Auto-refresh enabled' : 'Manual refresh only'}
+              {settings.autoRefresh
+                ? "Auto-refresh enabled"
+                : "Manual refresh only"}
             </p>
           </CardContent>
         </Card>
@@ -735,12 +814,15 @@ export default function DashboardLayout() {
                       Auto Refresh
                     </Label>
                     <p className="text-sm text-muted-foreground">
-                      Automatically refresh dashboard data (overrides 30s default)
+                      Automatically refresh dashboard data (overrides 30s
+                      default)
                     </p>
                   </div>
                   <Switch
                     checked={settings.autoRefresh}
-                    onCheckedChange={(checked) => handleSettingsChange('autoRefresh', checked)}
+                    onCheckedChange={(checked) =>
+                      handleSettingsChange("autoRefresh", checked)
+                    }
                   />
                 </div>
 
@@ -748,9 +830,11 @@ export default function DashboardLayout() {
                 {settings.autoRefresh && (
                   <div className="space-y-2 pl-6 border-l-2 border-muted">
                     <Label>Refresh Interval</Label>
-                    <Select 
-                      value={settings.refreshInterval} 
-                      onValueChange={(value) => handleSettingsChange('refreshInterval', value)}
+                    <Select
+                      value={settings.refreshInterval}
+                      onValueChange={(value) =>
+                        handleSettingsChange("refreshInterval", value)
+                      }
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -785,7 +869,9 @@ export default function DashboardLayout() {
                   </div>
                   <Switch
                     checked={settings.notifications}
-                    onCheckedChange={(checked) => handleSettingsChange('notifications', checked)}
+                    onCheckedChange={(checked) =>
+                      handleSettingsChange("notifications", checked)
+                    }
                   />
                 </div>
 
@@ -798,15 +884,20 @@ export default function DashboardLayout() {
                   <p className="text-sm text-muted-foreground">
                     Configure which log sources to monitor for security events
                   </p>
-                  
+
                   {/* Existing Log Sources */}
                   <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3">
                     {settings.logSources.map((source) => (
-                      <div key={source.id} className="flex items-center justify-between p-2 border rounded">
+                      <div
+                        key={source.id}
+                        className="flex items-center justify-between p-2 border rounded"
+                      >
                         <div className="flex items-center gap-3">
                           <Switch
                             checked={source.enabled}
-                            onCheckedChange={(checked) => handleLogSourceToggle(source.id, checked)}
+                            onCheckedChange={(checked) =>
+                              handleLogSourceToggle(source.id, checked)
+                            }
                           />
                           <div>
                             <p className="font-medium text-sm">{source.name}</p>
@@ -829,23 +920,34 @@ export default function DashboardLayout() {
 
                   {/* Add New Log Source */}
                   <div className="space-y-3 p-3 border rounded-lg bg-muted/20">
-                    <Label className="text-sm font-medium">Add New Log Source</Label>
+                    <Label className="text-sm font-medium">
+                      Add New Log Source
+                    </Label>
                     <div className="flex gap-2">
                       <Input
                         placeholder="Log source name..."
                         value={newLogSource.name}
-                        onChange={(e) => setNewLogSource(prev => ({ ...prev, name: e.target.value }))}
+                        onChange={(e) =>
+                          setNewLogSource((prev) => ({
+                            ...prev,
+                            name: e.target.value,
+                          }))
+                        }
                         className="flex-1"
                       />
                       <Select
                         value={newLogSource.type}
-                        onValueChange={(value) => setNewLogSource(prev => ({ ...prev, type: value }))}
+                        onValueChange={(value) =>
+                          setNewLogSource((prev) => ({ ...prev, type: value }))
+                        }
                       >
                         <SelectTrigger className="w-32">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="application">Application</SelectItem>
+                          <SelectItem value="application">
+                            Application
+                          </SelectItem>
                           <SelectItem value="security">Security</SelectItem>
                           <SelectItem value="network">Network</SelectItem>
                           <SelectItem value="system">System</SelectItem>
@@ -867,15 +969,16 @@ export default function DashboardLayout() {
 
                   {/* Log Sources Summary */}
                   <div className="text-xs text-muted-foreground p-2 bg-muted/30 rounded">
-                    {settings.logSources.filter(s => s.enabled).length} of {settings.logSources.length} log sources active
+                    {settings.logSources.filter((s) => s.enabled).length} of{" "}
+                    {settings.logSources.length} log sources active
                   </div>
                 </div>
 
                 <div className="pt-4 border-t flex gap-2">
-                  <Button 
+                  <Button
                     onClick={() => {
                       loadDashboardData();
-                      console.log('🔄 Manual refresh triggered');
+                      console.log("🔄 Manual refresh triggered");
                     }}
                     variant="outline"
                     className="flex-1"
@@ -883,8 +986,8 @@ export default function DashboardLayout() {
                     <RefreshCw className="h-4 w-4 mr-2" />
                     Refresh Now
                   </Button>
-                  <Button 
-                    onClick={() => setIsSettingsOpen(false)} 
+                  <Button
+                    onClick={() => setIsSettingsOpen(false)}
                     className="flex-1"
                   >
                     Save Settings
@@ -908,7 +1011,9 @@ export default function DashboardLayout() {
       case "admin":
         return <Badge className="bg-red-700 text-white">Administrator</Badge>;
       case "analyst":
-        return <Badge className="bg-blue-700 text-white">Security Analyst</Badge>;
+        return (
+          <Badge className="bg-blue-700 text-white">Security Analyst</Badge>
+        );
       case "viewer":
         return <Badge className="bg-green-700 text-white">Viewer</Badge>;
       default:
@@ -921,9 +1026,9 @@ export default function DashboardLayout() {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Koma Security Dashboard</h1>
+          <h1 className="text-3xl font-bold">Komra Dashboard</h1>
           <p className="text-muted-foreground">
-            Comprehensive security monitoring and vulnerability management
+            Welcome back, {currentUser.name}!
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -931,7 +1036,9 @@ export default function DashboardLayout() {
           <div className="flex flex-col items-end gap-2">
             <div className="text-right">
               <p className="text-sm font-medium">{currentUser.name}</p>
-              <p className="text-xs text-muted-foreground">{currentUser.email}</p>
+              <p className="text-xs text-muted-foreground">
+                {currentUser.email}
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <Select value={currentUser.role} onValueChange={handleRoleChange}>
@@ -967,12 +1074,12 @@ export default function DashboardLayout() {
           <div className="flex items-center gap-2">
             {getRoleIcon(currentUser.role)}
             {getRoleBadge(currentUser.role)}
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               size="sm"
               onClick={async () => {
                 await signOut();
-                window.location.href = '/';
+                window.location.href = "/";
               }}
               className="flex items-center gap-2"
             >

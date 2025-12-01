@@ -20,6 +20,7 @@ import { PermissionGuard } from '@/components/auth/PermissionGuard';
 import { PERMISSIONS } from '@/lib/permissionService';
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
+import SessionManagement from './SessionManagement';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -614,9 +615,10 @@ export default function AdminUserManagement() {
 
       {/* Tabs for User Management and Permission Matrix */}
       <Tabs defaultValue="users" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="users">User Accounts</TabsTrigger>
           <TabsTrigger value="permissions">Permission Matrix</TabsTrigger>
+          <TabsTrigger value="sessions">Session Management</TabsTrigger>
         </TabsList>
         
         <TabsContent value="users" className="space-y-6">
@@ -905,6 +907,10 @@ export default function AdminUserManagement() {
         
         <TabsContent value="permissions">
           <PermissionMatrix />
+        </TabsContent>
+
+        <TabsContent value="sessions">
+          <SessionManagement />
         </TabsContent>
       </Tabs>
 

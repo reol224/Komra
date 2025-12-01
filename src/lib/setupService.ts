@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
+import bcrypt from 'bcrypt';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -114,40 +114,93 @@ export class SetupService {
     if (error) throw new Error(`Failed to complete provisioning: ${error.message}`);
   }
 
-  // Create admin account
+  // Create admin account - populates both users and admin_setup tables
   static async createAdminAccount(
     billingAccountId: string,
     username: string,
+    email: string,
     password: string,
     mfaEnabled: boolean = false,
     phoneNumber?: string
-  ): Promise<AdminSetup> {
-    // Hash password
-    const saltRounds = 12;
-    const passwordHash = await bcrypt.hash(password, saltRounds);
-    
+  ): Promise<{ userId: string; adminSetupId: string }> {
+    // Create user in users table
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .insert({
+        email,
+        full_name: username,
+        role: 'admin',
+        status: 'active',
+      })
+      .select()
+      .single();
+
+    if (userError) throw new Error(`Failed to create user: ${userError.message}`);
+
+    // Store password using database function
+    const { error: passwordError } = await supabase.rpc('update_user_password', {
+      p_user_id: userData.id,
+      p_password: password
+    });
+
+    if (passwordError) throw new Error(`Failed to store password: ${passwordError.message}`);
+
     // Generate MFA secret if enabled
     let mfaSecret: string | undefined;
     if (mfaEnabled) {
       mfaSecret = randomBytes(20).toString('hex');
     }
 
-    const { data, error } = await supabase
+    // Create admin_setup record
+    const { data: adminData, error: adminError } = await supabase
       .from('admin_setup')
       .insert({
         billing_account_id: billingAccountId,
         username,
-        password_hash: passwordHash,
+        password_hash: 'managed_by_user_passwords_table',
         mfa_enabled: mfaEnabled,
         mfa_secret: mfaSecret,
         phone_number: phoneNumber,
-        setup_completed: true
+        setup_completed: mfaEnabled ? false : true, // Complete if MFA not required
       })
       .select()
       .single();
 
-    if (error) throw new Error(`Failed to create admin account: ${error.message}`);
-    return data;
+    if (adminError) throw new Error(`Failed to create admin setup: ${adminError.message}`);
+
+    return { userId: userData.id, adminSetupId: adminData.id };
+  }
+
+  // Create analyst or viewer account
+  static async createUserAccount(
+    email: string,
+    fullName: string,
+    role: 'analyst' | 'viewer',
+    password: string
+  ): Promise<string> {
+    // Create user in users table
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .insert({
+        email,
+        full_name: fullName,
+        role,
+        status: 'active',
+      })
+      .select()
+      .single();
+
+    if (userError) throw new Error(`Failed to create user: ${userError.message}`);
+
+    // Store password using database function
+    const { error: passwordError } = await supabase.rpc('update_user_password', {
+      p_user_id: userData.id,
+      p_password: password
+    });
+
+    if (passwordError) throw new Error(`Failed to store password: ${passwordError.message}`);
+
+    return userData.id;
   }
 
   // Get billing account by license key
