@@ -1,12 +1,20 @@
 import { Resend } from 'resend';
 import { createClient } from '@supabase/supabase-js';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+function getResend() {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) {
+    throw new Error('RESEND_API_KEY is not configured');
+  }
+  return new Resend(key);
+}
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
-);
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_KEY!
+  );
+}
 
 interface WelcomeEmailParams {
   customerEmail: string;
@@ -17,7 +25,9 @@ interface WelcomeEmailParams {
 }
 
 export class EmailService {
-  private static resend = new Resend(process.env.RESEND_API_KEY);
+  private static getResendClient() {
+    return getResend();
+  }
 
   static async sendWelcomeEmail(params: WelcomeEmailParams): Promise<void> {
     const { customerEmail, username, tempPassword, licenseKey, loginUrl } = params;
@@ -28,7 +38,7 @@ export class EmailService {
     }
 
     try {
-      const { data, error } = await this.resend.emails.send({
+      const { data, error } = await this.getResendClient().emails.send({
         from: 'onboarding@resend.dev', // Changed to Resend test domain
         to: customerEmail,
         subject: 'Welcome to Komra Security - Your Account Details',
@@ -45,7 +55,7 @@ export class EmailService {
       }
 
       // Log email to database for audit trail
-      await supabase.from('email_logs').insert({
+      await getSupabase().from('email_logs').insert({
         recipient: customerEmail,
         subject: 'Welcome to Komra Security - Your Admin Credentials',
         status: 'sent',
@@ -57,7 +67,7 @@ export class EmailService {
       console.log('Welcome email sent successfully via Resend:', data?.id);
     } catch (error: any) {
       // Log failed email attempt
-      await supabase.from('email_logs').insert({
+      await getSupabase().from('email_logs').insert({
         recipient: customerEmail,
         subject: 'Welcome to Komra Security - Your Admin Credentials',
         status: 'failed',
@@ -121,7 +131,7 @@ Reset your password here: ${resetUrl}?token=${resetToken}
     `;
 
     try {
-      const { data, error } = await resend.emails.send({
+      const { data, error } = await getResend().emails.send({
         from: 'Komra Security <security@komrasec.com>',
         to: email,
         subject: 'Reset Your Komra Security Password',
@@ -133,7 +143,7 @@ Reset your password here: ${resetUrl}?token=${resetToken}
         throw new Error(`Resend API error: ${error.message}`);
       }
 
-      await supabase.from('email_logs').insert({
+      await getSupabase().from('email_logs').insert({
         recipient: email,
         subject: 'Reset Your Komra Security Password',
         status: 'sent',
@@ -144,7 +154,7 @@ Reset your password here: ${resetUrl}?token=${resetToken}
 
       console.log('Password reset email sent via Resend:', data?.id);
     } catch (error: any) {
-      await supabase.from('email_logs').insert({
+      await getSupabase().from('email_logs').insert({
         recipient: email,
         subject: 'Reset Your Komra Security Password',
         status: 'failed',
