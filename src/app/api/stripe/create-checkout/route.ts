@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-02-24.acacia',
-});
+function getStripe() {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) {
+    throw new Error('STRIPE_SECRET_KEY is not configured');
+  }
+  return new Stripe(key, {
+    apiVersion: '2025-02-24.acacia',
+  });
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -26,8 +32,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Get the app URL from the request origin
-    const origin = req.headers.get('origin') || 'https://04d80375-79b7-4d72-ace8-b4d0e83910fa.canvases.tempo.build';
+    const origin = req.headers.get('origin') || 'https://komrasec.com';
 
+    const stripe = getStripe();
     const session = await stripe.checkout.sessions.create({
       ui_mode: 'embedded',
       line_items: [
