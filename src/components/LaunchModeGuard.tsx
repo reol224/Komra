@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 
 // Set this to true to enable pre-launch mode (only waitlist accessible)
-const PRE_LAUNCH_MODE = false;
+const PRE_LAUNCH_MODE = true;
 
 // Pages that are always accessible even in pre-launch mode
 const ALLOWED_PAGES = [
