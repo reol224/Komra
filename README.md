@@ -75,7 +75,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Project Structure
 
-```
+```bash
 komra/
 ├── src/
 │   ├── app/              # Next.js app router pages
@@ -128,7 +128,7 @@ Komra supports three user roles:
 
 All commit messages must follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/):
 
-```
+```bash
 feat: add new feature
 fix: bug fix
 docs: documentation changes
@@ -151,6 +151,46 @@ chore: maintenance tasks
 - Request code review from team members
 - Ensure CI/CD checks pass
 - Address all review comments
+
+## Testing
+
+### Unit & Integration Tests (Vitest)
+
+```bash
+# Run tests in watch mode
+npm test
+
+# Run tests with UI
+npm run test:ui
+
+# Run tests with coverage
+npm run test:coverage
+```
+
+### E2E Tests (Playwright)
+
+```bash
+# Run E2E tests
+npm run test:e2e
+
+# Run E2E tests with UI
+npm run test:e2e:ui
+
+# Install Playwright browsers (first time only)
+npx playwright install
+```
+
+### Run All Tests
+
+```bash
+npm run test:all
+```
+
+### Test Structure
+
+- `tests/integration/` - Integration tests for components with database
+- `tests/e2e/` - End-to-end tests with Playwright
+- `tests/utils/` - Test utilities and helpers
 
 ## Security
 

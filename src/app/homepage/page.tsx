@@ -23,6 +23,11 @@ import Image from "next/image";
 export default function HomePage() {
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
 
+  const handleGetStarted = (plan: string = "starter") => {
+    // Redirect to checkout page
+    window.location.href = "/checkout";
+  };
+
   return (
     <LaunchModeGuard>
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
@@ -46,10 +51,13 @@ export default function HomePage() {
                     variant="outline"
                     className="border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white"
                   >
-                    Dashboard
+                    Sign In
                   </Button>
                 </Link>
-                <Button className="bg-orange-500 hover:bg-orange-600 text-white">
+                <Button
+                  className="bg-orange-500 hover:bg-orange-600 text-white"
+                  onClick={() => handleGetStarted("starter")}
+                >
                   Get Started
                 </Button>
               </div>
@@ -81,15 +89,14 @@ export default function HomePage() {
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-                <Link href="/dashboard">
-                  <Button
-                    size="lg"
-                    className="px-8 py-3 bg-orange-500 hover:bg-orange-600 text-white"
-                  >
-                    Access Dashboard
-                    <ArrowRight className="ml-2 h-5 w-5" />
-                  </Button>
-                </Link>
+                <Button
+                  size="lg"
+                  className="px-8 py-3 bg-orange-500 hover:bg-orange-600 text-white"
+                  onClick={() => handleGetStarted("professional")}
+                >
+                  Start Free Trial
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
                 <Button
                   variant="outline"
                   size="lg"
@@ -277,7 +284,9 @@ export default function HomePage() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
               <div className="bg-slate-800/50 p-8 rounded-xl border border-slate-700">
-                <h3 className="text-xl font-semibold mb-2 text-white">Starter</h3>
+                <h3 className="text-xl font-semibold mb-2 text-white">
+                  Starter
+                </h3>
                 <div className="text-3xl font-bold text-white mb-4">
                   $99<span className="text-lg text-slate-400">/month</span>
                 </div>
@@ -298,6 +307,7 @@ export default function HomePage() {
                 <Button
                   variant="outline"
                   className="w-full border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white"
+                  onClick={() => handleGetStarted("starter")}
                 >
                   Get Started
                 </Button>
@@ -313,8 +323,8 @@ export default function HomePage() {
                 </div>
                 <ul className="space-y-3 mb-6">
                   <li className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-orange-500" /> Up to 500
-                    endpoints
+                    <CheckCircle className="h-4 w-4 text-orange-500" /> Up to
+                    500 endpoints
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle className="h-4 w-4 text-orange-500" /> Advanced
@@ -325,11 +335,14 @@ export default function HomePage() {
                     monitoring
                   </li>
                   <li className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-orange-500" /> Compliance
-                    reporting
+                    <CheckCircle className="h-4 w-4 text-orange-500" />{" "}
+                    Compliance reporting
                   </li>
                 </ul>
-                <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white">
+                <Button
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+                  onClick={() => handleGetStarted("professional")}
+                >
                   Start Free Trial
                 </Button>
               </div>
@@ -341,20 +354,20 @@ export default function HomePage() {
                 <div className="text-3xl font-bold text-white mb-4">Custom</div>
                 <ul className="space-y-3 mb-6 text-slate-300">
                   <li className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-orange-500" /> Unlimited
-                    endpoints
+                    <CheckCircle className="h-4 w-4 text-orange-500" />{" "}
+                    Unlimited endpoints
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle className="h-4 w-4 text-orange-500" /> Custom
                     integrations
                   </li>
                   <li className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-orange-500" /> Dedicated
-                    support
+                    <CheckCircle className="h-4 w-4 text-orange-500" />{" "}
+                    Dedicated support
                   </li>
                   <li className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-orange-500" /> On-premise
-                    deployment
+                    <CheckCircle className="h-4 w-4 text-orange-500" />{" "}
+                    On-premise deployment
                   </li>
                 </ul>
                 <Button
@@ -375,13 +388,14 @@ export default function HomePage() {
               Ready to Secure Your Infrastructure?
             </h2>
             <p className="text-xl text-slate-300 mb-8 max-w-2xl mx-auto">
-              Join thousands of organizations that trust Komra Security to protect
-              their digital assets
+              Join thousands of organizations that trust Komra Security to
+              protect their digital assets
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button
                 size="lg"
                 className="px-8 py-3 bg-orange-500 hover:bg-orange-600 text-white"
+                onClick={() => handleGetStarted("professional")}
               >
                 Start Free Trial
               </Button>
@@ -422,8 +436,8 @@ export default function HomePage() {
                     Security Notice
                   </h4>
                   <p className="text-xs text-gray-400">
-                    All data is encrypted in transit and at rest. We follow SOC 2
-                    Type II compliance standards and maintain zero-trust
+                    All data is encrypted in transit and at rest. We follow SOC
+                    2 Type II compliance standards and maintain zero-trust
                     architecture.
                   </p>
                 </div>

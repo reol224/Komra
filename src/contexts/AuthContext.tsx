@@ -262,12 +262,64 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Regular Supabase authentication for non-demo users
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    if (error) throw error;
+    
+    if (authError) {
+      console.error("Supabase auth error:", authError);
+      throw new Error("Invalid login credentials");
+    }
 
+    if (!authData.user) {
+      throw new Error("Authentication failed");
+    }
+
+    // Fetch user data from database
+    const { data: dbUser, error: dbError } = await supabase
+      .from("users")
+      .select("id, email, full_name, role, mfa_enabled, last_activity")
+      .eq("email", email)
+      .single();
+
+    if (dbError || !dbUser) {
+      console.error("Error fetching user data:", dbError);
+      throw new Error("Failed to load user data");
+    }
+
+    // Get client IP address
+    let clientIp = "unknown";
+    try {
+      const ipResponse = await fetch("/api/auth/get-client-ip");
+      const ipData = await ipResponse.json();
+      clientIp = ipData.ip;
+    } catch (error) {
+      console.error("Failed to get client IP:", error);
+    }
+
+    // Create session tracking
+    const sessionTimeout = getSessionTimeoutByRole(dbUser.role as UserRole) / 1000;
+    const sessionId = await SessionManagementService.createSession(
+      dbUser.id,
+      clientIp,
+      navigator.userAgent,
+      sessionTimeout,
+    );
+
+    const userData = {
+      id: dbUser.id,
+      email: dbUser.email,
+      full_name: dbUser.full_name,
+      role: dbUser.role as UserRole,
+      mfa_enabled: dbUser.mfa_enabled,
+      session_timeout: getSessionTimeoutByRole(dbUser.role as UserRole),
+      session_id: sessionId || "",
+    };
+
+    setUser(userData);
+    localStorage.setItem("user", JSON.stringify(userData));
+    
     // Update last activity
     await updateLastActivity();
   };

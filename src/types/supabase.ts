@@ -442,6 +442,45 @@ export type Database = {
         }
         Relationships: []
       }
+      email_logs: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          html_content: string
+          id: string
+          recipient: string
+          sent_at: string | null
+          status: string
+          subject: string
+          text_content: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          html_content: string
+          id?: string
+          recipient: string
+          sent_at?: string | null
+          status?: string
+          subject: string
+          text_content: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          html_content?: string
+          id?: string
+          recipient?: string
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          text_content?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       endpoint_packages: {
         Row: {
           created_at: string | null
@@ -1277,8 +1316,8 @@ export type Database = {
         Returns: boolean
       }
       update_user_password: {
-        Args: { password: string; user_id: string }
-        Returns: boolean
+        Args: { p_password: string; p_user_id: string }
+        Returns: undefined
       }
       upgrade_password_security: {
         Args: { input_user_id: string; new_password: string }

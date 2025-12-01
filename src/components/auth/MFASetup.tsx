@@ -105,27 +105,55 @@ export function MFASetup({ onComplete }: MFASetupProps) {
         throw new Error("Invalid verification code. Please try again.");
       }
 
-      // Store MFA secret in database
+      // Generate backup codes
+      const codes = generateBackupCodes();
+      setBackupCodes(codes);
+
+      // Store MFA secret in users table
       const { error: updateError } = await supabase
         .from("users")
         .update({
           mfa_secret: secret,
           mfa_enabled: true,
           mfa_enabled_at: new Date().toISOString(),
+          mfa_backup_codes: codes,
         })
         .eq("id", user?.id);
 
       if (updateError) throw updateError;
 
-      // Generate backup codes
-      const codes = generateBackupCodes();
-      setBackupCodes(codes);
+      // Also insert into mfa_secrets table for all users (Admin, Analyst, Viewer)
+      const { error: mfaSecretError } = await supabase
+        .from("mfa_secrets")
+        .insert({
+          user_id: user?.id,
+          secret: secret,
+          backup_codes: codes,
+          enabled: true,
+        })
+        .select()
+        .single();
 
-      // Store backup codes (hashed in production)
-      await supabase
-        .from("users")
-        .update({ mfa_backup_codes: codes })
-        .eq("id", user?.id);
+      // Ignore duplicate errors (23505) if record already exists
+      if (mfaSecretError && mfaSecretError.code !== '23505') {
+        console.error('Failed to insert MFA secret:', mfaSecretError);
+      }
+
+      // Update admin_setup table if user is admin
+      if (user?.role === 'admin') {
+        const { error: adminUpdateError } = await supabase
+          .from("admin_setup")
+          .update({
+            mfa_enabled: true,
+            mfa_secret: secret,
+            setup_completed: true,
+          })
+          .eq("username", user?.full_name);
+
+        if (adminUpdateError) {
+          console.error('Failed to update admin_setup:', adminUpdateError);
+        }
+      }
 
       // Log successful MFA enablement
       await supabase.rpc("log_mfa_event", {
