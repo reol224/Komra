@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, waitFor, act } from '@testing-library/react';
 import VulnerabilitySummary from '@/components/dashboard/VulnerabilitySummary';
 import EndpointInventory from '@/components/dashboard/EndpointInventory';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -42,16 +42,28 @@ describe('Dashboard Integration Tests', () => {
   });
   
   describe('VulnerabilitySummary', () => {
-    it('should render without crashing', () => {
-      const { container } = render(<VulnerabilitySummary />, { wrapper: Wrapper });
-      expect(container).toBeTruthy();
+    it('should render without crashing', async () => {
+      let container: HTMLElement;
+      await act(async () => {
+        const result = render(<VulnerabilitySummary />, { wrapper: Wrapper });
+        container = result.container;
+      });
+      await waitFor(() => {
+        expect(container).toBeTruthy();
+      });
     });
   });
   
   describe('EndpointInventory', () => {
-    it('should render without crashing', () => {
-      const { container } = render(<EndpointInventory />, { wrapper: Wrapper });
-      expect(container).toBeTruthy();
+    it('should render without crashing', async () => {
+      let container: HTMLElement;
+      await act(async () => {
+        const result = render(<EndpointInventory />, { wrapper: Wrapper });
+        container = result.container;
+      });
+      await waitFor(() => {
+        expect(container).toBeTruthy();
+      });
     });
   });
 });
