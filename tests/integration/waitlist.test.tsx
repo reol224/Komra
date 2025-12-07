@@ -377,7 +377,7 @@ describe('Waitlist Page - Comprehensive Test Suite', () => {
     it('should show loading state during submission', async () => {
       testLogger.test('Loading state during submission');
       const user = userEvent.setup();
-      mockInsert.mockImplementation(() => new Promise(() => {})); // Never resolves
+      mockInsert.mockImplementation(() => new Promise(() => { })); // Never resolves
       render(<PreLaunchPage />);
 
       await fillRequiredFields(user);
@@ -642,12 +642,16 @@ describe('Waitlist Page - Comprehensive Test Suite', () => {
 
       const useCaseInput = screen.getByPlaceholderText(/Tell us about your current security pain points/) as HTMLTextAreaElement;
       const longText = 'A'.repeat(500);
-      await user.type(useCaseInput, longText);
+      // Use paste instead of type for long text to avoid timeout
+      await user.click(useCaseInput);
+      await user.paste(longText);
 
-      expect(useCaseInput.value.length).toBeLessThanOrEqual(500);
+      await waitFor(() => {
+        expect(useCaseInput.value.length).toBeLessThanOrEqual(500);
+      });
       testLogger.info('Use case text limited to 500 characters');
       testLogger.pass('Long use case text handling');
-    });
+    }, 10000); // Increase timeout to 10 seconds for this test
 
     it('should handle network timeout errors', async () => {
       testLogger.test('Network timeout error handling');
@@ -695,7 +699,7 @@ describe('Waitlist Page - Comprehensive Test Suite', () => {
 
       await fillRequiredFields(user);
       const submitButton = screen.getByRole('button', { name: /join the waitlist/i });
-      
+
       // Click submit multiple times
       await user.click(submitButton);
 
@@ -875,7 +879,7 @@ describe('Waitlist Page - Comprehensive Test Suite', () => {
       render(<PreLaunchPage />);
 
       await fillRequiredFields(user);
-      
+
       const companyInput = screen.getByPlaceholderText('Your company name');
       const jobTitleInput = screen.getByPlaceholderText('Your job title');
       const useCaseInput = screen.getByPlaceholderText(/Tell us about your current security pain points/);
