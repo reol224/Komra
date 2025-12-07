@@ -4,6 +4,13 @@ import VulnerabilitySummary from '@/components/dashboard/VulnerabilitySummary';
 import EndpointInventory from '@/components/dashboard/EndpointInventory';
 import { AuthProvider } from '@/contexts/AuthContext';
 
+// Mock ResizeObserver for Radix UI components
+global.ResizeObserver = vi.fn().mockImplementation(() => ({
+  observe: vi.fn(),
+  unobserve: vi.fn(),
+  disconnect: vi.fn(),
+}));
+
 // Mock the DashboardDataService class
 vi.mock('@/lib/dashboardDataService', () => {
   const mockService = {
