@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, act, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import LoginForm from '@/components/auth/LoginForm';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -55,7 +55,12 @@ describe('LoginForm Component - Comprehensive Test Suite', () => {
     testLogger.info('Test environment reset');
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Wait for any pending state updates before cleanup
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    });
+    cleanup();
     testLogger.info('Test cleanup complete');
   });
 
@@ -175,10 +180,14 @@ describe('LoginForm Component - Comprehensive Test Suite', () => {
     it('should update email input value when typing', async () => {
       testLogger.test('Email input value update');
       const user = userEvent.setup();
-      render(<LoginForm />);
+      await act(async () => {
+        render(<LoginForm />);
+      });
 
       const emailInput = screen.getByLabelText('Email') as HTMLInputElement;
-      await user.type(emailInput, 'test@example.com');
+      await act(async () => {
+        await user.type(emailInput, 'test@example.com');
+      });
 
       expect(emailInput.value).toBe('test@example.com');
       testLogger.info(`Email input value: ${emailInput.value}`);
@@ -188,10 +197,14 @@ describe('LoginForm Component - Comprehensive Test Suite', () => {
     it('should update password input value when typing', async () => {
       testLogger.test('Password input value update');
       const user = userEvent.setup();
-      render(<LoginForm />);
+      await act(async () => {
+        render(<LoginForm />);
+      });
 
       const passwordInput = screen.getByLabelText('Password') as HTMLInputElement;
-      await user.type(passwordInput, 'securePassword123');
+      await act(async () => {
+        await user.type(passwordInput, 'securePassword123');
+      });
 
       expect(passwordInput.value).toBe('securePassword123');
       testLogger.info(`Password input length: ${passwordInput.value.length} characters`);
@@ -201,15 +214,19 @@ describe('LoginForm Component - Comprehensive Test Suite', () => {
     it('should clear input fields when cleared by user', async () => {
       testLogger.test('Input field clearing');
       const user = userEvent.setup();
-      render(<LoginForm />);
+      await act(async () => {
+        render(<LoginForm />);
+      });
 
       const emailInput = screen.getByLabelText('Email') as HTMLInputElement;
       const passwordInput = screen.getByLabelText('Password') as HTMLInputElement;
 
-      await user.type(emailInput, 'test@example.com');
-      await user.type(passwordInput, 'password123');
-      await user.clear(emailInput);
-      await user.clear(passwordInput);
+      await act(async () => {
+        await user.type(emailInput, 'test@example.com');
+        await user.type(passwordInput, 'password123');
+        await user.clear(emailInput);
+        await user.clear(passwordInput);
+      });
 
       expect(emailInput.value).toBe('');
       expect(passwordInput.value).toBe('');
@@ -227,15 +244,19 @@ describe('LoginForm Component - Comprehensive Test Suite', () => {
       testLogger.test('Form submission with valid credentials');
       const user = userEvent.setup();
       mockSignIn.mockResolvedValueOnce(undefined);
-      render(<LoginForm />);
+      await act(async () => {
+        render(<LoginForm />);
+      });
 
       const emailInput = screen.getByLabelText('Email');
       const passwordInput = screen.getByLabelText('Password');
       const submitButton = screen.getByRole('button', { name: /^Sign In$/i });
 
-      await user.type(emailInput, 'user@example.com');
-      await user.type(passwordInput, 'myPassword123');
-      await user.click(submitButton);
+      await act(async () => {
+        await user.type(emailInput, 'user@example.com');
+        await user.type(passwordInput, 'myPassword123');
+        await user.click(submitButton);
+      });
 
       await waitFor(() => {
         expect(mockSignIn).toHaveBeenCalledTimes(1);
@@ -250,15 +271,19 @@ describe('LoginForm Component - Comprehensive Test Suite', () => {
       const user = userEvent.setup();
       const errorMessage = 'Invalid email or password';
       mockSignIn.mockRejectedValueOnce(new Error(errorMessage));
-      render(<LoginForm />);
+      await act(async () => {
+        render(<LoginForm />);
+      });
 
       const emailInput = screen.getByLabelText('Email');
       const passwordInput = screen.getByLabelText('Password');
       const submitButton = screen.getByRole('button', { name: /^Sign In$/i });
 
-      await user.type(emailInput, 'wrong@example.com');
-      await user.type(passwordInput, 'wrongPassword');
-      await user.click(submitButton);
+      await act(async () => {
+        await user.type(emailInput, 'wrong@example.com');
+        await user.type(passwordInput, 'wrongPassword');
+        await user.click(submitButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText(errorMessage)).toBeInTheDocument();
@@ -271,15 +296,19 @@ describe('LoginForm Component - Comprehensive Test Suite', () => {
       testLogger.test('Generic error message fallback');
       const user = userEvent.setup();
       mockSignIn.mockRejectedValueOnce({});
-      render(<LoginForm />);
+      await act(async () => {
+        render(<LoginForm />);
+      });
 
       const emailInput = screen.getByLabelText('Email');
       const passwordInput = screen.getByLabelText('Password');
       const submitButton = screen.getByRole('button', { name: /^Sign In$/i });
 
-      await user.type(emailInput, 'test@example.com');
-      await user.type(passwordInput, 'password');
-      await user.click(submitButton);
+      await act(async () => {
+        await user.type(emailInput, 'test@example.com');
+        await user.type(passwordInput, 'password');
+        await user.click(submitButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText('Failed to sign in')).toBeInTheDocument();
@@ -296,15 +325,19 @@ describe('LoginForm Component - Comprehensive Test Suite', () => {
         resolveSignIn = resolve;
       });
       mockSignIn.mockReturnValueOnce(signInPromise);
-      render(<LoginForm />);
+      await act(async () => {
+        render(<LoginForm />);
+      });
 
       const emailInput = screen.getByLabelText('Email') as HTMLInputElement;
       const passwordInput = screen.getByLabelText('Password') as HTMLInputElement;
       const submitButton = screen.getByRole('button', { name: /^Sign In$/i }) as HTMLButtonElement;
 
-      await user.type(emailInput, 'test@example.com');
-      await user.type(passwordInput, 'password123');
-      await user.click(submitButton);
+      await act(async () => {
+        await user.type(emailInput, 'test@example.com');
+        await user.type(passwordInput, 'password123');
+        await user.click(submitButton);
+      });
 
       // Check that inputs are disabled during loading
       await waitFor(() => {
@@ -315,7 +348,9 @@ describe('LoginForm Component - Comprehensive Test Suite', () => {
       testLogger.info('All form inputs disabled during loading state');
 
       // Resolve the promise to complete the test
-      resolveSignIn!();
+      await act(async () => {
+        resolveSignIn!();
+      });
       testLogger.pass('Form inputs disabled during loading');
     });
 
@@ -327,15 +362,19 @@ describe('LoginForm Component - Comprehensive Test Suite', () => {
         resolveSignIn = resolve;
       });
       mockSignIn.mockReturnValueOnce(signInPromise);
-      render(<LoginForm />);
+      await act(async () => {
+        render(<LoginForm />);
+      });
 
       const emailInput = screen.getByLabelText('Email');
       const passwordInput = screen.getByLabelText('Password');
       const submitButton = screen.getByRole('button', { name: /^Sign In$/i });
 
-      await user.type(emailInput, 'test@example.com');
-      await user.type(passwordInput, 'password123');
-      await user.click(submitButton);
+      await act(async () => {
+        await user.type(emailInput, 'test@example.com');
+        await user.type(passwordInput, 'password123');
+        await user.click(submitButton);
+      });
 
       // The Loader2 component should be rendered (it has animate-spin class)
       await waitFor(() => {
@@ -344,7 +383,9 @@ describe('LoginForm Component - Comprehensive Test Suite', () => {
       });
       testLogger.info('Loading spinner is visible');
 
-      resolveSignIn!();
+      await act(async () => {
+        resolveSignIn!();
+      });
       testLogger.pass('Loading spinner display');
     });
 
@@ -352,16 +393,20 @@ describe('LoginForm Component - Comprehensive Test Suite', () => {
       testLogger.test('Error clearing on resubmission');
       const user = userEvent.setup();
       mockSignIn.mockRejectedValueOnce(new Error('First error'));
-      render(<LoginForm />);
+      await act(async () => {
+        render(<LoginForm />);
+      });
 
       const emailInput = screen.getByLabelText('Email');
       const passwordInput = screen.getByLabelText('Password');
       const submitButton = screen.getByRole('button', { name: /^Sign In$/i });
 
       // First submission - should show error
-      await user.type(emailInput, 'test@example.com');
-      await user.type(passwordInput, 'wrongpassword');
-      await user.click(submitButton);
+      await act(async () => {
+        await user.type(emailInput, 'test@example.com');
+        await user.type(passwordInput, 'wrongpassword');
+        await user.click(submitButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText('First error')).toBeInTheDocument();
@@ -370,9 +415,11 @@ describe('LoginForm Component - Comprehensive Test Suite', () => {
 
       // Second submission - error should be cleared
       mockSignIn.mockResolvedValueOnce(undefined);
-      await user.clear(passwordInput);
-      await user.type(passwordInput, 'correctpassword');
-      await user.click(submitButton);
+      await act(async () => {
+        await user.clear(passwordInput);
+        await user.type(passwordInput, 'correctpassword');
+        await user.click(submitButton);
+      });
 
       await waitFor(() => {
         expect(screen.queryByText('First error')).not.toBeInTheDocument();
@@ -392,10 +439,14 @@ describe('LoginForm Component - Comprehensive Test Suite', () => {
       testLogger.test('Admin demo login');
       const user = userEvent.setup();
       mockSignIn.mockResolvedValueOnce(undefined);
-      render(<LoginForm />);
+      await act(async () => {
+        render(<LoginForm />);
+      });
 
       const adminButton = screen.getByRole('button', { name: /login as admin/i });
-      await user.click(adminButton);
+      await act(async () => {
+        await user.click(adminButton);
+      });
 
       await waitFor(() => {
         expect(mockSignIn).toHaveBeenCalledWith('admin@komra.security', 'password123');
@@ -408,10 +459,14 @@ describe('LoginForm Component - Comprehensive Test Suite', () => {
       testLogger.test('Analyst demo login');
       const user = userEvent.setup();
       mockSignIn.mockResolvedValueOnce(undefined);
-      render(<LoginForm />);
+      await act(async () => {
+        render(<LoginForm />);
+      });
 
       const analystButton = screen.getByRole('button', { name: /login as analyst/i });
-      await user.click(analystButton);
+      await act(async () => {
+        await user.click(analystButton);
+      });
 
       await waitFor(() => {
         expect(mockSignIn).toHaveBeenCalledWith('analyst@komra.security', 'password123');
@@ -424,10 +479,14 @@ describe('LoginForm Component - Comprehensive Test Suite', () => {
       testLogger.test('Viewer demo login');
       const user = userEvent.setup();
       mockSignIn.mockResolvedValueOnce(undefined);
-      render(<LoginForm />);
+      await act(async () => {
+        render(<LoginForm />);
+      });
 
       const viewerButton = screen.getByRole('button', { name: /login as viewer/i });
-      await user.click(viewerButton);
+      await act(async () => {
+        await user.click(viewerButton);
+      });
 
       await waitFor(() => {
         expect(mockSignIn).toHaveBeenCalledWith('viewer@komra.security', 'password123');
@@ -440,10 +499,14 @@ describe('LoginForm Component - Comprehensive Test Suite', () => {
       testLogger.test('Demo button field population');
       const user = userEvent.setup();
       mockSignIn.mockResolvedValueOnce(undefined);
-      render(<LoginForm />);
+      await act(async () => {
+        render(<LoginForm />);
+      });
 
       const adminButton = screen.getByRole('button', { name: /login as admin/i });
-      await user.click(adminButton);
+      await act(async () => {
+        await user.click(adminButton);
+      });
 
       const emailInput = screen.getByLabelText('Email') as HTMLInputElement;
       const passwordInput = screen.getByLabelText('Password') as HTMLInputElement;
@@ -461,10 +524,14 @@ describe('LoginForm Component - Comprehensive Test Suite', () => {
       const user = userEvent.setup();
       const errorMessage = 'Demo account temporarily unavailable';
       mockSignIn.mockRejectedValueOnce(new Error(errorMessage));
-      render(<LoginForm />);
+      await act(async () => {
+        render(<LoginForm />);
+      });
 
       const adminButton = screen.getByRole('button', { name: /login as admin/i });
-      await user.click(adminButton);
+      await act(async () => {
+        await user.click(adminButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText(errorMessage)).toBeInTheDocument();
@@ -481,10 +548,14 @@ describe('LoginForm Component - Comprehensive Test Suite', () => {
         resolveSignIn = resolve;
       });
       mockSignIn.mockReturnValueOnce(signInPromise);
-      render(<LoginForm />);
+      await act(async () => {
+        render(<LoginForm />);
+      });
 
       const adminButton = screen.getByRole('button', { name: /login as admin/i });
-      await user.click(adminButton);
+      await act(async () => {
+        await user.click(adminButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /login as admin/i })).toBeDisabled();
@@ -493,7 +564,9 @@ describe('LoginForm Component - Comprehensive Test Suite', () => {
       });
       testLogger.info('All demo buttons disabled during loading');
 
-      resolveSignIn!();
+      await act(async () => {
+        resolveSignIn!();
+      });
       testLogger.pass('Demo buttons disabled during loading');
     });
   });
@@ -507,10 +580,14 @@ describe('LoginForm Component - Comprehensive Test Suite', () => {
     it('should display Okta integration message when Okta button is clicked', async () => {
       testLogger.test('Okta SSO message display');
       const user = userEvent.setup();
-      render(<LoginForm />);
+      await act(async () => {
+        render(<LoginForm />);
+      });
 
       const oktaButton = screen.getByRole('button', { name: /sign in with okta sso/i });
-      await user.click(oktaButton);
+      await act(async () => {
+        await user.click(oktaButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText(/Okta integration would redirect/i)).toBeInTheDocument();
@@ -522,10 +599,14 @@ describe('LoginForm Component - Comprehensive Test Suite', () => {
     it('should not call signIn when Okta button is clicked', async () => {
       testLogger.test('Okta button does not trigger signIn');
       const user = userEvent.setup();
-      render(<LoginForm />);
+      await act(async () => {
+        render(<LoginForm />);
+      });
 
       const oktaButton = screen.getByRole('button', { name: /sign in with okta sso/i });
-      await user.click(oktaButton);
+      await act(async () => {
+        await user.click(oktaButton);
+      });
 
       expect(mockSignIn).not.toHaveBeenCalled();
       testLogger.info('signIn was not called for Okta SSO');
@@ -540,23 +621,29 @@ describe('LoginForm Component - Comprehensive Test Suite', () => {
         resolveSignIn = resolve;
       });
       mockSignIn.mockReturnValueOnce(signInPromise);
-      render(<LoginForm />);
+      await act(async () => {
+        render(<LoginForm />);
+      });
 
       // Trigger loading state via form submission
       const emailInput = screen.getByLabelText('Email');
       const passwordInput = screen.getByLabelText('Password');
       const submitButton = screen.getByRole('button', { name: /^Sign In$/i });
 
-      await user.type(emailInput, 'test@example.com');
-      await user.type(passwordInput, 'password123');
-      await user.click(submitButton);
+      await act(async () => {
+        await user.type(emailInput, 'test@example.com');
+        await user.type(passwordInput, 'password123');
+        await user.click(submitButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /sign in with okta sso/i })).toBeDisabled();
       });
       testLogger.info('Okta button disabled during loading');
 
-      resolveSignIn!();
+      await act(async () => {
+        resolveSignIn!();
+      });
       testLogger.pass('Okta button disabled during loading');
     });
   });

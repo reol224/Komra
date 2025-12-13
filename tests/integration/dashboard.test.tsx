@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, waitFor, act } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, waitFor, act, cleanup } from '@testing-library/react';
 import VulnerabilitySummary from '@/components/dashboard/VulnerabilitySummary';
 import EndpointInventory from '@/components/dashboard/EndpointInventory';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -46,6 +46,14 @@ const Wrapper = ({ children }: { children: React.ReactNode }) => (
 describe('Dashboard Integration Tests', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(async () => {
+    // Wait for any pending state updates before cleanup
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    });
+    cleanup();
   });
   
   describe('VulnerabilitySummary', () => {

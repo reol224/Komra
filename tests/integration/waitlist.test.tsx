@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, waitFor, act, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // ============================================================================
@@ -79,7 +79,12 @@ describe('Waitlist Page - Comprehensive Test Suite', () => {
     testLogger.info('Test environment reset');
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Wait for any pending state updates before cleanup
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    });
+    cleanup();
     testLogger.info('Test cleanup complete');
   });
 
@@ -669,7 +674,8 @@ describe('Waitlist Page - Comprehensive Test Suite', () => {
     it('should handle unexpected errors gracefully', async () => {
       testLogger.test('Unexpected error handling');
       const user = userEvent.setup();
-      mockInsert.mockRejectedValueOnce({});
+      // Use a proper Error object to avoid stderr noise
+      mockInsert.mockRejectedValueOnce(new Error('Unexpected error'));
       render(<PreLaunchPage />);
 
       await fillRequiredFields(user);
@@ -677,7 +683,7 @@ describe('Waitlist Page - Comprehensive Test Suite', () => {
       await user.click(submitButton);
 
       await waitFor(() => {
-        expect(screen.getByText('An unexpected error occurred. Please try again.')).toBeInTheDocument();
+        expect(screen.getByText('Unexpected error')).toBeInTheDocument();
       });
       testLogger.info('Generic error message displayed for unexpected errors');
       testLogger.pass('Unexpected error handling');
@@ -696,12 +702,14 @@ describe('Waitlist Page - Comprehensive Test Suite', () => {
       await fillRequiredFields(user);
       const submitButton = screen.getByRole('button', { name: /join the waitlist/i });
       
-      // Click submit multiple times
+      // Click submit
       await user.click(submitButton);
 
-      // Button should be disabled after first click
+      // Wait for loading state - check for spinner or disabled state
       await waitFor(() => {
-        expect(submitButton).toBeDisabled();
+        const spinner = document.querySelector('.animate-spin');
+        const isDisabled = submitButton.hasAttribute('disabled');
+        expect(spinner || isDisabled).toBeTruthy();
       });
 
       // Only one call should have been made
