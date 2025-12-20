@@ -25,6 +25,7 @@ export function usePermissions() {
       setPermissions(userPermissions);
     } catch (error) {
       console.error('Error loading user permissions:', error);
+      // Fail-closed: empty permissions on error for security
       setPermissions({});
     } finally {
       setLoading(false);
