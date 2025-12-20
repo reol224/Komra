@@ -89,7 +89,7 @@ export const useSecurityNotifications = () => {
 
       // In production, send this to your push notification service
       // For demo, we'll show a browser notification
-      if ('Notification' in window && Notification.permission === 'granted') {
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification && Notification.permission === 'granted') {
         new Notification(notificationData.title, {
           body: notificationData.body,
           icon: notificationData.icon,
