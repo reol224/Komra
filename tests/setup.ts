@@ -2,6 +2,45 @@ import "@testing-library/jest-dom";
 import { cleanup } from "@testing-library/react";
 import { afterEach, beforeAll, afterAll, vi } from "vitest";
 
+// Mock window.location to prevent jsdom navigation errors
+// This approach is recommended for Vitest + jsdom environments
+const locationMock = {
+  href: "http://localhost:3000",
+  origin: "http://localhost:3000",
+  protocol: "http:",
+  host: "localhost:3000",
+  hostname: "localhost",
+  port: "3000",
+  pathname: "/",
+  search: "",
+  hash: "",
+  assign: vi.fn(),
+  replace: vi.fn(),
+  reload: vi.fn(),
+};
+
+Object.defineProperty(window, "location", {
+  value: locationMock,
+  writable: true,
+  configurable: true,
+});
+
+// Prevent default navigation behavior on anchor clicks
+// This is the recommended approach for handling jsdom navigation errors
+beforeAll(() => {
+  document.addEventListener(
+    "click",
+    (e) => {
+      const target = e.target as HTMLElement;
+      const anchor = target.closest("a");
+      if (anchor && anchor.href && !anchor.href.startsWith("#")) {
+        e.preventDefault();
+      }
+    },
+    true,
+  );
+});
+
 // Suppress console output during tests to keep output clean
 // const originalConsole = { ...console };
 // beforeAll(() => {
