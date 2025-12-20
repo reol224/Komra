@@ -27,13 +27,20 @@ const { mockFrom, mockSelect, mockOrder, mockInsert, mockUpdate, mockDelete, moc
     gte: mockGte
   });
   // mockOrder returns itself to support chained .order() calls
-  const mockOrder: ReturnType<typeof vi.fn> = vi.fn().mockImplementation(() => ({
-    order: mockOrder,
-    data: [],
-    error: null,
-    then: (resolve: (value: { data: unknown[]; error: null }) => void) => resolve({ data: [], error: null })
-  }));
-  mockOrder.mockResolvedValue({ data: [], error: null });
+  // Create a function that returns a thenable with an order method
+  const createOrderResult = (data: unknown[] = [], error: unknown = null) => {
+    const result = {
+      data,
+      error,
+      order: vi.fn(),
+      then: (resolve: (value: { data: unknown[]; error: unknown }) => void) => 
+        Promise.resolve().then(() => resolve({ data, error }))
+    };
+    // Make the nested order also return a thenable
+    result.order.mockImplementation(() => result);
+    return result;
+  };
+  const mockOrder = vi.fn().mockImplementation(() => createOrderResult());
   const mockSelect = vi.fn().mockReturnValue({ 
     order: mockOrder, 
     eq: mockEq, 
@@ -799,12 +806,18 @@ describe('Admin Components Integration Tests', () => {
     it('AdminUserManagement should handle API errors gracefully', async () => {
       testLogger.test('AdminUserManagement API error handling');
       // Suppress expected error console output for this test
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       
-      mockOrder.mockResolvedValueOnce({
+      // Create an error result that supports chained .order() calls
+      const errorResult = {
         data: null,
-        error: { message: 'Database error' },
-      });
+        error: { message: 'Failed to load users from database' },
+        order: vi.fn(),
+        then: (resolve: (value: { data: null; error: { message: string } }) => void) => 
+          Promise.resolve().then(() => resolve({ data: null, error: { message: 'Failed to load users from database' } }))
+      };
+      errorResult.order.mockReturnValue(errorResult);
+      mockOrder.mockImplementationOnce(() => errorResult);
 
       await renderWithAct(<AdminUserManagement />);
 
@@ -813,19 +826,25 @@ describe('Admin Components Integration Tests', () => {
         expect(screen.getByText('User Management')).toBeInTheDocument();
       });
       
-      consoleSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
       testLogger.pass('AdminUserManagement API error handling');
     });
 
     it('PermissionMatrix should handle API errors gracefully', async () => {
       testLogger.test('PermissionMatrix API error handling');
       // Suppress expected error console output for this test
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       
-      mockOrder.mockResolvedValueOnce({
+      // Create an error result that supports chained .order() calls
+      const errorResult = {
         data: null,
-        error: { message: 'Database error' },
-      });
+        error: { message: 'Failed to load permissions from database' },
+        order: vi.fn(),
+        then: (resolve: (value: { data: null; error: { message: string } }) => void) => 
+          Promise.resolve().then(() => resolve({ data: null, error: { message: 'Failed to load permissions from database' } }))
+      };
+      errorResult.order.mockReturnValue(errorResult);
+      mockOrder.mockImplementationOnce(() => errorResult);
 
       await renderWithAct(<PermissionMatrix />);
 
@@ -835,7 +854,7 @@ describe('Admin Components Integration Tests', () => {
         expect(elements.length).toBeGreaterThan(0);
       });
       
-      consoleSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
       testLogger.pass('PermissionMatrix API error handling');
     });
   });

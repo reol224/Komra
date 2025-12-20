@@ -176,14 +176,21 @@ export default function PermissionMatrix() {
 
   const loadPermissions = async () => {
     try {
-      // Fetch permissions
+      // Fetch permissions - order by category first, then by name
       const { data: permissionsData, error: permissionsError } = await supabase
         .from('permissions')
         .select('*')
-        .order('category', { ascending: true })
-        .order('name', { ascending: true });
+        .order('category', { ascending: true });
 
       if (permissionsError) throw permissionsError;
+
+      // Sort by name within each category (secondary sort done client-side)
+      const sortedPermissions = (permissionsData || []).sort((a, b) => {
+        if (a.category === b.category) {
+          return (a.name || '').localeCompare(b.name || '');
+        }
+        return 0; // Keep category order from DB
+      });
 
       // Fetch role permissions
       const { data: rolePermissionsData, error: rolePermissionsError } = await supabase
@@ -192,7 +199,7 @@ export default function PermissionMatrix() {
 
       if (rolePermissionsError) throw rolePermissionsError;
 
-      setPermissions(permissionsData || []);
+      setPermissions(sortedPermissions);
 
       // Build role permissions object
       const rolePermsObj: RolePermissions = {};
@@ -200,7 +207,7 @@ export default function PermissionMatrix() {
       
       roles.forEach(role => {
         rolePermsObj[role] = {};
-        (permissionsData || []).forEach(permission => {
+        sortedPermissions.forEach(permission => {
           const rolePermission = rolePermissionsData?.find(
             rp => rp.role === role && rp.permission_id === permission.id
           );
