@@ -44,14 +44,20 @@ export default function SessionManagement() {
   const [userToForceLogout, setUserToForceLogout] = useState<ActiveSession | null>(null);
 
   const loadSessions = async () => {
-    setLoading(true);
-    const data = await SessionManagementService.getAllActiveSessions();
-    setSessions(data);
-    
-    const statsData = await SessionManagementService.getSessionStats();
-    setStats(statsData);
-    
-    setLoading(false);
+    try {
+      setLoading(true);
+      const data = await SessionManagementService.getAllActiveSessions();
+      setSessions(data);
+      
+      const statsData = await SessionManagementService.getSessionStats();
+      setStats(statsData);
+    } catch (error) {
+      console.error('Error loading sessions:', error);
+      setSessions([]);
+      setStats({ activeCount: 0, totalCount: 0, last24Hours: 0 });
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
