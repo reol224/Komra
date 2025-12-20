@@ -18,8 +18,12 @@ npm test
 # Run specific test file
 npm test -- tests/integration/waitlist.test.tsx
 
-# Run E2E tests
+# Run E2E tests (requires Playwright browsers)
+# First install browsers: npx playwright install --with-deps
 npm run test:e2e
+
+# Or run specific E2E test file
+npx playwright test tests/e2e/admin-workflow.spec.ts --project=chromium
 
 # Run tests in watch mode
 npm test -- --watch
