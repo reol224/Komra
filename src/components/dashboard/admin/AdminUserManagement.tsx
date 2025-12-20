@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Users, Plus, Edit, Trash2, Shield, Search } from 'lucide-react';
 import { UserRole } from '@/contexts/AuthContext';
@@ -632,9 +632,12 @@ export default function AdminUserManagement() {
                     <span>Add User</span>
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent aria-describedby="create-user-description">
                   <DialogHeader>
                     <DialogTitle>Create New User</DialogTitle>
+                    <DialogDescription id="create-user-description">
+                      Fill in the details below to create a new user account.
+                    </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
                     {formErrors.general && (
@@ -1023,9 +1026,12 @@ export default function AdminUserManagement() {
 
       {/* Edit User Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
+        <DialogContent aria-describedby="edit-user-description">
           <DialogHeader>
             <DialogTitle>Edit User</DialogTitle>
+            <DialogDescription id="edit-user-description">
+              Update the user details below.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             {formErrors.general && (
