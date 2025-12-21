@@ -6,7 +6,7 @@ interface MockFns {
 }
 
 // Mock DataIngestionService
-vi.mock('./dataIngestionService', () => {
+vi.mock('@/lib/dataIngestionService', () => {
   return {
     DataIngestionService: class {
       collectAndStoreSystemData = vi.fn();
@@ -16,7 +16,7 @@ vi.mock('./dataIngestionService', () => {
 });
 
 // Mock SystemDataCollector
-vi.mock('./systemDataCollector', () => {
+vi.mock('@/lib/systemDataCollector', () => {
   return {
     default: class {},
   };
@@ -39,7 +39,7 @@ vi.mock('@supabase/supabase-js', () => {
 });
 
 // Import after mocking
-import { BackgroundDataCollector, CollectionSchedule, CollectionJob } from './backgroundDataCollector';
+import { BackgroundDataCollector, CollectionSchedule, CollectionJob } from '@/lib/backgroundDataCollector';
 
 // Helper to get mocks
 const getMocks = () => (global as any).__supabaseMocks as MockFns;

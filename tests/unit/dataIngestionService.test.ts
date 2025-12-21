@@ -31,8 +31,8 @@ vi.mock('@supabase/supabase-js', () => {
 });
 
 // Import after mocking
-import { DataIngestionService } from './dataIngestionService';
-import { MachineData, SystemInfo, SystemPackage } from './systemDataCollector';
+import { DataIngestionService } from '@/lib/dataIngestionService';
+import { MachineData, SystemInfo, SystemPackage } from '@/lib/systemDataCollector';
 
 // Helper to get mocks
 const getMocks = () => (global as any).__supabaseDataIngestionMocks as MockFns;

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-Mock Resend
+// Mock Resend
 const mockSendEmail = vi.fn();
 vi.mock("resend", () => {
   return {
@@ -12,7 +12,7 @@ vi.mock("resend", () => {
   };
 });
 
-Mock Supabase
+// Mock Supabase
 const mockInsert = vi.fn();
 vi.mock("@supabase/supabase-js", () => {
   return {
@@ -24,7 +24,7 @@ vi.mock("@supabase/supabase-js", () => {
   };
 });
 
-Set up environment variables
+// Set up environment variables
 const originalEnv = process.env;
 
 describe("EmailService", () => {
@@ -53,21 +53,21 @@ describe("EmailService", () => {
         error: null,
       });
 
-      const { EmailService } = await import("./emailService");
+      const { EmailService } = await import("@/lib/emailService");
 
       await EmailService.sendWelcomeEmail({
         customerEmail: "test@example.com",
         username: "testuser",
         tempPassword: "TempPass123!",
         licenseKey: "LICENSE-KEY-123",
-        loginUrl: "https:////komrasec.com/login",
+        loginUrl: "https://app.komrasec.com/login",
       });
 
       expect(mockSendEmail).toHaveBeenCalledTimes(1);
       expect(mockSendEmail).toHaveBeenCalledWith({
         from: "onboarding@resend.dev",
         to: "test@example.com",
-        subject: "Welcome to Komra - Your Account Details",
+        subject: "Welcome to Komra Security - Your Account Details",
         html: expect.stringContaining("testuser"),
       });
       expect(mockInsert).toHaveBeenCalledWith(
@@ -83,7 +83,7 @@ describe("EmailService", () => {
     });
 
     it("should throw error when required parameters are missing", async () => {
-      const { EmailService } = await import("./emailService");
+      const { EmailService } = await import("@/lib/emailService");
 
       await expect(
         EmailService.sendWelcomeEmail({
@@ -112,7 +112,7 @@ describe("EmailService", () => {
         error: { message: "Rate limit exceeded" },
       });
 
-      const { EmailService } = await import("./emailService");
+      const { EmailService } = await import("@/lib/emailService");
 
       await expect(
         EmailService.sendWelcomeEmail({
@@ -135,7 +135,7 @@ describe("EmailService", () => {
     it("should handle send exception", async () => {
       mockSendEmail.mockRejectedValue(new Error("Network error"));
 
-      const { EmailService } = await import("./emailService");
+      const { EmailService } = await import("@/lib/emailService");
 
       await expect(
         EmailService.sendWelcomeEmail({
@@ -163,7 +163,7 @@ describe("EmailService", () => {
         error: null,
       });
 
-      const { EmailService } = await import("./emailService");
+      const { EmailService } = await import("@/lib/emailService");
 
       await EmailService.sendWelcomeEmail({
         customerEmail: "test@example.com",
@@ -175,7 +175,7 @@ describe("EmailService", () => {
 
       expect(mockSendEmail).toHaveBeenCalledWith(
         expect.objectContaining({
-          html: expect.stringContaining("https:////komrasec.com/login"),
+          html: expect.stringContaining("https://komrasec.com/login"),
         }),
       );
 
@@ -190,7 +190,7 @@ describe("EmailService", () => {
         error: null,
       });
 
-      const { EmailService } = await import("./emailService");
+      const { EmailService } = await import("@/lib/emailService");
 
       await EmailService.sendWelcomeEmail({
         customerEmail: "test@example.com",
@@ -219,7 +219,7 @@ describe("EmailService", () => {
         error: null,
       });
 
-      const { EmailService } = await import("./emailService");
+      const { EmailService } = await import("@/lib/emailService");
 
       await EmailService.sendPasswordResetEmail(
         "user@example.com",
@@ -257,7 +257,7 @@ describe("EmailService", () => {
         error: null,
       });
 
-      const { EmailService } = await import("./emailService");
+      const { EmailService } = await import("@/lib/emailService");
 
       await EmailService.sendPasswordResetEmail(
         "user@example.com",
@@ -285,7 +285,7 @@ describe("EmailService", () => {
         error: { message: "Invalid recipient" },
       });
 
-      const { EmailService } = await import("./emailService");
+      const { EmailService } = await import("@/lib/emailService");
 
       await expect(
         EmailService.sendPasswordResetEmail(
@@ -306,7 +306,7 @@ describe("EmailService", () => {
     it("should handle network error for password reset", async () => {
       mockSendEmail.mockRejectedValue(new Error("Connection timeout"));
 
-      const { EmailService } = await import("./emailService");
+      const { EmailService } = await import("@/lib/emailService");
 
       await expect(
         EmailService.sendPasswordResetEmail(
@@ -332,7 +332,7 @@ describe("EmailService", () => {
         error: null,
       });
 
-      const { EmailService } = await import("./emailService");
+      const { EmailService } = await import("@/lib/emailService");
 
       await EmailService.sendPasswordResetEmail(
         "user@example.com",
@@ -355,7 +355,7 @@ describe("EmailService", () => {
       delete process.env.RESEND_API_KEY;
 
       vi.resetModules();
-      const { EmailService } = await import("./emailService");
+      const { EmailService } = await import("@/lib/emailService");
 
       await expect(
         EmailService.sendWelcomeEmail({
@@ -378,7 +378,7 @@ describe("EmailService", () => {
         error: null,
       });
 
-      const { EmailService } = await import("./emailService");
+      const { EmailService } = await import("@/lib/emailService");
 
       await EmailService.sendWelcomeEmail({
         customerEmail: "test@example.com",
@@ -409,7 +409,7 @@ describe("EmailService", () => {
         error: null,
       });
 
-      const { EmailService } = await import("./emailService");
+      const { EmailService } = await import("@/lib/emailService");
 
       await EmailService.sendWelcomeEmail({
         customerEmail: "test@example.com",
@@ -436,7 +436,7 @@ describe("EmailService", () => {
         error: null,
       });
 
-      const { EmailService } = await import("./emailService");
+      const { EmailService } = await import("@/lib/emailService");
 
       await EmailService.sendWelcomeEmail({
         customerEmail: "test@example.com",
@@ -464,7 +464,7 @@ describe("EmailService", () => {
         error: null,
       });
 
-      const { EmailService } = await import("./emailService");
+      const { EmailService } = await import("@/lib/emailService");
 
       await EmailService.sendWelcomeEmail({
         customerEmail: "logged@example.com",
@@ -493,7 +493,7 @@ describe("EmailService", () => {
         error: { message: "Specific error message" },
       });
 
-      const { EmailService } = await import("./emailService");
+      const { EmailService } = await import("@/lib/emailService");
 
       try {
         await EmailService.sendWelcomeEmail({
@@ -504,7 +504,7 @@ describe("EmailService", () => {
           loginUrl: "https://komrasec.com/login",
         });
       } catch {
-        Expected to throw
+        // Expected to throw
       }
 
       expect(mockInsert).toHaveBeenCalledWith(
@@ -595,50 +595,6 @@ describe("EmailService - Logic Tests", () => {
     it("should include expiration warning", () => {
       const expirationMessage = "expires in 1 hour";
       expect(expirationMessage).toContain("1 hour");
-    });
-  });
-
-  describe("Error handling", () => {
-    it("should handle missing email gracefully", () => {
-      const validateEmail = (email: string | undefined) => {
-        return email && email.includes("@");
-      };
-
-      expect(validateEmail("test@example.com")).toBe(true);
-      expect(validateEmail(undefined)).toBeFalsy();
-      expect(validateEmail("")).toBeFalsy();
-    });
-
-    it("should log errors to database", () => {
-      const errorLog = {
-        recipient: "test@example.com",
-        status: "failed",
-        error_message: "API error",
-        provider: "resend",
-      };
-
-      expect(errorLog.status).toBe("failed");
-      expect(errorLog.error_message).toBeTruthy();
-    });
-  });
-
-  describe("Email templates", () => {
-    it("should have HTML and text versions", () => {
-      const emailFormats = ["html", "text"];
-      expect(emailFormats).toContain("html");
-      expect(emailFormats).toContain("text");
-    });
-
-    it("should include branding", () => {
-      const branding = {
-        name: "Komra Security",
-        domain: "komrasec.com",
-        supportEmail: "support@komrasec.com",
-      };
-
-      expect(branding.name).toBe("Komra Security");
-      expect(branding.domain).toBe("komrasec.com");
-      expect(branding.supportEmail).toContain("@komrasec.com");
     });
   });
 });

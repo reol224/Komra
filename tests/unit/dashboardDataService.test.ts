@@ -32,7 +32,7 @@ import {
   DashboardPackage,
   DashboardVulnerability,
   RiskMetrics,
-} from './dashboardDataService';
+} from '@/lib/dashboardDataService';
 
 // Helper to get mocks
 const getMocks = () => (global as any).__supabaseDashboardMocks as MockFns;

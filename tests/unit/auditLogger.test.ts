@@ -58,7 +58,7 @@ vi.mock("@supabase/supabase-js", () => {
 });
 
 // Import after mocking
-import { AuditLogger, auditLogger, AuditLogEntry } from "./auditLogger";
+import { AuditLogger, auditLogger, AuditLogEntry } from "@/lib/auditLogger";
 
 // Helper to get mocks
 const getMocks = () => (global as any).__supabaseMocks as MockFns;
