@@ -16,6 +16,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Shield, CheckCircle, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { verifyResetToken, resetPassword } from "@/lib/passwordResetService";
+import { PasswordStrengthIndicator } from "@/components/PasswordStrengthIndicator";
+import { PasswordValidationResult } from "@/lib/passwordValidation";
 
 export default function ResetPasswordForm() {
   const router = useRouter();
@@ -29,6 +31,7 @@ export default function ResetPasswordForm() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [tokenValid, setTokenValid] = useState(false);
+  const [passwordValidation, setPasswordValidation] = useState<PasswordValidationResult | null>(null);
 
   useEffect(() => {
     verifyToken();
@@ -50,12 +53,27 @@ export default function ResetPasswordForm() {
     }
   };
 
+  const handlePasswordValidationChange = (result: PasswordValidationResult | null) => {
+    setPasswordValidation(result);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
-    // Validate passwords
+    // Check password validation result
+    if (passwordValidation && !passwordValidation.isValid) {
+      const errorMessages = passwordValidation.errors
+        .filter(e => e.severity === 'error')
+        .map(e => e.message)
+        .join('. ');
+      setError(errorMessages || "Password does not meet security requirements");
+      setLoading(false);
+      return;
+    }
+
+    // Basic length check as fallback
     if (password.length < 8) {
       setError("Password must be at least 8 characters long");
       setLoading(false);
@@ -105,8 +123,9 @@ export default function ResetPasswordForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-900 py-12 px-4 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md bg-slate-800 border-slate-700">
+    <div className="min-h-screen bg-slate-900 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="flex justify-center">
+      <Card className="w-full max-w-md bg-slate-800 border-slate-700 my-auto">
         <CardHeader className="text-center">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-orange-100">
             <Shield className="h-6 w-6 text-orange-600" />
@@ -165,7 +184,16 @@ export default function ResetPasswordForm() {
                   disabled={loading}
                   className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
                 />
-                <p className="text-xs text-slate-400">Must be at least 8 characters</p>
+                {/* Real-time Password Strength Indicator */}
+                <PasswordStrengthIndicator
+                  password={password}
+                  onValidationChange={handlePasswordValidationChange}
+                  showRequirements={true}
+                  showSuggestions={true}
+                  showStrengthBar={true}
+                  checkCompromised={true}
+                  className="mt-2"
+                />
               </div>
 
               <div className="space-y-2">
@@ -185,7 +213,7 @@ export default function ResetPasswordForm() {
               <Button 
                 type="submit" 
                 className="w-full bg-orange-500 hover:bg-orange-600 text-white" 
-                disabled={loading}
+                disabled={loading || (passwordValidation !== null && !passwordValidation.isValid)}
               >
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Reset Password
@@ -198,15 +226,19 @@ export default function ResetPasswordForm() {
             <div className="flex items-start gap-2">
               <Shield className="h-4 w-4 text-orange-500 mt-0.5" />
               <div className="text-xs text-slate-300">
-                <p className="font-medium text-white">Password Requirements</p>
-                <p>• Minimum 8 characters</p>
-                <p>• Use a strong, unique password</p>
-                <p>• Don't reuse old passwords</p>
+                <p className="font-medium text-white">Advanced Password Requirements</p>
+                <p>• Minimum 8 characters (or 15+ for passphrase)</p>
+                <p>• Uppercase, lowercase, number, and special character</p>
+                <p>• No keyboard patterns (qwerty, 12345)</p>
+                <p>• No dictionary words or common passwords</p>
+                <p>• Not found in known data breaches</p>
+                <p>• Cannot contain your username or email</p>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

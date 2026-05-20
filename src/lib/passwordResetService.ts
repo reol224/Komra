@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
+import { validatePassword, PasswordValidationContext, PasswordValidationResult } from '@/lib/passwordValidation';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -9,6 +10,7 @@ const supabase = createClient(
 export interface PasswordResetResult {
   success: boolean;
   message: string;
+  validationResult?: PasswordValidationResult;
 }
 
 /**
@@ -103,7 +105,11 @@ export async function verifyResetToken(token: string): Promise<{ valid: boolean;
 /**
  * Reset password using a valid token
  */
-export async function resetPassword(token: string, newPassword: string): Promise<PasswordResetResult> {
+export async function resetPassword(
+  token: string, 
+  newPassword: string,
+  context?: PasswordValidationContext
+): Promise<PasswordResetResult> {
   try {
     // Verify token
     const { valid, userId } = await verifyResetToken(token);
@@ -111,6 +117,20 @@ export async function resetPassword(token: string, newPassword: string): Promise
       return {
         success: false,
         message: 'Invalid or expired reset token.',
+      };
+    }
+
+    // Validate password strength
+    const validationResult = await validatePassword(newPassword, context);
+    if (!validationResult.isValid) {
+      const errorMessages = validationResult.errors
+        .filter(e => e.severity === 'error')
+        .map(e => e.message)
+        .join('. ');
+      return {
+        success: false,
+        message: errorMessages || 'Password does not meet security requirements.',
+        validationResult,
       };
     }
 
@@ -155,7 +175,8 @@ export async function resetPassword(token: string, newPassword: string): Promise
 export async function adminResetUserPassword(
   userId: string,
   newPassword: string,
-  adminUserId: string
+  adminUserId: string,
+  context?: PasswordValidationContext
 ): Promise<PasswordResetResult> {
   try {
     // Verify admin has permission
@@ -169,6 +190,20 @@ export async function adminResetUserPassword(
       return {
         success: false,
         message: 'Unauthorized: Admin access required.',
+      };
+    }
+
+    // Validate password strength
+    const validationResult = await validatePassword(newPassword, context);
+    if (!validationResult.isValid) {
+      const errorMessages = validationResult.errors
+        .filter(e => e.severity === 'error')
+        .map(e => e.message)
+        .join('. ');
+      return {
+        success: false,
+        message: errorMessages || 'Password does not meet security requirements.',
+        validationResult,
       };
     }
 

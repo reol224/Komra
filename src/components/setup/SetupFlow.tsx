@@ -13,6 +13,8 @@ import { createClient } from '@supabase/supabase-js';
 import { sanitizeEmail, sanitizeText } from '@/lib/sanitization';
 import { authenticator } from 'otplib';
 import QRCode from 'qrcode';
+import { PasswordStrengthIndicator } from '@/components/PasswordStrengthIndicator';
+import { PasswordValidationResult, PasswordValidationContext } from '@/lib/passwordValidation';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -44,6 +46,9 @@ export default function SetupFlow({ licenseKey, stripeCustomerId }: SetupFlowPro
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
   const [mfaCode, setMfaCode] = useState('');
   const [backupCodes, setBackupCodes] = useState<string[]>([]);
+  
+  // Password validation state
+  const [passwordValidation, setPasswordValidation] = useState<PasswordValidationResult | null>(null);
 
   // Fetch billing account ID on mount if stripeCustomerId is provided
   React.useEffect(() => {
@@ -78,6 +83,17 @@ export default function SetupFlow({ licenseKey, stripeCustomerId }: SetupFlowPro
     return () => clearTimeout(timer);
   }, []);
 
+  const handlePasswordValidationChange = (result: PasswordValidationResult | null) => {
+    setPasswordValidation(result);
+  };
+
+  // Get password validation context
+  const getPasswordContext = (): PasswordValidationContext => ({
+    username: adminForm.username,
+    email: adminForm.email,
+    companyName: 'Komra',
+  });
+
   const handleAdminSetup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -89,6 +105,15 @@ export default function SetupFlow({ licenseKey, stripeCustomerId }: SetupFlowPro
       
       if (adminForm.password !== adminForm.confirmPassword) {
         throw new Error("Passwords do not match");
+      }
+      
+      // Check password validation result
+      if (passwordValidation && !passwordValidation.isValid) {
+        const errorMessages = passwordValidation.errors
+          .filter(e => e.severity === 'error')
+          .map(e => e.message)
+          .join('. ');
+        throw new Error(errorMessages || "Password does not meet security requirements");
       }
       
       if (adminForm.password.length < 8) {
@@ -353,6 +378,17 @@ export default function SetupFlow({ licenseKey, stripeCustomerId }: SetupFlowPro
               className="bg-slate-900 border-slate-600 text-white"
               required
             />
+            {/* Real-time Password Strength Indicator */}
+            <PasswordStrengthIndicator
+              password={adminForm.password}
+              context={getPasswordContext()}
+              onValidationChange={handlePasswordValidationChange}
+              showRequirements={true}
+              showSuggestions={true}
+              showStrengthBar={true}
+              checkCompromised={true}
+              className="mt-2"
+            />
           </div>
           
           <div className="space-y-2">
@@ -366,6 +402,9 @@ export default function SetupFlow({ licenseKey, stripeCustomerId }: SetupFlowPro
               className="bg-slate-900 border-slate-600 text-white"
               required
             />
+            {adminForm.confirmPassword && adminForm.password !== adminForm.confirmPassword && (
+              <p className="text-sm text-red-400">Passwords do not match</p>
+            )}
           </div>
           
           <Alert className="bg-orange-500/10 border-orange-500/50">
@@ -379,7 +418,7 @@ export default function SetupFlow({ licenseKey, stripeCustomerId }: SetupFlowPro
             type="submit" 
             className="w-full bg-orange-500 hover:bg-orange-600 text-white" 
             size="lg"
-            disabled={loading}
+            disabled={loading || (passwordValidation !== null && !passwordValidation.isValid) || adminForm.password !== adminForm.confirmPassword}
           >
             {loading ? (
               <>
@@ -543,7 +582,7 @@ export default function SetupFlow({ licenseKey, stripeCustomerId }: SetupFlowPro
   );
 
   return (
-    <div className="min-h-screen bg-slate-900 py-12 px-4">
+    <div className="min-h-screen bg-slate-900 py-12 px-4 overflow-y-auto">
       <div className="max-w-4xl mx-auto">
         {/* Progress indicator */}
         <div className="mb-8">

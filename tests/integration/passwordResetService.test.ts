@@ -651,9 +651,8 @@ describe('Password Reset Service Integration Tests', () => {
       expect(result.valid).toBe(false);
     });
 
-    it('should handle empty password in reset', async () => {
+    it('should reject empty password in reset due to validation', async () => {
       const futureDate = new Date(Date.now() + 3600000).toISOString();
-      let capturedHash: string | null = null;
 
       mocks.from.mockImplementation((table: string) => {
         if (table === 'users') {
@@ -670,21 +669,21 @@ describe('Password Reset Service Integration Tests', () => {
                 }),
               }),
             }),
-            update: (data: any) => {
-              capturedHash = data.password_hash;
-              return {
-                eq: () => Promise.resolve({ error: null }),
-              };
-            },
+            update: () => ({
+              eq: () => Promise.resolve({ error: null }),
+            }),
           };
         }
         return {};
       });
 
-      // Even with empty password, bcrypt.hash will be called
-      await resetPassword('valid-token', '');
+      // Empty password should be rejected by password validation
+      const result = await resetPassword('valid-token', '');
 
-      expect(mockHash).toHaveBeenCalledWith('', 12);
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Password');
+      // bcrypt.hash should NOT be called because validation fails first
+      expect(mockHash).not.toHaveBeenCalled();
     });
   });
 });
