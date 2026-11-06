@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, act, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import type { ActiveSession } from '@/lib/sessionManagementService';
 
 // ============================================================================
 // TEST UTILITIES & MOCKS
@@ -121,7 +122,7 @@ vi.mock('@/hooks/usePermissions', () => ({
 // Mock session management service - use vi.hoisted to ensure mocks are available
 const { mockGetAllActiveSessions, mockGetSessionStats, mockTerminateSession, mockTerminateAllUserSessions } = vi.hoisted(() => {
   return {
-    mockGetAllActiveSessions: vi.fn(() => Promise.resolve([])),
+    mockGetAllActiveSessions: vi.fn<() => Promise<ActiveSession[]>>(() => Promise.resolve([])),
     mockGetSessionStats: vi.fn(() => Promise.resolve({ activeCount: 0, totalCount: 0, last24Hours: 0 })),
     mockTerminateSession: vi.fn(() => Promise.resolve(true)),
     mockTerminateAllUserSessions: vi.fn(() => Promise.resolve(1)),
