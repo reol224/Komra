@@ -6,19 +6,19 @@
  * Supports Windows, Linux, and macOS
  */
 
-const { exec } = require('child_process');
+const { exec, execFile } = require('child_process');
 const { promisify } = require('util');
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 class KomraAgent {
   constructor(options = {}) {
-    // Priority: CLI arg > env var > production default
-    // For local testing: set KOMRA_API_ENDPOINT=http://localhost:3000/api/agent/ingest
-    this.apiEndpoint = options.apiEndpoint || process.env.KOMRA_API_ENDPOINT || 'https://komrasec.com/api/agent/ingest';
+    // Priority: CLI arg > env var > local development server
+    this.apiEndpoint = options.apiEndpoint || process.env.KOMRA_API_ENDPOINT || 'http://localhost:3000/api/agent/ingest';
     this.apiKey = options.apiKey || process.env.KOMRA_API_KEY;
     this.platform = os.platform();
     this.configPath = path.join(os.homedir(), '.komra-agent.json');
@@ -92,7 +92,7 @@ class KomraAgent {
     return {
       hostname: os.hostname(),
       ip_address: primaryInterface?.address || 'unknown',
-      os_type: this.getOSType(),
+      os_type: await this.getOSType(),
       os_version: os.release(),
       architecture: os.arch(),
       cpu_info: os.cpus()[0]?.model || 'unknown',
@@ -188,7 +188,10 @@ class KomraAgent {
       } catch {
         // Try DEB-based systems
         try {
-          const { stdout: dpkgOutput } = await execAsync(`dpkg-query -W -f='\\${Package}|\\${Version}|\\${Maintainer}\\n'`);
+          const { stdout: dpkgOutput } = await execFileAsync('dpkg-query', [
+            '-W',
+            '-f=${Package}|${Version}|${Maintainer}\\n'
+          ]);
           const dpkgLines = dpkgOutput.trim().split('\n');
           
           for (const line of dpkgLines) {
@@ -308,26 +311,39 @@ class KomraAgent {
     }
   }
 
-  getOSType() {
+  async getOSType() {
     const platform = os.platform();
-    const release = os.release();
     
     switch (platform) {
       case 'win32':
-        return release.startsWith('10.') ? 'Windows 10' : 'Windows Server';
+        try {
+          const { stdout } = await execAsync(
+            '(Get-CimInstance Win32_OperatingSystem).Caption',
+            { shell: 'powershell' }
+          );
+          return stdout.trim() || 'Windows';
+        } catch {
+          return 'Windows';
+        }
       case 'linux':
         try {
-          if (fs.existsSync('/etc/redhat-release')) {
-            return 'Red Hat Linux';
-          } else if (fs.existsSync('/etc/ubuntu-release') || fs.existsSync('/etc/lsb-release')) {
-            return 'Ubuntu';
-          } else if (fs.existsSync('/etc/centos-release')) {
-            return 'CentOS';
-          }
-        } catch {}
-        return 'Red Hat Linux';
+          const osRelease = fs.readFileSync('/etc/os-release', 'utf8');
+          const prettyName = osRelease
+            .split(/\r?\n/)
+            .find(line => line.startsWith('PRETTY_NAME='))
+            ?.slice('PRETTY_NAME='.length)
+            .replace(/^["']|["']$/g, '');
+          return prettyName || 'Linux';
+        } catch {
+          return 'Linux';
+        }
       case 'darwin':
-        return 'macOS';
+        try {
+          const { stdout } = await execAsync('sw_vers -productName');
+          return stdout.trim() || 'macOS';
+        } catch {
+          return 'macOS';
+        }
       default:
         return 'Other';
     }
@@ -366,8 +382,6 @@ class KomraAgent {
     }
     
     try {
-      const fetch = (await import('node-fetch')).default;
-      
       this.log(`Endpoint: ${this.apiEndpoint}`);
       
       const response = await fetch(this.apiEndpoint, {
