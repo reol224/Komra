@@ -13,7 +13,7 @@ A comprehensive security auditing platform that provides real-time vulnerability
 
 ## Prerequisites
 
-- Node.js 18.x or higher
+- Node.js 22.x
 - npm or pnpm
 - Supabase account
 
