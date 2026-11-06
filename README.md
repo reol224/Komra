@@ -103,23 +103,32 @@ komra/
 
 ## Using the Komra Agent
 
-The Komra agent collects system data for vulnerability assessment:
+The standalone agent collects inventory from the machine where it runs and
+sends it to the local Komra app. Configure `KOMRA_AGENT_API_KEY` and
+`KOMRA_API_KEY` in `.env.local` with the same secret value; never commit or
+share the key.
 
-### Web-Based Collection
-
-Navigate to the dashboard and use the built-in system data collector.
-
-### Standalone Agent
-
-Run the agent script directly:
+Start the app in one terminal:
 
 ```bash
+cd /path/to/Komra
+npm run dev
+```
+
+In a second terminal, load the local settings and run the agent:
+
+```bash
+cd /path/to/Komra
+set -a
+. ./.env.local
+set +a
 node scripts/komra-agent.js
 ```
 
-### Scheduled Collection
-
-Set up a cron job (Linux/macOS) or Task Scheduler (Windows) to run the agent periodically.
+The agent defaults to `http://localhost:3000/api/agent/ingest`. If the
+development server starts on another port, set `KOMRA_API_ENDPOINT` to that
+local URL before running the agent. Each run scans and submits the current
+machine's inventory once; it does not continuously run in the background.
 
 ## Role-Based Access
 
