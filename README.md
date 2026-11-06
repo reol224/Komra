@@ -1,6 +1,13 @@
 # Komra
 
-A comprehensive security auditing platform that provides real-time vulnerability assessment and endpoint monitoring for distributed infrastructure.
+Komra is a Next.js security dashboard backed by Supabase. It includes role-specific
+administration, analyst, and viewer interfaces; endpoint and package inventory;
+audit and investigation views; and integrations for agent ingestion, billing,
+email, and notifications.
+
+Some security and operations features are still prototypes. See
+[Current scope and limitations](#current-scope-and-limitations) before using
+their results for production decisions.
 
 ## Features
 
@@ -180,44 +187,53 @@ npm run test:e2e:ui
 npx playwright install
 ```
 
-### Run All Tests
+## Main dependencies
 
-```bash
-npm run test:all
+Versions below are resolved by the current `package-lock.json`; `npm ci` uses
+those locked versions. Most dependencies in `package.json` use semver ranges,
+while the Supabase SDK entries currently use `"latest"`, so use the lockfile
+for reproducible installs.
+
+| Package | Locked version |
+| --- | --- |
+| Next.js | 16.4.4 |
+| React / React DOM | 18.3.1 |
+| TypeScript | 5.9.2 |
+| Tailwind CSS | 3.4.17 |
+| Supabase JS | 2.57.4 |
+| Supabase SSR | 0.7.0 |
+| Stripe | 17.7.0 |
+| Resend | 6.37.0 |
+| Vitest | 4.1.11 |
+| Playwright | 1.56.1 |
+
+Other dependencies and declared version ranges are listed in
+[package.json](./package.json).
+
+## Repository layout
+
+```text
+src/
+  app/                 Next.js pages and API routes
+  components/          Auth, dashboard, setup, and shared UI
+  contexts/            Authentication and notification contexts
+  hooks/               Shared React hooks
+  lib/                 Supabase and application services
+  types/               TypeScript types
+scripts/
+  komra-agent.js       Standalone endpoint data collector
+supabase/
+  migrations/          Database migrations
+tests/
+  unit/                Unit tests
+  integration/         Component and service integration tests
+  e2e/                 Playwright browser tests
+docs/                  Feature and testing notes
 ```
 
-### Test Structure
+## Further reading
 
-- `tests/integration/` - Integration tests for components with database
-- `tests/e2e/` - End-to-end tests with Playwright
-- `tests/utils/` - Test utilities and helpers
+- [System data collection notes](./docs/SYSTEM_DATA_COLLECTION.md)
+- [Email integration testing notes](./docs/EMAIL_TESTING.md)
 
-## Security
-
-- Never commit secrets or API keys
-- Use environment variables for sensitive data
-- Follow security best practices for authentication and authorization
-- Report security vulnerabilities responsibly
-
-## Tech Stack
-
-- **Framework**: Next.js 14 (App Router)
-- **Language**: TypeScript
-- **Database**: Supabase (PostgreSQL)
-- **Styling**: Tailwind CSS
-- **UI Components**: shadcn/ui
-- **Authentication**: Supabase Auth
-
-## Documentation
-
-- [System Data Collection Guide](./docs/SYSTEM_DATA_COLLECTION.md)
-- [API Documentation](#) (Coming soon)
-- [Deployment Guide](#) (Coming soon)
-
-## Support
-
-For issues, questions, or feature requests, please open an issue on GitHub or contact the development team.
-
-## License
-
-[Add your license information here]
+No license file is currently included in the repository.
