@@ -12,7 +12,7 @@ their results for production decisions.
 ## Features
 
 - **Cross-Platform System Data Collection** - Automated agents for Windows, Linux, and macOS
-- **Real-Time Vulnerability Assessment** - Continuous CVE monitoring with CVSS scoring
+- **OSV-Backed Vulnerability Matching** - Match installed package versions against live OSV advisories, with NVD details for CVE records
 - **Comprehensive Endpoint Inventory** - Complete visibility into monitored systems
 - **Intelligent Triage Interface** - Priority-based vulnerability management
 - **Advanced Search & Investigation** - Unified search across audit logs and vulnerabilities
@@ -72,6 +72,15 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+### Vulnerability data sources
+
+Apply the Supabase migrations with `supabase db push` before storing OSV scan
+results. Scans run when endpoint inventory is ingested and currently support
+npm, PyPI, and Debian/Ubuntu packages; other package types are reported as
+unsupported and are not matched. CVE details are fetched from NVD when a
+finding is opened. You may set `NVD_API_KEY` in the server environment to use
+your NVD API key; do not expose it through a `NEXT_PUBLIC_` variable.
 
 ## Available Scripts
 

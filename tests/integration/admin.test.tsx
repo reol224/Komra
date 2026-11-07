@@ -162,6 +162,7 @@ const { MockDashboardDataService, MockSystemResourceService } = vi.hoisted(() =>
   class MockDashboardDataServiceClass {
     getEndpoints = vi.fn(() => Promise.resolve([]));
     getVulnerabilities = vi.fn(() => Promise.resolve([]));
+    getAgentVulnerabilities = vi.fn(() => Promise.resolve([]));
     getRiskMetrics = vi.fn(() => Promise.resolve({
       criticalCount: 0,
       highCount: 0,

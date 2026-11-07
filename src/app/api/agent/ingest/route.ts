@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { scanEndpointForKnownVulnerabilities } from '@/lib/vulnerabilityDetection';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -146,6 +147,13 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`📦 Processed ${packagesProcessed} packages (${packagesSkipped} skipped)`);
+    const vulnerabilityScan = await scanEndpointForKnownVulnerabilities(
+      supabase,
+      endpoint.id,
+    );
+    console.log(
+      `🚨 Found ${vulnerabilityScan.matches} OSV matches across ${vulnerabilityScan.scannedPackages} supported packages`,
+    );
 
     return NextResponse.json({
       success: true,
@@ -155,6 +163,9 @@ export async function POST(request: NextRequest) {
         hostname: endpoint.hostname,
         packages_processed: packagesProcessed,
         packages_skipped: packagesSkipped,
+        vulnerability_matches: vulnerabilityScan.matches,
+        vulnerability_packages_scanned: vulnerabilityScan.scannedPackages,
+        unsupported_package_types: vulnerabilityScan.unsupportedPackages,
         last_scan: agentData.last_scan
       }
     });

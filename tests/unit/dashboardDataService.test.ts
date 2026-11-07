@@ -582,6 +582,88 @@ describe('DashboardDataService', () => {
     });
   });
 
+  describe('getAgentVulnerabilities', () => {
+    it('returns findings only for endpoints collected by an agent', async () => {
+      const order = vi.fn().mockResolvedValue({
+        data: [
+          {
+            id: 'finding-1',
+            cve_id: 'CVE-2025-0001',
+            description: 'Known issue',
+            severity: 'critical',
+            cvss_score: 9.8,
+            status: 'open',
+            endpoint_id: 'agent-endpoint',
+            discovered_date: '2025-03-01T12:00:00Z',
+            source_id: 'OSV-2025-0001',
+            reference_urls: ['https://osv.dev/vulnerability/OSV-2025-0001'],
+            affected_packages: ['openssl'],
+            endpoints: {
+              hostname: 'agent-host',
+              environment: 'production',
+              metadata: { collection_source: 'agent' },
+            },
+          },
+          {
+            id: 'finding-2',
+            cve_id: 'CVE-2025-0002',
+            description: 'Seeded issue',
+            severity: 'high',
+            cvss_score: 7.5,
+            status: 'open',
+            endpoint_id: 'seed-endpoint',
+            discovered_date: '2025-03-01T11:00:00Z',
+            endpoints: {
+              hostname: 'seed-host',
+              environment: 'testing',
+              metadata: {},
+            },
+          },
+        ],
+        error: null,
+      });
+      const query = { eq: vi.fn().mockReturnThis(), order };
+      const select = vi.fn().mockReturnValue(query);
+      mocks.from.mockReturnValue({ select, eq: query.eq, order });
+
+      await expect(service.getAgentVulnerabilities()).resolves.toEqual([
+        {
+          id: 'finding-1',
+          cve_id: 'CVE-2025-0001',
+          description: 'Known issue',
+          severity: 'critical',
+          cvss_score: 9.8,
+          status: 'open',
+          endpoint_id: 'agent-endpoint',
+          endpoint_name: 'agent-host',
+          environment: 'production',
+          discovered_date: '2025-03-01T12:00:00Z',
+          affected_packages: ['openssl'],
+          source: 'osv',
+          source_id: 'OSV-2025-0001',
+          reference_urls: ['https://osv.dev/vulnerability/OSV-2025-0001'],
+        },
+      ]);
+      expect(mocks.from).toHaveBeenCalledWith('vulnerabilities');
+      expect(select).toHaveBeenCalledWith(expect.stringContaining('metadata'));
+      expect(query.eq).toHaveBeenCalledWith('source', 'osv');
+    });
+
+    it('surfaces query errors instead of showing zero findings', async () => {
+      const order = vi.fn().mockResolvedValue({
+        data: null,
+        error: { message: 'permission denied' },
+      });
+      mocks.from.mockReturnValue({
+        select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnThis(), order }),
+      });
+
+      await expect(service.getAgentVulnerabilities()).rejects.toThrow(
+        'Failed to fetch agent vulnerability findings: permission denied',
+      );
+    });
+  });
+
   describe('getRiskMetrics', () => {
     it('should calculate risk metrics correctly', async () => {
       // Mock getEndpoints

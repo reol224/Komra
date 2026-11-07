@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import SystemDataCollector, { MachineData } from '../lib/systemDataCollector';
+import { scanEndpointForKnownVulnerabilities } from './vulnerabilityDetection';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -146,51 +147,11 @@ export class DataIngestionService {
   }
 
   async scanForVulnerabilities(endpointId: string): Promise<void> {
-    // This would integrate with vulnerability databases
-    // For now, we'll create a placeholder implementation
     console.log(`🔍 Scanning endpoint ${endpointId} for vulnerabilities...`);
-    
-    // Get endpoint packages
-    const { data: endpointPackages, error } = await supabase
-      .from('endpoint_packages')
-      .select(`
-        *,
-        packages (*),
-        endpoints (*)
-      `)
-      .eq('endpoint_id', endpointId);
-
-    if (error) {
-      throw new Error(`Failed to get endpoint packages: ${error.message}`);
-    }
-
-    // Mock vulnerability detection (in real implementation, this would query CVE databases)
-    const mockVulnerabilities = [
-      {
-        cve_id: 'CVE-2024-0001',
-        severity: 'high',
-        description: 'Sample vulnerability for testing',
-        cvss_score: 8.5
-      }
-    ];
-
-    for (const vuln of mockVulnerabilities) {
-      await supabase
-        .from('vulnerabilities')
-        .upsert({
-          endpoint_id: endpointId,
-          cve_id: vuln.cve_id,
-          severity: vuln.severity,
-          description: vuln.description,
-          cvss_score: vuln.cvss_score,
-          status: 'open',
-          discovered_date: new Date().toISOString()
-        }, {
-          onConflict: 'endpoint_id,cve_id'
-        });
-    }
-
-    console.log(`🚨 Found ${mockVulnerabilities.length} vulnerabilities`);
+    const scanResult = await scanEndpointForKnownVulnerabilities(supabase, endpointId);
+    console.log(
+      `🚨 Found ${scanResult.matches} OSV matches across ${scanResult.scannedPackages} supported packages`,
+    );
   }
 }
 
