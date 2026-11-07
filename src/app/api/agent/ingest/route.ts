@@ -69,9 +69,11 @@ export async function POST(request: NextRequest) {
       last_scan: agentData.last_scan,
       status: 'healthy',
       metadata: {
+        collection_source: 'agent',
         architecture: agentData.endpoint.architecture,
         cpu_info: agentData.endpoint.cpu_info,
         memory_total: agentData.endpoint.memory_total,
+        reported_package_count: agentData.packages.length,
         disk_usage: agentData.endpoint.disk_usage,
         network_interfaces: agentData.endpoint.network_interfaces,
         running_services: agentData.endpoint.running_services

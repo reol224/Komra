@@ -54,7 +54,47 @@ export interface RiskMetrics {
   criticalEndpoints: number;
 }
 
+export interface AgentInventoryStats {
+  totalEndpoints: number;
+  reportedPackages: number;
+  reportedServices: number;
+  latestCollection: string | null;
+}
+
 export class DashboardDataService {
+
+  async getAgentInventoryStats(): Promise<AgentInventoryStats> {
+    const { data: endpoints, error } = await supabase
+      .from('endpoints')
+      .select('last_scan, metadata')
+      .filter('metadata->>collection_source', 'eq', 'agent');
+
+    if (error) {
+      throw new Error(`Failed to fetch agent inventory: ${error.message}`);
+    }
+
+    const inventory = endpoints || [];
+    const latestCollection = inventory.reduce<string | null>((latest, endpoint) => {
+      const scan = endpoint.last_scan;
+      if (!scan || Number.isNaN(Date.parse(scan))) return latest;
+      return !latest || Date.parse(scan) > Date.parse(latest) ? scan : latest;
+    }, null);
+
+    return {
+      totalEndpoints: inventory.length,
+      reportedPackages: inventory.reduce(
+        (total, endpoint) => total + (Number(endpoint.metadata?.reported_package_count) || 0),
+        0
+      ),
+      reportedServices: inventory.reduce(
+        (total, endpoint) => total + (Array.isArray(endpoint.metadata?.running_services)
+          ? endpoint.metadata.running_services.length
+          : 0),
+        0
+      ),
+      latestCollection
+    };
+  }
   
   async getEndpoints(): Promise<DashboardEndpoint[]> {
     try {

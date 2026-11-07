@@ -186,6 +186,78 @@ describe('DashboardDataService', () => {
     });
   });
 
+  describe('getAgentInventoryStats', () => {
+    it('aggregates package and service counts from agent endpoint metadata', async () => {
+      const filter = vi.fn().mockResolvedValue({
+        data: [
+          {
+            last_scan: '2025-03-01T12:00:00Z',
+            metadata: {
+              reported_package_count: 120,
+              running_services: ['ssh', 'nginx'],
+            },
+          },
+          {
+            last_scan: '2025-03-02T12:00:00Z',
+            metadata: {
+              reported_package_count: '45',
+              running_services: ['cron'],
+            },
+          },
+          {
+            last_scan: 'invalid-date',
+            metadata: { reported_package_count: 5, running_services: 'not-an-array' },
+          },
+        ],
+        error: null,
+      });
+      const select = vi.fn().mockReturnValue({ filter });
+      mocks.from.mockReturnValue({ select });
+
+      await expect(service.getAgentInventoryStats()).resolves.toEqual({
+        totalEndpoints: 3,
+        reportedPackages: 170,
+        reportedServices: 3,
+        latestCollection: '2025-03-02T12:00:00Z',
+      });
+      expect(mocks.from).toHaveBeenCalledWith('endpoints');
+      expect(select).toHaveBeenCalledWith('last_scan, metadata');
+      expect(filter).toHaveBeenCalledWith(
+        'metadata->>collection_source',
+        'eq',
+        'agent',
+      );
+    });
+
+    it('returns zero counts when no agent endpoints are reported', async () => {
+      const filter = vi.fn().mockResolvedValue({ data: [], error: null });
+      mocks.from.mockReturnValue({
+        select: vi.fn().mockReturnValue({ filter }),
+      });
+
+      await expect(service.getAgentInventoryStats()).resolves.toEqual({
+        totalEndpoints: 0,
+        reportedPackages: 0,
+        reportedServices: 0,
+        latestCollection: null,
+      });
+    });
+
+    it('surfaces endpoint query errors', async () => {
+      const filter = vi.fn().mockResolvedValue({
+        data: null,
+        error: { message: 'permission denied' },
+      });
+      mocks.from.mockReturnValue({
+        select: vi.fn().mockReturnValue({ filter }),
+      });
+
+      await expect(service.getAgentInventoryStats()).rejects.toThrow(
+        'Failed to fetch agent inventory: permission denied',
+      );
+    });
+  });
+
   describe('getEndpoints', () => {
     it('should return mapped endpoints successfully', async () => {
       const mockEndpoints = [
