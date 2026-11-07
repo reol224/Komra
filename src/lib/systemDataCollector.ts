@@ -336,12 +336,22 @@ class SystemDataCollector {
       case 'linux':
         try {
           const osRelease = fs.readFileSync('/etc/os-release', 'utf8');
-          const prettyName = osRelease
+          const rawPrettyName = osRelease
             .split(/\r?\n/)
             .find(line => line.startsWith('PRETTY_NAME='))
             ?.slice('PRETTY_NAME='.length)
-            .replace(/^["']|["']$/g, '');
-          return prettyName || 'Linux';
+            .trim();
+          if (!rawPrettyName) return 'Linux';
+
+          const isDoubleQuoted = rawPrettyName.startsWith('"') && rawPrettyName.endsWith('"');
+          const isSingleQuoted = rawPrettyName.startsWith("'") && rawPrettyName.endsWith("'");
+          const prettyName = isDoubleQuoted || isSingleQuoted
+            ? rawPrettyName.slice(1, -1)
+            : rawPrettyName;
+          const decodedName = isDoubleQuoted
+            ? prettyName.replace(/\\(["\\$`])/g, '$1')
+            : prettyName;
+          return decodedName || 'Linux';
         } catch {
           return 'Linux';
         }
