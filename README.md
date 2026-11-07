@@ -137,7 +137,11 @@ node scripts/komra-agent.js
 The agent defaults to `http://localhost:3000/api/agent/ingest`. If the
 development server starts on another port, set `KOMRA_API_ENDPOINT` to that
 local URL before running the agent. Each run scans and submits the current
-machine's inventory once; it does not continuously run in the background.
+machine's inventory and current CPU, memory, disk, and running-service report
+once; it does not continuously run in the background. The System Health
+dashboard uses agent reports from the last five minutes for resource averages.
+Run the updated agent again on existing endpoints to start sending resource
+telemetry; older reports still show inventory and the services they reported.
 
 ## Role-Based Access
 

@@ -664,6 +664,94 @@ describe('DashboardDataService', () => {
     });
   });
 
+  describe('getAgentSystemHealth', () => {
+    it('returns agent service reports and validates resource telemetry', async () => {
+      const order = vi.fn().mockResolvedValue({
+        data: [
+          {
+            id: 'endpoint-1',
+            hostname: 'agent-host',
+            os_type: 'Ubuntu 24.04',
+            last_scan: '2026-11-07T18:00:00.000Z',
+            metadata: {
+              collection_source: 'agent',
+              running_services: ['ssh.service', 'cron.service', 1],
+              resource_metrics: {
+                cpu_usage_percent: 51.2,
+                memory_usage_percent: 72,
+                memory_used_bytes: 720,
+                memory_total_bytes: 1000,
+                disk_usage_percent: 84.5,
+                disk_used_bytes: 845,
+                disk_total_bytes: 1000,
+              },
+            },
+          },
+          {
+            id: 'endpoint-2',
+            hostname: 'old-agent',
+            os_type: 'Windows Server',
+            last_scan: null,
+            metadata: {
+              running_services: [],
+              resource_metrics: { cpu_usage_percent: 180 },
+            },
+          },
+        ],
+        error: null,
+      });
+      const filter = vi.fn().mockReturnValue({ order });
+      const select = vi.fn().mockReturnValue({ filter });
+      mocks.from.mockReturnValue({ select });
+
+      await expect(service.getAgentSystemHealth()).resolves.toEqual([
+        {
+          id: 'endpoint-1',
+          hostname: 'agent-host',
+          osType: 'Ubuntu 24.04',
+          lastScan: '2026-11-07T18:00:00.000Z',
+          runningServices: ['ssh.service', 'cron.service'],
+          resourceMetrics: {
+            cpu_usage_percent: 51.2,
+            memory_usage_percent: 72,
+            memory_used_bytes: 720,
+            memory_total_bytes: 1000,
+            disk_usage_percent: 84.5,
+            disk_used_bytes: 845,
+            disk_total_bytes: 1000,
+          },
+        },
+        {
+          id: 'endpoint-2',
+          hostname: 'old-agent',
+          osType: 'Windows Server',
+          lastScan: null,
+          runningServices: [],
+          resourceMetrics: null,
+        },
+      ]);
+      expect(mocks.from).toHaveBeenCalledWith('endpoints');
+      expect(filter).toHaveBeenCalledWith('metadata->>collection_source', 'eq', 'agent');
+      expect(order).toHaveBeenCalledWith('last_scan', { ascending: false });
+    });
+
+    it('surfaces endpoint query errors', async () => {
+      const order = vi.fn().mockResolvedValue({
+        data: null,
+        error: { message: 'connection failed' },
+      });
+      mocks.from.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          filter: vi.fn().mockReturnValue({ order }),
+        }),
+      });
+
+      await expect(service.getAgentSystemHealth()).rejects.toThrow(
+        'Failed to fetch agent system health: connection failed',
+      );
+    });
+  });
+
   describe('getRiskMetrics', () => {
     it('should calculate risk metrics correctly', async () => {
       // Mock getEndpoints

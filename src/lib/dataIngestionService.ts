@@ -55,6 +55,7 @@ export class DataIngestionService {
         architecture: machineData.endpoint.architecture,
         cpu_info: machineData.endpoint.cpu_info,
         memory_total: machineData.endpoint.memory_total,
+        resource_metrics: machineData.endpoint.resource_metrics,
         disk_usage: machineData.endpoint.disk_usage,
         network_interfaces: machineData.endpoint.network_interfaces,
         running_services: machineData.endpoint.running_services

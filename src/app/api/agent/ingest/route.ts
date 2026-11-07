@@ -16,6 +16,15 @@ interface AgentData {
     architecture: string;
     cpu_info: string;
     memory_total: number;
+    resource_metrics?: {
+      cpu_usage_percent: number | null;
+      memory_usage_percent: number;
+      memory_used_bytes: number;
+      memory_total_bytes: number;
+      disk_usage_percent: number | null;
+      disk_used_bytes: number | null;
+      disk_total_bytes: number | null;
+    };
     disk_usage: any;
     network_interfaces: any[];
     running_services: string[];
@@ -74,6 +83,7 @@ export async function POST(request: NextRequest) {
         architecture: agentData.endpoint.architecture,
         cpu_info: agentData.endpoint.cpu_info,
         memory_total: agentData.endpoint.memory_total,
+        resource_metrics: agentData.endpoint.resource_metrics ?? null,
         reported_package_count: agentData.packages.length,
         disk_usage: agentData.endpoint.disk_usage,
         network_interfaces: agentData.endpoint.network_interfaces,

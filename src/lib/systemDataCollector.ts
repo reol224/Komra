@@ -23,6 +23,15 @@ export interface SystemInfo {
   architecture: string;
   cpu_info: string;
   memory_total: number;
+  resource_metrics: {
+    cpu_usage_percent: number | null;
+    memory_usage_percent: number;
+    memory_used_bytes: number;
+    memory_total_bytes: number;
+    disk_usage_percent: number | null;
+    disk_used_bytes: number | null;
+    disk_total_bytes: number | null;
+  };
   disk_usage: object;
   network_interfaces: object[];
   running_services: string[];
@@ -66,6 +75,7 @@ class SystemDataCollector {
       architecture: os.arch(),
       cpu_info: os.cpus()[0]?.model || 'unknown',
       memory_total: os.totalmem(),
+      resource_metrics: await this.getResourceMetrics(),
       disk_usage: await this.getDiskUsage(),
       network_interfaces: Object.entries(networkInterfaces).map(([name, interfaces]) => ({
         name,
@@ -78,6 +88,69 @@ class SystemDataCollector {
       running_services: await this.getRunningServices(),
       environment: this.detectEnvironment()
     };
+  }
+
+  private async getResourceMetrics(): Promise<SystemInfo['resource_metrics']> {
+    const memoryTotal = os.totalmem();
+    const memoryUsed = Math.max(0, memoryTotal - os.freemem());
+    const [cpuUsage, disk] = await Promise.all([
+      this.getCpuUsagePercent(),
+      this.getDiskUsageMetrics(),
+    ]);
+
+    return {
+      cpu_usage_percent: cpuUsage,
+      memory_usage_percent: memoryTotal > 0 ? (memoryUsed / memoryTotal) * 100 : 0,
+      memory_used_bytes: memoryUsed,
+      memory_total_bytes: memoryTotal,
+      disk_usage_percent: disk?.usedPercent ?? null,
+      disk_used_bytes: disk?.usedBytes ?? null,
+      disk_total_bytes: disk?.totalBytes ?? null,
+    };
+  }
+
+  private async getCpuUsagePercent(): Promise<number | null> {
+    const sample = () => os.cpus().reduce(
+      (totals, cpu) => ({
+        idle: totals.idle + cpu.times.idle,
+        total: totals.total + Object.values(cpu.times).reduce((sum, value) => sum + value, 0),
+      }),
+      { idle: 0, total: 0 },
+    );
+    const start = sample();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const end = sample();
+    const totalDelta = end.total - start.total;
+    if (totalDelta <= 0) return null;
+
+    const idleDelta = end.idle - start.idle;
+    return Math.max(0, Math.min(100, ((totalDelta - idleDelta) / totalDelta) * 100));
+  }
+
+  private async getDiskUsageMetrics(): Promise<{
+    usedPercent: number;
+    usedBytes: number;
+    totalBytes: number;
+  } | null> {
+    try {
+      const mountPath = this.platform === 'win32' ? process.cwd().slice(0, 3) : '/';
+      const stats = await fs.promises.statfs(mountPath);
+      const totalBytes = Number(stats.blocks) * Number(stats.bsize);
+      const usedBytes = Math.max(
+        0,
+        (Number(stats.blocks) - Number(stats.bfree)) * Number(stats.bsize),
+      );
+      if (!Number.isFinite(totalBytes) || totalBytes <= 0) return null;
+
+      return {
+        usedPercent: (usedBytes / totalBytes) * 100,
+        usedBytes,
+        totalBytes,
+      };
+    } catch (error) {
+      console.warn('Unable to collect disk usage metrics:', error);
+      return null;
+    }
   }
 
   private async getInstalledPackages(): Promise<SystemPackage[]> {

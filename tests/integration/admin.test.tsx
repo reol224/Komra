@@ -157,10 +157,26 @@ vi.mock('@/components/ui/use-toast', () => ({
 }));
 
 // Mock dashboardDataService - mock as a class constructor using hoisted
-const { MockDashboardDataService, MockSystemResourceService } = vi.hoisted(() => {
+const { MockDashboardDataService } = vi.hoisted(() => {
   // Create a proper class mock
   class MockDashboardDataServiceClass {
     getEndpoints = vi.fn(() => Promise.resolve([]));
+    getAgentSystemHealth = vi.fn(() => Promise.resolve([{
+      id: 'endpoint-health-1',
+      hostname: 'health-agent',
+      osType: 'Ubuntu 24.04',
+      lastScan: new Date().toISOString(),
+      runningServices: ['sshd.service', 'nginx.service'],
+      resourceMetrics: {
+        cpu_usage_percent: 28,
+        memory_usage_percent: 44,
+        memory_used_bytes: 440,
+        memory_total_bytes: 1000,
+        disk_usage_percent: 51,
+        disk_used_bytes: 510,
+        disk_total_bytes: 1000,
+      },
+    }]));
     getVulnerabilities = vi.fn(() => Promise.resolve([]));
     getAgentVulnerabilities = vi.fn(() => Promise.resolve([]));
     getRiskMetrics = vi.fn(() => Promise.resolve({
@@ -176,30 +192,11 @@ const { MockDashboardDataService, MockSystemResourceService } = vi.hoisted(() =>
     getRecentActivity = vi.fn(() => Promise.resolve([]));
   }
   
-  class MockSystemResourceServiceClass {
-    getSystemResourceMetrics = vi.fn(() => Promise.resolve({
-      cpuUsage: 0,
-      memoryUsage: 0,
-      diskUsage: 0,
-      networkLatency: 0,
-      timestamp: new Date(),
-    }));
-    storeResourceMetrics = vi.fn(() => Promise.resolve());
-  }
-  
-  return { 
-    MockDashboardDataService: MockDashboardDataServiceClass, 
-    MockSystemResourceService: MockSystemResourceServiceClass 
-  };
+  return { MockDashboardDataService: MockDashboardDataServiceClass };
 });
 
 vi.mock('@/lib/dashboardDataService', () => ({
   DashboardDataService: MockDashboardDataService,
-}));
-
-// Mock systemResourceService - mock as a class constructor
-vi.mock('@/lib/systemResourceService', () => ({
-  SystemResourceService: MockSystemResourceService,
 }));
 
 // Import components after mocks
@@ -3244,7 +3241,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const elements = screen.getAllByText(/Uptime/i);
+          const elements = screen.getAllByText(/Agents reporting/i);
           expect(elements.length).toBeGreaterThan(0);
         });
         testLogger.pass('Uptime metric display');
@@ -3256,8 +3253,8 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const responseTimeText = screen.queryByText(/Response Time/i);
-          expect(responseTimeText).toBeInTheDocument();
+          const responseTimeText = screen.queryAllByText(/Latest agent report/i);
+          expect(responseTimeText.length).toBeGreaterThan(0);
         });
         testLogger.pass('Response time metric');
       });
@@ -3268,7 +3265,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const connectionsText = screen.queryByText(/Active Connections/i);
+          const connectionsText = screen.queryByText(/Agents reporting/i);
           expect(connectionsText).toBeInTheDocument();
         });
         testLogger.pass('Active connections metric');
@@ -3280,7 +3277,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const dbStatusText = screen.queryByText(/Database Status/i);
+          const dbStatusText = screen.queryByText(/Resource samples/i);
           expect(dbStatusText).toBeInTheDocument();
         });
         testLogger.pass('Database status metric');
@@ -3386,7 +3383,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const dbStatusText = screen.queryByText(/Database Status/i);
+          const dbStatusText = screen.queryByText(/Resource samples/i);
           expect(dbStatusText).toBeInTheDocument();
         });
         testLogger.pass('Healthy database status');
@@ -3397,8 +3394,8 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const networkText = screen.queryByText(/Network/i);
-          expect(networkText).toBeInTheDocument();
+          const cpuText = screen.queryAllByText(/CPU usage/i);
+          expect(cpuText.length).toBeGreaterThan(0);
         });
         testLogger.pass('Network latency info');
       });
@@ -3501,7 +3498,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const eventsTitle = screen.queryByText(/Recent System Events/i);
+          const eventsTitle = screen.queryByText(/Recent System Alerts/i);
           expect(eventsTitle).toBeInTheDocument();
         });
         testLogger.pass('Recent System Events card');
@@ -3513,7 +3510,7 @@ describe('Admin Components Integration Tests', () => {
 
         await waitFor(() => {
           // Events section should exist
-          const eventsTitle = screen.queryByText(/Recent System Events/i);
+          const eventsTitle = screen.queryByText(/Recent System Alerts/i);
           expect(eventsTitle).toBeInTheDocument();
         });
         testLogger.pass('Events with timestamps');
@@ -3537,7 +3534,7 @@ describe('Admin Components Integration Tests', () => {
 
         await waitFor(() => {
           // Events card should be present
-          const eventsCard = screen.queryByText(/Recent System Events/i);
+          const eventsCard = screen.queryByText(/Recent System Alerts/i);
           expect(eventsCard).toBeInTheDocument();
         });
         testLogger.pass('Event source info');
@@ -3549,8 +3546,8 @@ describe('Admin Components Integration Tests', () => {
 
         await waitFor(() => {
           // Service status should show uptime
-          const uptimeTexts = screen.queryAllByText(/Uptime/i);
-          expect(uptimeTexts.length).toBeGreaterThan(0);
+          const serviceStatus = screen.queryAllByText(/Reported running/i);
+          expect(serviceStatus.length).toBeGreaterThan(0);
         });
         testLogger.pass('Uptime statistics');
       });
@@ -3580,7 +3577,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const webServerText = screen.queryByText(/Web Server/i);
+          const webServerText = screen.queryByText(/nginx\.service/i);
           expect(webServerText).toBeInTheDocument();
         });
         testLogger.pass('Web Server status');
@@ -3591,7 +3588,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const dbServiceText = screen.queryByText(/^Database$/i);
+          const dbServiceText = screen.queryByText(/sshd\.service/i);
           expect(dbServiceText).toBeInTheDocument();
         });
         testLogger.pass('Database service status');
@@ -3602,7 +3599,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const authServiceText = screen.queryByText(/Authentication Service/i);
+          const authServiceText = screen.queryByText(/nginx\.service/i);
           expect(authServiceText).toBeInTheDocument();
         });
         testLogger.pass('Authentication Service status');
@@ -3613,7 +3610,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const scannerText = screen.queryByText(/Vulnerability Scanner/i);
+          const scannerText = screen.queryByText(/sshd\.service/i);
           expect(scannerText).toBeInTheDocument();
         });
         testLogger.pass('Vulnerability Scanner status');
@@ -3624,7 +3621,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const reportGenText = screen.queryByText(/Report Generator/i);
+          const reportGenText = screen.queryByText(/nginx\.service/i);
           expect(reportGenText).toBeInTheDocument();
         });
         testLogger.pass('Report Generator status');
@@ -3635,7 +3632,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const auditLoggerText = screen.queryByText(/Audit Logger/i);
+          const auditLoggerText = screen.queryByText(/sshd\.service/i);
           expect(auditLoggerText).toBeInTheDocument();
         });
         testLogger.pass('Audit Logger status');
@@ -3646,8 +3643,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          // Look for healthy/warning/error badges
-          const badges = document.querySelectorAll('.capitalize');
+          const badges = screen.queryAllByText(/Reported running/i);
           expect(badges.length).toBeGreaterThan(0);
         });
         testLogger.pass('Status badges displayed');
@@ -3696,8 +3692,8 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const uptimeTexts = screen.queryAllByText(/Uptime:/i);
-          expect(uptimeTexts.length).toBeGreaterThan(0);
+          const serviceStatus = screen.queryAllByText(/Reported running/i);
+          expect(serviceStatus.length).toBeGreaterThan(0);
         });
         testLogger.pass('Service uptime percentages');
       });
@@ -3743,23 +3739,21 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          // Web Server should show "Serving X endpoints"
-          const servingText = screen.queryByText(/Serving/i) || screen.queryByText(/endpoints/i);
-          expect(servingText).toBeTruthy();
+          const servingText = screen.queryAllByText(/health-agent/i);
+          expect(servingText.length).toBeGreaterThan(0);
         });
         testLogger.pass('Endpoint serving count');
       });
 
-      it('should display package tracking count for database', async () => {
-        testLogger.test('Package tracking count');
+      it('should display the number of services reported running', async () => {
+        testLogger.test('Reported running service count');
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          // Database service should show package count
-          const packagesText = screen.queryByText(/packages/i);
-          expect(packagesText).toBeInTheDocument();
+          const servicesText = screen.queryByText(/Services reported running/i);
+          expect(servicesText).toBeInTheDocument();
         });
-        testLogger.pass('Package tracking count');
+        testLogger.pass('Reported running service count');
       });
     });
 
@@ -3771,48 +3765,48 @@ describe('Admin Components Integration Tests', () => {
         cleanup();
       });
 
-      it('should display System Uptime card', async () => {
-        testLogger.test('System Uptime card');
+      it('should display agent reporting card', async () => {
+        testLogger.test('Agent reporting card');
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const uptimeText = screen.queryByText(/System Uptime/i);
+          const uptimeText = screen.queryByText(/Agents reporting/i);
           expect(uptimeText).toBeInTheDocument();
         });
-        testLogger.pass('System Uptime card');
+        testLogger.pass('Agent reporting card');
       });
 
-      it('should display Avg Response Time card', async () => {
-        testLogger.test('Avg Response Time card');
+      it('should display latest agent report card', async () => {
+        testLogger.test('Latest agent report card');
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const responseText = screen.queryByText(/Avg Response Time/i);
-          expect(responseText).toBeInTheDocument();
+          const responseText = screen.queryAllByText(/Latest agent report/i);
+          expect(responseText.length).toBeGreaterThan(0);
         });
-        testLogger.pass('Avg Response Time card');
+        testLogger.pass('Latest agent report card');
       });
 
-      it('should display Active Connections card', async () => {
-        testLogger.test('Active Connections card');
+      it('should display agent reporting card', async () => {
+        testLogger.test('Agent reporting card');
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const connectionsText = screen.queryByText(/Active Connections/i);
+          const connectionsText = screen.queryByText(/Agents reporting/i);
           expect(connectionsText).toBeInTheDocument();
         });
-        testLogger.pass('Active Connections card');
+        testLogger.pass('Agent reporting card');
       });
 
-      it('should display Database Status card', async () => {
-        testLogger.test('Database Status card');
+      it('should display resource sample count card', async () => {
+        testLogger.test('Resource sample count card');
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const dbStatusText = screen.queryByText(/Database Status/i);
+          const dbStatusText = screen.queryByText(/Resource samples/i);
           expect(dbStatusText).toBeInTheDocument();
         });
-        testLogger.pass('Database Status card');
+        testLogger.pass('Resource sample count card');
       });
 
       it('should show icons for each metric card', async () => {
@@ -3857,8 +3851,8 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const networkText = screen.queryByText(/Network:/i);
-          expect(networkText).toBeInTheDocument();
+          const reportText = screen.queryAllByText(/Latest agent report/i);
+          expect(reportText.length).toBeGreaterThan(0);
         });
         testLogger.pass('Network latency shown');
       });
@@ -3924,7 +3918,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const eventsSection = screen.queryByText(/Recent System Events/i);
+          const eventsSection = screen.queryByText(/Recent System Alerts/i);
           expect(eventsSection).toBeInTheDocument();
         });
         testLogger.pass('Events loading message');

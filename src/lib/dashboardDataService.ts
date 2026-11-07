@@ -64,6 +64,52 @@ export interface AgentInventoryStats {
   latestCollection: string | null;
 }
 
+export interface AgentResourceMetrics {
+  cpu_usage_percent: number | null;
+  memory_usage_percent: number | null;
+  memory_used_bytes: number | null;
+  memory_total_bytes: number | null;
+  disk_usage_percent: number | null;
+  disk_used_bytes: number | null;
+  disk_total_bytes: number | null;
+}
+
+export interface AgentHealthEndpoint {
+  id: string;
+  hostname: string;
+  osType: string;
+  lastScan: string | null;
+  runningServices: string[];
+  resourceMetrics: AgentResourceMetrics | null;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function finiteNumber(value: unknown, min = 0, max = Number.MAX_SAFE_INTEGER): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max
+    ? value
+    : null;
+}
+
+function parseAgentResourceMetrics(value: unknown): AgentResourceMetrics | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const metrics: AgentResourceMetrics = {
+    cpu_usage_percent: finiteNumber(record.cpu_usage_percent, 0, 100),
+    memory_usage_percent: finiteNumber(record.memory_usage_percent, 0, 100),
+    memory_used_bytes: finiteNumber(record.memory_used_bytes),
+    memory_total_bytes: finiteNumber(record.memory_total_bytes, 1),
+    disk_usage_percent: finiteNumber(record.disk_usage_percent, 0, 100),
+    disk_used_bytes: finiteNumber(record.disk_used_bytes),
+    disk_total_bytes: finiteNumber(record.disk_total_bytes, 1),
+  };
+  return Object.values(metrics).some((metric) => metric !== null) ? metrics : null;
+}
+
 export interface ThreatAssignee {
   id: string;
   email: string;
@@ -72,6 +118,34 @@ export interface ThreatAssignee {
 }
 
 export class DashboardDataService {
+
+  async getAgentSystemHealth(): Promise<AgentHealthEndpoint[]> {
+    const { data: endpoints, error } = await supabase
+      .from('endpoints')
+      .select('id, hostname, os_type, last_scan, metadata')
+      .filter('metadata->>collection_source', 'eq', 'agent')
+      .order('last_scan', { ascending: false });
+
+    if (error) {
+      throw new Error(`Failed to fetch agent system health: ${error.message}`);
+    }
+
+    return (endpoints ?? []).map((endpoint) => {
+      const metadata = asRecord(endpoint.metadata);
+      return {
+        id: endpoint.id,
+        hostname: endpoint.hostname,
+        osType: endpoint.os_type,
+        lastScan: endpoint.last_scan,
+        runningServices: Array.isArray(metadata.running_services)
+          ? metadata.running_services.filter(
+              (service): service is string => typeof service === 'string' && service.length > 0,
+            )
+          : [],
+        resourceMetrics: parseAgentResourceMetrics(metadata.resource_metrics),
+      };
+    });
+  }
 
   async getThreatAssignees(): Promise<ThreatAssignee[]> {
     const { data, error } = await supabase

@@ -1,520 +1,349 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { PermissionGuard } from '@/components/auth/PermissionGuard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Activity, Server, Database, Wifi, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
-import { DashboardDataService, DashboardEndpoint, RiskMetrics } from '@/lib/dashboardDataService';
-import { SystemResourceService, SystemResourceMetrics } from '@/lib/systemResourceService';
+import {
+  Activity,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  Cpu,
+  HardDrive,
+  MemoryStick,
+  Server,
+} from 'lucide-react';
+import {
+  AgentHealthEndpoint,
+  DashboardDataService,
+} from '@/lib/dashboardDataService';
 
-interface SystemMetrics {
-  uptime: string;
-  responseTime: string;
-  activeConnections: number;
-  databaseHealth: 'healthy' | 'warning' | 'error';
-  memoryUsage: number;
-  cpuUsage: number;
-  diskUsage: number;
-  networkLatency: string;
-  totalEndpoints: number;
-  healthyEndpoints: number;
-  vulnerableEndpoints: number;
-  criticalEndpoints: number;
+const REPORT_FRESHNESS_MS = 5 * 60 * 1000;
+const RESOURCE_ALERT_THRESHOLD = 85;
+const dashboardService = new DashboardDataService();
+
+function reportTime(endpoint: AgentHealthEndpoint): number | null {
+  if (!endpoint.lastScan) return null;
+  const timestamp = Date.parse(endpoint.lastScan);
+  return Number.isNaN(timestamp) ? null : timestamp;
 }
 
-interface ServiceStatus {
-  name: string;
-  status: 'healthy' | 'warning' | 'error';
-  uptime: string;
-  lastCheck: string;
-  details?: string;
+function formatAge(timestamp: number | null, now: number): string {
+  if (timestamp === null) return 'No report received';
+  const minutes = Math.max(0, Math.floor((now - timestamp) / 60_000));
+  if (minutes === 0) return 'Just now';
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? '' : 's'} ago`;
 }
 
-interface SystemEvent {
-  time: string;
-  type: 'info' | 'warning' | 'error';
-  message: string;
-  source?: string;
+function average(values: Array<number | null>): number | null {
+  const available = values.filter((value): value is number => value !== null);
+  if (available.length === 0) return null;
+  return available.reduce((sum, value) => sum + value, 0) / available.length;
+}
+
+function formatPercentage(value: number | null): string {
+  return value === null ? 'No data' : `${value.toFixed(1)}%`;
 }
 
 export default function AdminSystemHealth() {
-  const [systemMetrics, setSystemMetrics] = useState<SystemMetrics>({
-    uptime: '0%',
-    responseTime: '0ms',
-    activeConnections: 0,
-    databaseHealth: 'healthy',
-    memoryUsage: 0,
-    cpuUsage: 0,
-    diskUsage: 0,
-    networkLatency: '0ms',
-    totalEndpoints: 0,
-    healthyEndpoints: 0,
-    vulnerableEndpoints: 0,
-    criticalEndpoints: 0,
-  });
-  
-  const [services, setServices] = useState<ServiceStatus[]>([]);
-  const [recentEvents, setRecentEvents] = useState<SystemEvent[]>([]);
+  const [endpoints, setEndpoints] = useState<AgentHealthEndpoint[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [endpoints, setEndpoints] = useState<DashboardEndpoint[]>([]);
-  const [realResourceMetrics, setRealResourceMetrics] = useState<SystemResourceMetrics | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const now = Date.now();
 
-  const dashboardService = new DashboardDataService();
-  const resourceService = new SystemResourceService();
-
-  // Load real system health data
-  useEffect(() => {
-    loadSystemHealthData();
-    
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(loadSystemHealthData, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const loadSystemHealthData = async () => {
+  const loadSystemHealth = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
     try {
-      setIsLoading(true);
-      const [endpointsData, riskMetrics, resourceMetrics] = await Promise.all([
-        dashboardService.getEndpoints(),
-        dashboardService.getRiskMetrics(),
-        resourceService.getSystemResourceMetrics()
-      ]);
-
-      setEndpoints(endpointsData);
-      setRealResourceMetrics(resourceMetrics);
-
-      // Store the metrics for historical tracking
-      await resourceService.storeResourceMetrics(resourceMetrics);
-
-      // Calculate system metrics from real data
-      const totalEndpoints = endpointsData.length;
-      const healthyEndpoints = endpointsData.filter(e => e.status === 'healthy').length;
-      const vulnerableEndpoints = endpointsData.filter(e => e.status === 'vulnerable').length;
-      const criticalEndpoints = endpointsData.filter(e => e.status === 'critical').length;
-
-      // Calculate uptime based on healthy systems
-      const uptimePercentage = totalEndpoints > 0 ? 
-        ((healthyEndpoints + vulnerableEndpoints) / totalEndpoints * 100).toFixed(1) : '100.0';
-
-      // Response time based on network latency and system load
-      const avgResponseTime = resourceMetrics.networkLatency > 20 ? `${Math.round(resourceMetrics.networkLatency * 8)}ms` : 
-                             resourceMetrics.networkLatency > 15 ? `${Math.round(resourceMetrics.networkLatency * 6)}ms` : 
-                             `${Math.round(resourceMetrics.networkLatency * 4)}ms`;
-      
-      const activeConnections = Math.floor(totalEndpoints * 12.5); // Simulate connections per endpoint
-      
-      // Database health based on system status and resource usage
-      const databaseHealth: 'healthy' | 'warning' | 'error' = 
-        criticalEndpoints > 0 || resourceMetrics.cpuUsage > 85 ? 'error' :
-        vulnerableEndpoints > 5 || resourceMetrics.memoryUsage > 80 ? 'warning' : 'healthy';
-
-      setSystemMetrics({
-        uptime: `${uptimePercentage}%`,
-        responseTime: avgResponseTime,
-        activeConnections,
-        databaseHealth,
-        memoryUsage: resourceMetrics.memoryUsage,
-        cpuUsage: resourceMetrics.cpuUsage,
-        diskUsage: resourceMetrics.diskUsage,
-        networkLatency: `${Math.round(resourceMetrics.networkLatency)}ms`,
-        totalEndpoints,
-        healthyEndpoints,
-        vulnerableEndpoints,
-        criticalEndpoints,
-      });
-
-      // Generate service status from real data
-      const serviceStatuses: ServiceStatus[] = [
-        {
-          name: 'Web Server',
-          status: criticalEndpoints > 0 || resourceMetrics.cpuUsage > 80 ? 'warning' : 'healthy',
-          uptime: `${uptimePercentage}%`,
-          lastCheck: '2 min ago',
-          details: `Serving ${totalEndpoints} endpoints • CPU: ${resourceMetrics.cpuUsage}%`
-        },
-        {
-          name: 'Database',
-          status: databaseHealth,
-          uptime: databaseHealth === 'error' ? '98.5%' : '99.8%',
-          lastCheck: '1 min ago',
-          details: `${endpointsData.reduce((sum, e) => sum + e.totalPackages, 0)} packages tracked • Memory: ${resourceMetrics.memoryUsage}%`
-        },
-        {
-          name: 'Authentication Service',
-          status: resourceMetrics.networkLatency > 25 ? 'warning' : 'healthy',
-          uptime: resourceMetrics.networkLatency > 25 ? '99.2%' : '100%',
-          lastCheck: '30 sec ago',
-          details: `Latency: ${Math.round(resourceMetrics.networkLatency)}ms`
-        },
-        {
-          name: 'Vulnerability Scanner',
-          status: criticalEndpoints > 0 ? 'error' : vulnerableEndpoints > 0 ? 'warning' : 'healthy',
-          uptime: criticalEndpoints > 0 ? '95.2%' : '98.5%',
-          lastCheck: '5 min ago',
-          details: `${riskMetrics.criticalCount + riskMetrics.highCount} active threats • CPU: ${resourceMetrics.cpuUsage}%`
-        },
-        {
-          name: 'Report Generator',
-          status: resourceMetrics.diskUsage > 80 ? 'warning' : 'healthy',
-          uptime: resourceMetrics.diskUsage > 80 ? '99.1%' : '99.7%',
-          lastCheck: '1 min ago',
-          details: `Disk: ${resourceMetrics.diskUsage}%`
-        },
-        {
-          name: 'Audit Logger',
-          status: resourceMetrics.memoryUsage > 85 ? 'warning' : 'healthy',
-          uptime: resourceMetrics.memoryUsage > 85 ? '99.3%' : '99.9%',
-          lastCheck: '45 sec ago',
-          details: `Memory: ${resourceMetrics.memoryUsage}%`
-        }
-      ];
-
-      setServices(serviceStatuses);
-
-      // Generate recent events from real data
-      const events: SystemEvent[] = [];
-      
-      // Add events based on real resource usage
-      if (resourceMetrics.cpuUsage > 80) {
-        events.push({
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          type: 'warning',
-          message: `High CPU usage detected: ${resourceMetrics.cpuUsage}%`,
-          source: 'System Monitor'
-        });
-      }
-
-      if (resourceMetrics.memoryUsage > 80) {
-        events.push({
-          time: new Date(Date.now() - 2 * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          type: 'warning',
-          message: `High memory usage detected: ${resourceMetrics.memoryUsage}%`,
-          source: 'System Monitor'
-        });
-      }
-
-      if (resourceMetrics.diskUsage > 75) {
-        events.push({
-          time: new Date(Date.now() - 3 * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          type: 'warning',
-          message: `Disk usage approaching capacity: ${resourceMetrics.diskUsage}%`,
-          source: 'Storage Monitor'
-        });
-      }
-
-      if (resourceMetrics.networkLatency > 25) {
-        events.push({
-          time: new Date(Date.now() - 4 * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          type: 'warning',
-          message: `Network latency elevated: ${Math.round(resourceMetrics.networkLatency)}ms`,
-          source: 'Network Monitor'
-        });
-      }
-      
-      // Add events based on system status
-      if (criticalEndpoints > 0) {
-        events.push({
-          time: new Date(Date.now() - 1 * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          type: 'error',
-          message: `${criticalEndpoints} critical vulnerabilities detected across monitored systems`,
-          source: 'Vulnerability Scanner'
-        });
-      }
-
-      if (vulnerableEndpoints > 0) {
-        events.push({
-          time: new Date(Date.now() - 5 * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          type: 'warning',
-          message: `${vulnerableEndpoints} systems require security updates`,
-          source: 'System Monitor'
-        });
-      }
-
-      // Add routine events
-      events.push({
-        time: new Date(Date.now() - 10 * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        type: 'info',
-        message: `System scan completed - ${totalEndpoints} endpoints monitored`,
-        source: 'Data Collection Service'
-      });
-
-      events.push({
-        time: new Date(Date.now() - 15 * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        type: 'info',
-        message: 'Database backup completed successfully',
-        source: 'Backup Service'
-      });
-
-      // Resource optimization event
-      if (resourceMetrics.cpuUsage < 30 && resourceMetrics.memoryUsage < 50) {
-        events.push({
-          time: new Date(Date.now() - 25 * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          type: 'info',
-          message: 'System resources optimized - performance stable',
-          source: 'Resource Manager'
-        });
-      }
-
-      setRecentEvents(events.slice(0, 6));
-
-      console.log('🏥 System health data loaded with real resource metrics:', {
-        endpoints: totalEndpoints,
-        healthy: healthyEndpoints,
-        vulnerable: vulnerableEndpoints,
-        critical: criticalEndpoints,
-        uptime: uptimePercentage,
-        realMetrics: {
-          cpu: resourceMetrics.cpuUsage,
-          memory: resourceMetrics.memoryUsage,
-          disk: resourceMetrics.diskUsage,
-          network: resourceMetrics.networkLatency
-        }
-      });
-
+      setEndpoints(await dashboardService.getAgentSystemHealth());
+      setLastUpdatedAt(new Date());
     } catch (error) {
-      console.error('❌ Error loading system health data:', error);
-      // Keep existing default values on error
+      console.error('Unable to load agent system health:', error);
+      setLoadError('Unable to load system health. Check the database connection and try again.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'healthy': return <CheckCircle className="h-4 w-4 text-green-600" />;
-      case 'warning': return <AlertTriangle className="h-4 w-4 text-yellow-600" />;
-      case 'error': return <AlertTriangle className="h-4 w-4 text-red-600" />;
-      default: return <Clock className="h-4 w-4 text-gray-600" />;
-    }
-  };
+  useEffect(() => {
+    void loadSystemHealth();
+    const interval = setInterval(() => void loadSystemHealth(), 30_000);
+    return () => clearInterval(interval);
+  }, [loadSystemHealth]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'healthy': return 'bg-green-100 text-green-900 border-green-200';
-      case 'warning': return 'bg-yellow-100 text-yellow-900 border-yellow-200';
-      case 'error': return 'bg-red-100 text-red-900 border-red-200';
-      default: return 'outline';
+  const reportingEndpoints = useMemo(
+    () => endpoints.filter((endpoint) => {
+      const timestamp = reportTime(endpoint);
+      return timestamp !== null && now - timestamp <= REPORT_FRESHNESS_MS;
+    }),
+    [endpoints, now],
+  );
+  const latestReport = useMemo(
+    () => endpoints.reduce<number | null>((latest, endpoint) => {
+      const timestamp = reportTime(endpoint);
+      return timestamp !== null && (latest === null || timestamp > latest) ? timestamp : latest;
+    }, null),
+    [endpoints],
+  );
+  const resourceSamples = reportingEndpoints
+    .map((endpoint) => endpoint.resourceMetrics)
+    .filter((metrics) => metrics !== null);
+  const cpuUsage = average(resourceSamples.map((metrics) => metrics.cpu_usage_percent));
+  const memoryUsage = average(resourceSamples.map((metrics) => metrics.memory_usage_percent));
+  const diskUsage = average(resourceSamples.map((metrics) => metrics.disk_usage_percent));
+  const runningServiceReports = endpoints.flatMap((endpoint) =>
+    endpoint.runningServices.map((service) => ({
+      service,
+      endpoint,
+      isFresh: reportingEndpoints.some((current) => current.id === endpoint.id),
+    })),
+  );
+  const events = endpoints.flatMap((endpoint) => {
+    const timestamp = reportTime(endpoint);
+    if (timestamp === null) return [];
+    const metrics = endpoint.resourceMetrics;
+    const alerts: Array<{ time: number; level: 'warning'; message: string; hostname: string }> = [];
+    if (metrics?.cpu_usage_percent !== null && metrics?.cpu_usage_percent !== undefined
+      && metrics.cpu_usage_percent >= RESOURCE_ALERT_THRESHOLD) {
+      alerts.push({
+        time: timestamp,
+        level: 'warning',
+        message: `CPU usage was ${metrics.cpu_usage_percent.toFixed(1)}%`,
+        hostname: endpoint.hostname,
+      });
     }
-  };
+    if (metrics?.memory_usage_percent !== null && metrics?.memory_usage_percent !== undefined
+      && metrics.memory_usage_percent >= RESOURCE_ALERT_THRESHOLD) {
+      alerts.push({
+        time: timestamp,
+        level: 'warning',
+        message: `Memory usage was ${metrics.memory_usage_percent.toFixed(1)}%`,
+        hostname: endpoint.hostname,
+      });
+    }
+    if (metrics?.disk_usage_percent !== null && metrics?.disk_usage_percent !== undefined
+      && metrics.disk_usage_percent >= RESOURCE_ALERT_THRESHOLD) {
+      alerts.push({
+        time: timestamp,
+        level: 'warning',
+        message: `Disk usage was ${metrics.disk_usage_percent.toFixed(1)}%`,
+        hostname: endpoint.hostname,
+      });
+    }
+    if (now - timestamp > REPORT_FRESHNESS_MS) {
+      alerts.push({
+        time: timestamp,
+        level: 'warning',
+        message: `Agent report is stale (${formatAge(timestamp, now)})`,
+        hostname: endpoint.hostname,
+      });
+    }
+    return alerts;
+  }).sort((left, right) => right.time - left.time).slice(0, 8);
 
-  const getEventTypeColor = (type: string) => {
-    switch (type) {
-      case 'info': return 'text-blue-600';
-      case 'warning': return 'text-yellow-600';
-      case 'error': return 'text-red-600';
-      default: return 'text-gray-600';
-    }
-  };
+  const renderResourceMetric = (
+    label: string,
+    Icon: typeof Cpu,
+    value: number | null,
+  ) => (
+    <div key={label}>
+      <div className="mb-2 flex items-center justify-between">
+        <span className="flex items-center gap-2 text-sm font-medium">
+          <Icon className="h-4 w-4 text-muted-foreground" />
+          {label}
+        </span>
+        <span className="text-sm text-muted-foreground">{formatPercentage(value)}</span>
+      </div>
+      <Progress value={value ?? 0} className="h-2" />
+    </div>
+  );
 
   return (
     <PermissionGuard permission="system.health_monitoring" fallback={
-      <div className="space-y-6">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <p className="text-slate-300">You don't have permission to view system health data.</p>
-          </div>
-        </div>
+      <div className="flex h-64 items-center justify-center">
+        <p className="text-slate-300">You don't have permission to view system health data.</p>
       </div>
     }>
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2">
             <Activity className="h-5 w-5" />
-            <h3 className="text-lg font-semibold">System Health & Performance</h3>
+            <h3 className="text-lg font-semibold">System Health &amp; Performance</h3>
           </div>
-          <div className="text-sm text-gray-500">
-            {isLoading ? 'Loading...' : `Last updated: ${new Date().toLocaleTimeString()}`}
+          <div className="text-sm text-muted-foreground">
+            {isLoading
+              ? 'Loading...'
+              : lastUpdatedAt
+                ? `Last updated: ${lastUpdatedAt.toLocaleTimeString()}`
+                : 'No dashboard refresh yet'}
           </div>
         </div>
 
-        {/* Key Metrics - Now with real data */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {loadError && (
+          <div role="alert" className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+            {loadError}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
           <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center space-x-2">
-                <Server className="h-5 w-5 text-green-600" />
-                <div>
-                  <div className="text-2xl font-bold text-green-600">
-                    {isLoading ? '...' : systemMetrics.uptime}
-                  </div>
-                  <div className="text-sm text-gray-500">System Uptime</div>
-                  <div className="text-xs text-gray-400">
-                    {systemMetrics.healthyEndpoints}/{systemMetrics.totalEndpoints} healthy
-                  </div>
+            <CardContent className="flex items-center gap-3 pt-6">
+              <Server className="h-5 w-5 text-blue-600" />
+              <div>
+                <div className="text-2xl font-bold">
+                  {isLoading ? '...' : `${reportingEndpoints.length}/${endpoints.length}`}
+                </div>
+                <div className="text-sm text-muted-foreground">Agents reporting</div>
+                <div className="text-xs text-muted-foreground">Reports within 5 minutes</div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="flex items-center gap-3 pt-6">
+              <Clock className="h-5 w-5 text-purple-600" />
+              <div>
+                <div className="text-2xl font-bold">
+                  {isLoading ? '...' : formatAge(latestReport, now)}
+                </div>
+                <div className="text-sm text-muted-foreground">Latest agent report</div>
+                <div className="text-xs text-muted-foreground">
+                  {latestReport === null ? 'No agent reports received' : new Date(latestReport).toLocaleString()}
                 </div>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center space-x-2">
-                <Wifi className="h-5 w-5 text-blue-600" />
-                <div>
-                  <div className="text-2xl font-bold">
-                    {isLoading ? '...' : systemMetrics.responseTime}
-                  </div>
-                  <div className="text-sm text-gray-500">Avg Response Time</div>
-                  <div className="text-xs text-gray-400">
-                    Network: {systemMetrics.networkLatency}
-                  </div>
+            <CardContent className="flex items-center gap-3 pt-6">
+              <Activity className="h-5 w-5 text-green-600" />
+              <div>
+                <div className="text-2xl font-bold">
+                  {isLoading ? '...' : resourceSamples.length}
                 </div>
+                <div className="text-sm text-muted-foreground">Resource samples</div>
+                <div className="text-xs text-muted-foreground">Recent reports with telemetry</div>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center space-x-2">
-                <Activity className="h-5 w-5 text-purple-600" />
-                <div>
-                  <div className="text-2xl font-bold">
-                    {isLoading ? '...' : systemMetrics.activeConnections}
-                  </div>
-                  <div className="text-sm text-gray-500">Active Connections</div>
-                  <div className="text-xs text-gray-400">
-                    {systemMetrics.totalEndpoints} endpoints
-                  </div>
+            <CardContent className="flex items-center gap-3 pt-6">
+              <CheckCircle className="h-5 w-5 text-teal-600" />
+              <div>
+                <div className="text-2xl font-bold">
+                  {isLoading ? '...' : runningServiceReports.length}
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center space-x-2">
-                <Database className={`h-5 w-5 ${
-                  systemMetrics.databaseHealth === 'healthy' ? 'text-green-600' :
-                  systemMetrics.databaseHealth === 'warning' ? 'text-yellow-600' : 'text-red-600'
-                }`} />
-                <div>
-                  <div className={`text-2xl font-bold capitalize ${
-                    systemMetrics.databaseHealth === 'healthy' ? 'text-green-600' :
-                    systemMetrics.databaseHealth === 'warning' ? 'text-yellow-600' : 'text-red-600'
-                  }`}>
-                    {isLoading ? '...' : systemMetrics.databaseHealth}
-                  </div>
-                  <div className="text-sm text-gray-500">Database Status</div>
-                  <div className="text-xs text-gray-400">
-                    {systemMetrics.criticalEndpoints > 0 ? 'Issues detected' : 'All systems normal'}
-                  </div>
-                </div>
+                <div className="text-sm text-muted-foreground">Services reported running</div>
+                <div className="text-xs text-muted-foreground">From latest stored endpoint reports</div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Resource Usage - Dynamic based on system load */}
         <Card>
           <CardHeader>
             <CardTitle>Resource Usage</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium">Memory Usage</span>
-                  <span className={`text-sm ${
-                    systemMetrics.memoryUsage > 80 ? 'text-red-500' :
-                    systemMetrics.memoryUsage > 60 ? 'text-yellow-500' : 'text-gray-500'
-                  }`}>
-                    {isLoading ? '...' : `${systemMetrics.memoryUsage}%`}
-                  </span>
-                </div>
-                <Progress value={systemMetrics.memoryUsage} className="h-2" />
-              </div>
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium">CPU Usage</span>
-                  <span className={`text-sm ${
-                    systemMetrics.cpuUsage > 80 ? 'text-red-500' :
-                    systemMetrics.cpuUsage > 60 ? 'text-yellow-500' : 'text-gray-500'
-                  }`}>
-                    {isLoading ? '...' : `${systemMetrics.cpuUsage}%`}
-                  </span>
-                </div>
-                <Progress value={systemMetrics.cpuUsage} className="h-2" />
-              </div>
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium">Disk Usage</span>
-                  <span className={`text-sm ${
-                    systemMetrics.diskUsage > 80 ? 'text-red-500' :
-                    systemMetrics.diskUsage > 60 ? 'text-yellow-500' : 'text-gray-500'
-                  }`}>
-                    {isLoading ? '...' : `${systemMetrics.diskUsage}%`}
-                  </span>
-                </div>
-                <Progress value={systemMetrics.diskUsage} className="h-2" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Services Status - Now with real data */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Service Status</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Average of agent measurements reported within the last 5 minutes
+            </p>
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="text-center py-8 text-gray-500">Loading service status...</div>
+              <p className="py-4 text-sm text-muted-foreground">Loading endpoint telemetry...</p>
+            ) : resourceSamples.length === 0 ? (
+              <p className="py-4 text-sm text-muted-foreground">
+                No recent resource telemetry. Run the updated agent on an endpoint to report CPU, memory, and disk usage.
+              </p>
             ) : (
-              <div className="space-y-4">
-                {services.map((service, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      {getStatusIcon(service.status)}
-                      <div>
-                        <div className="font-medium">{service.name}</div>
-                        <div className="text-sm text-gray-500">
-                          Uptime: {service.uptime}
-                          {service.details && ` • ${service.details}`}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <Badge className={`capitalize ${getStatusColor(service.status)}`}>
-                        {service.status}
-                      </Badge>
-                      <span className="text-sm text-gray-500">{service.lastCheck}</span>
-                    </div>
-                  </div>
-                ))}
+              <div className="space-y-6">
+                {renderResourceMetric('CPU usage', Cpu, cpuUsage)}
+                {renderResourceMetric('Memory usage', MemoryStick, memoryUsage)}
+                {renderResourceMetric('Disk usage', HardDrive, diskUsage)}
+                <p className="text-xs text-muted-foreground">
+                  {resourceSamples.length} of {reportingEndpoints.length} currently reporting endpoints provided each available measurement.
+                </p>
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Recent System Events - Now with real data */}
         <Card>
           <CardHeader>
-            <CardTitle>Recent System Events</CardTitle>
+            <CardTitle>Service Status</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Services listed as running in each endpoint&apos;s latest agent report
+            </p>
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="text-center py-8 text-gray-500">Loading system events...</div>
-            ) : recentEvents.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500" />
-                <p>No recent system events</p>
-                <p className="text-sm">All systems operating normally</p>
+              <p className="py-4 text-center text-sm text-muted-foreground">Loading service reports...</p>
+            ) : runningServiceReports.length === 0 ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                No running services were included in the latest endpoint reports.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {runningServiceReports.slice(0, 30).map(({ service, endpoint, isFresh }) => {
+                  const timestamp = reportTime(endpoint);
+                  return (
+                    <div
+                      key={`${endpoint.id}:${service}`}
+                      className="flex items-center justify-between gap-4 rounded-lg border p-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{service}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {endpoint.hostname} · {endpoint.osType}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-3">
+                        <Badge variant={isFresh ? 'default' : 'outline'}>
+                          {isFresh ? 'Reported running' : 'Last report stale'}
+                        </Badge>
+                        <span className="hidden text-sm text-muted-foreground sm:inline">
+                          {formatAge(timestamp, now)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+                {runningServiceReports.length > 30 && (
+                  <p className="text-sm text-muted-foreground">
+                    Showing 30 of {runningServiceReports.length} service/endpoint reports.
+                  </p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent System Alerts</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">Loading agent alerts...</p>
+            ) : events.length === 0 ? (
+              <div className="py-4 text-center text-sm text-muted-foreground">
+                <CheckCircle className="mx-auto mb-2 h-8 w-8 text-green-600" />
+                No resource threshold alerts or stale agent reports.
               </div>
             ) : (
               <div className="space-y-3">
-                {recentEvents.map((event, index) => (
-                  <div key={index} className="flex items-start space-x-3 p-3 border-l-2 border-gray-200">
-                    <span className="text-sm text-gray-500 min-w-[50px]">{event.time}</span>
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2">
-                        <span className={`text-sm font-medium ${getEventTypeColor(event.type)} uppercase`}>
-                          {event.type}
-                        </span>
-                        {event.source && (
-                          <span className="text-xs text-gray-400">• {event.source}</span>
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-700 mt-1">{event.message}</p>
+                {events.map((event, index) => (
+                  <div key={`${event.hostname}:${event.time}:${index}`} className="flex items-start gap-3 border-l-2 border-amber-400 p-3">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-600" />
+                    <div>
+                      <p className="text-sm font-medium">{event.message}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {event.hostname} · reported {formatAge(event.time, now)}
+                      </p>
                     </div>
                   </div>
                 ))}
