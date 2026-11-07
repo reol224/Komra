@@ -54,6 +54,7 @@ node_modules/
 # supabase
 supabase/**
 !supabase/migrations
+!supabase/migrations/*.sql
 !supabase/functions
 
 # Snyk Security Extension - AI Rules (auto-generated)

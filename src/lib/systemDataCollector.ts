@@ -1,8 +1,10 @@
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import os from 'os';
+import fs from 'fs';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 export interface SystemPackage {
   name: string;
@@ -16,7 +18,7 @@ export interface SystemPackage {
 export interface SystemInfo {
   hostname: string;
   ip_address: string;
-  os_type: 'Windows 10' | 'Windows Server' | 'Red Hat Linux' | 'Ubuntu' | 'CentOS' | 'macOS' | 'Other';
+  os_type: string;
   os_version: string;
   architecture: string;
   cpu_info: string;
@@ -59,7 +61,7 @@ class SystemDataCollector {
     return {
       hostname: os.hostname(),
       ip_address: primaryInterface?.address || 'unknown',
-      os_type: this.getOSType(),
+      os_type: await this.getOSType(),
       os_version: os.release(),
       architecture: os.arch(),
       cpu_info: os.cpus()[0]?.model || 'unknown',
@@ -169,7 +171,10 @@ class SystemDataCollector {
       } catch {
         // Try DEB-based systems (Debian, Ubuntu)
         try {
-          const { stdout: dpkgOutput } = await execAsync(`dpkg-query -W -f='\${Package}|\${Version}|\${Maintainer}\n'`);
+          const { stdout: dpkgOutput } = await execFileAsync('dpkg-query', [
+            '-W',
+            '-f=${Package}|${Version}|${Maintainer}\\n'
+          ]);
           const dpkgLines = dpkgOutput.trim().split('\n');
           
           for (const line of dpkgLines) {
@@ -314,28 +319,49 @@ class SystemDataCollector {
     }
   }
 
-  private getOSType(): SystemInfo['os_type'] {
+  private async getOSType(): Promise<string> {
     const platform = os.platform();
-    const release = os.release();
     
     switch (platform) {
       case 'win32':
-        return release.startsWith('10.') ? 'Windows 10' : 'Windows Server';
-      case 'linux':
-        // Try to detect specific Linux distribution
         try {
-          const fs = require('fs');
-          if (fs.existsSync('/etc/redhat-release')) {
-            return 'Red Hat Linux';
-          } else if (fs.existsSync('/etc/ubuntu-release') || fs.existsSync('/etc/lsb-release')) {
-            return 'Ubuntu';
-          } else if (fs.existsSync('/etc/centos-release')) {
-            return 'CentOS';
-          }
-        } catch {}
-        return 'Red Hat Linux'; // Default for Linux
+          const { stdout } = await execAsync(
+            '(Get-CimInstance Win32_OperatingSystem).Caption',
+            { shell: 'powershell' }
+          );
+          return stdout.trim() || 'Windows';
+        } catch {
+          return 'Windows';
+        }
+      case 'linux':
+        try {
+          const osRelease = fs.readFileSync('/etc/os-release', 'utf8');
+          const rawPrettyName = osRelease
+            .split(/\r?\n/)
+            .find(line => line.startsWith('PRETTY_NAME='))
+            ?.slice('PRETTY_NAME='.length)
+            .trim();
+          if (!rawPrettyName) return 'Linux';
+
+          const isDoubleQuoted = rawPrettyName.startsWith('"') && rawPrettyName.endsWith('"');
+          const isSingleQuoted = rawPrettyName.startsWith("'") && rawPrettyName.endsWith("'");
+          const prettyName = isDoubleQuoted || isSingleQuoted
+            ? rawPrettyName.slice(1, -1)
+            : rawPrettyName;
+          const decodedName = isDoubleQuoted
+            ? prettyName.replace(/\\(["\\$`])/g, '$1')
+            : prettyName;
+          return decodedName || 'Linux';
+        } catch {
+          return 'Linux';
+        }
       case 'darwin':
-        return 'macOS';
+        try {
+          const { stdout } = await execAsync('sw_vers -productName');
+          return stdout.trim() || 'macOS';
+        } catch {
+          return 'macOS';
+        }
       default:
         return 'Other';
     }
