@@ -4027,6 +4027,38 @@ describe('Admin Components Integration Tests', () => {
       expect(screen.getByText(/LOW-TEST-2/)).toBeInTheDocument();
     });
 
+    it('should label reference destinations and expand additional references', async () => {
+      mockAgentVulnerabilities.mockResolvedValue([{
+        id: 'finding-with-references',
+        cve_id: 'REF-TEST-1',
+        description: 'Finding with multiple references',
+        severity: 'medium',
+        cvss_score: 5.4,
+        status: 'open',
+        endpoint_id: 'endpoint-1',
+        endpoint_name: 'test-endpoint',
+        environment: 'production',
+        discovered_date: new Date().toISOString(),
+        affected_packages: ['test-package'],
+        reference_urls: [
+          'https://advisories.example.org/first',
+          'https://advisories.example.org/second',
+          'https://advisories.example.org/third',
+          'https://advisories.example.org/fourth',
+          'https://advisories.example.org/fifth',
+        ],
+      }]);
+
+      await renderWithAct(<AdminThreatSummary />);
+
+      expect(screen.getByRole('link', { name: /advisories\.example\.org\/first/i })).toBeInTheDocument();
+      expect(screen.getAllByRole('link', { name: /advisories\.example\.org/i })).toHaveLength(3);
+      await userEvent.click(screen.getByRole('button', { name: 'Show all references (5)' }));
+
+      expect(screen.getAllByRole('link', { name: /advisories\.example\.org/i })).toHaveLength(5);
+      expect(screen.getByRole('button', { name: 'Show fewer references' })).toHaveAttribute('aria-expanded', 'true');
+    });
+
     it('should display threat UI', async () => {
       testLogger.test('Threat UI display');
       await renderWithAct(<AdminThreatSummary />);

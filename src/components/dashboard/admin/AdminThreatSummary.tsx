@@ -35,6 +35,16 @@ function safeExternalUrl(value: string): string | null {
   }
 }
 
+function formatReferenceLabel(value: string): string | null {
+  const safeUrl = safeExternalUrl(value);
+  if (!safeUrl) return null;
+
+  const url = new URL(safeUrl);
+  const path = url.pathname === '/' ? '' : url.pathname;
+  const preview = path.length > 40 ? `${path.slice(0, 37)}...` : path;
+  return `${url.hostname}${preview}`;
+}
+
 export default function AdminThreatSummary() {
   const { user } = useAuth();
   const [selectedThreat, setSelectedThreat] = useState<DashboardVulnerability | null>(null);
@@ -62,6 +72,9 @@ export default function AdminThreatSummary() {
   const [findingsSeverity, setFindingsSeverity] = useState('all');
   const [findingsStatus, setFindingsStatus] = useState('all');
   const [findingsPage, setFindingsPage] = useState(0);
+  const [expandedReferenceFindings, setExpandedReferenceFindings] = useState<Set<string>>(
+    () => new Set()
+  );
 
   const loadThreatData = useCallback(async () => {
     try {
@@ -174,6 +187,14 @@ export default function AdminThreatSummary() {
   );
   const findingsStart = filteredFindings.length === 0 ? 0 : findingsPage * findingsPageSize + 1;
   const findingsEnd = Math.min((findingsPage + 1) * findingsPageSize, filteredFindings.length);
+  const toggleFindingReferences = (findingId: string) => {
+    setExpandedReferenceFindings((current) => {
+      const next = new Set(current);
+      if (next.has(findingId)) next.delete(findingId);
+      else next.add(findingId);
+      return next;
+    });
+  };
 
   const escalationLevels = [
     { id: 'incident-response', name: 'Incident Response Team', description: 'For active security incidents' },
@@ -747,7 +768,19 @@ export default function AdminThreatSummary() {
             ) : (
               <>
                 <div className="space-y-3">
-                  {paginatedFindings.map((finding) => (
+                  {paginatedFindings.map((finding) => {
+                    const references = (finding.reference_urls || [])
+                      .map((reference) => ({
+                        url: safeExternalUrl(reference),
+                        label: formatReferenceLabel(reference),
+                      }))
+                      .filter((reference): reference is { url: string; label: string } =>
+                        reference.url !== null && reference.label !== null
+                      );
+                    const showAllReferences = expandedReferenceFindings.has(finding.id);
+                    const visibleReferences = showAllReferences ? references : references.slice(0, 3);
+
+                    return (
                     <details key={finding.id} className="rounded-lg border p-4">
                       <summary className="flex cursor-pointer list-none flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div className="min-w-0">
@@ -778,29 +811,42 @@ export default function AdminThreatSummary() {
                             ? finding.affected_packages.join(', ')
                             : 'Package details unavailable'}
                         </p>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <Button variant="outline" size="sm" onClick={() => handleViewCVE(finding.cve_id)}>
                             <ExternalLink className="mr-2 h-4 w-4" />
                             {/^CVE-\d{4}-\d{4,}$/i.test(finding.cve_id) ? 'View NVD' : 'View OSV'}
                           </Button>
-                          {(finding.reference_urls || []).map((reference) => {
-                            const url = safeExternalUrl(reference);
-                            return url ? (
+                          {visibleReferences.map((reference) => (
                               <a
-                                key={url}
-                                href={url}
+                                key={reference.url}
+                                href={reference.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex h-9 items-center rounded-md border px-3 text-sm font-medium hover:bg-accent"
+                                title={reference.url}
+                                aria-label={`Open reference ${reference.label} in a new tab`}
+                                className="inline-flex h-9 max-w-full items-center gap-1.5 rounded-md border px-3 text-sm font-medium hover:bg-accent"
                               >
-                                Reference
+                                <span className="truncate">{reference.label}</span>
+                                <ExternalLink className="h-3.5 w-3.5 shrink-0" />
                               </a>
-                            ) : null;
-                          })}
+                          ))}
+                          {references.length > 3 && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleFindingReferences(finding.id)}
+                              aria-expanded={showAllReferences}
+                            >
+                              {showAllReferences
+                                ? 'Show fewer references'
+                                : `Show all references (${references.length})`}
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </details>
-                  ))}
+                    );
+                  })}
                 </div>
                 <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-sm text-muted-foreground">
