@@ -32,7 +32,7 @@ export default function AnalystThreatFeed() {
     setIsLoading(true);
     setLoadError(null);
     try {
-      setAssignments(await dashboardService.getAssignedAgentThreats(user.id));
+      setAssignments(await dashboardService.getAssignedAgentThreats());
     } catch (error) {
       console.error('Unable to load assigned analyst threats:', error);
       setLoadError(error instanceof Error ? error.message : 'Unable to load assigned threats.');

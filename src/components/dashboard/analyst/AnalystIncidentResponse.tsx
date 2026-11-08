@@ -27,7 +27,7 @@ export default function AnalystIncidentResponse() {
     setIsLoading(true);
     setLoadError(null);
     try {
-      setAssignments(await dashboardService.getAssignedAgentThreats(user.id));
+      setAssignments(await dashboardService.getAssignedAgentThreats());
     } catch (error) {
       console.error('Unable to load analyst incident assignments:', error);
       setLoadError(error instanceof Error ? error.message : 'Unable to load assigned findings.');

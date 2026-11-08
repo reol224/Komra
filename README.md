@@ -82,6 +82,10 @@ unsupported and are not matched. CVE details are fetched from NVD when a
 finding is opened. You may set `NVD_API_KEY` in the server environment to use
 your NVD API key; do not expose it through a `NEXT_PUBLIC_` variable.
 
+The demo sign-in and analyst assignment APIs also require the authorization
+migration to be applied. Keep `SUPABASE_SERVICE_KEY` server-side; it must not
+be exposed through a `NEXT_PUBLIC_` variable.
+
 ## Available Scripts
 
 - `npm run dev` - Start development server

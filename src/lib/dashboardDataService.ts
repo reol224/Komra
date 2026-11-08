@@ -207,140 +207,32 @@ export class DashboardDataService {
     return data || [];
   }
 
-  async getAssignedAgentThreats(assigneeId: string): Promise<AgentThreatAssignment[]> {
-    const { data: assignments, error: assignmentError } = await supabase
-      .from('triage_actions')
-      .select('id, cve_id, endpoint_id, status, priority, assigned_to, triaged_by, notes, triaged_at, created_at, updated_at')
-      .eq('assigned_to', assigneeId)
-      .order('updated_at', { ascending: false });
-
-    if (assignmentError) {
-      throw new Error(`Failed to fetch assigned threats: ${assignmentError.message}`);
+  async getAssignedAgentThreats(assigneeId?: string): Promise<AgentThreatAssignment[]> {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+      throw new Error(`Unable to verify the current session: ${sessionError.message}`);
     }
 
-    if (!assignments?.length) return [];
-
-    const cveIds = Array.from(new Set(assignments.map((assignment) => assignment.cve_id)));
-    const { data: cves, error: cveError } = await supabase
-      .from('cves')
-      .select('id, cve_id')
-      .in('id', cveIds);
-
-    if (cveError) {
-      throw new Error(`Failed to load assigned threat identifiers: ${cveError.message}`);
-    }
-
-    const cveIdByRecordId = new Map((cves ?? []).map((cve) => [cve.id, cve.cve_id]));
-    const findingCveIds = Array.from(new Set(
-      assignments
-        .map((assignment) => cveIdByRecordId.get(assignment.cve_id))
-        .filter((cveId): cveId is string => Boolean(cveId)),
-    ));
-    if (findingCveIds.length === 0) return [];
-
-    const endpointIds = Array.from(new Set(assignments.map((assignment) => assignment.endpoint_id)));
-    const { data: findings, error: findingError } = await supabase
-      .from('vulnerabilities')
-      .select('id, cve_id, description, severity, cvss_score, status, endpoint_id, discovered_date, source_id, reference_urls, affected_packages')
-      .eq('source', 'osv')
-      .in('cve_id', findingCveIds)
-      .in('endpoint_id', endpointIds);
-
-    if (findingError) {
-      throw new Error(`Failed to load assigned OSV findings: ${findingError.message}`);
-    }
-
-    const findingByKey = new Map(
-      (findings ?? []).map((finding) => [`${finding.endpoint_id}:${finding.cve_id}`, finding]),
-    );
-    const agentAssignments = assignments.filter((assignment) => {
-      const cveId = cveIdByRecordId.get(assignment.cve_id);
-      return cveId && findingByKey.has(`${assignment.endpoint_id}:${cveId}`);
+    const query = assigneeId
+      ? `?assigneeId=${encodeURIComponent(assigneeId)}`
+      : '';
+    const response = await fetch(`/api/dashboard/assigned-agent-threats${query}`, {
+      headers: session
+        ? { Authorization: `Bearer ${session.access_token}` }
+        : undefined,
     });
-    if (agentAssignments.length === 0) return [];
-
-    const relevantEndpointIds = Array.from(new Set(agentAssignments.map((assignment) => assignment.endpoint_id)));
-    const relevantUserIds = Array.from(new Set(agentAssignments.flatMap((assignment) =>
-      [assignment.assigned_to, assignment.triaged_by].filter((id): id is string => Boolean(id)),
-    )));
-    const [endpointResult, userResult] = await Promise.all([
-      supabase
-        .from('endpoints')
-        .select('id, hostname, environment')
-        .in('id', relevantEndpointIds),
-      supabase
-        .from('users')
-        .select('id, email, full_name')
-        .in('id', relevantUserIds),
-    ]);
-
-    if (endpointResult.error) {
-      throw new Error(`Failed to load assigned threat endpoints: ${endpointResult.error.message}`);
+    const result = await response.json() as AgentThreatAssignment[] | { error?: string };
+    if (!response.ok) {
+      throw new Error(
+        !Array.isArray(result) && result.error
+          ? result.error
+          : 'Unable to load assigned findings.',
+      );
     }
-    if (userResult.error) {
-      throw new Error(`Failed to load assigned threat owners: ${userResult.error.message}`);
+    if (!Array.isArray(result)) {
+      throw new Error('The assigned findings response was invalid.');
     }
-
-    const endpointById = new Map((endpointResult.data ?? []).map((endpoint) => [endpoint.id, endpoint]));
-    const userById = new Map((userResult.data ?? []).map((user) => [user.id, user]));
-
-    return agentAssignments.map((assignment) => {
-      const cveId = cveIdByRecordId.get(assignment.cve_id);
-      const finding = cveId
-        ? findingByKey.get(`${assignment.endpoint_id}:${cveId}`)
-        : undefined;
-      const endpoint = endpointById.get(assignment.endpoint_id);
-      const owner = userById.get(assignment.assigned_to);
-      if (!finding || !endpoint || !owner) {
-        throw new Error(`Assigned threat ${assignment.id} is missing its finding, endpoint, or owner.`);
-      }
-
-      const assignedByUser = assignment.triaged_by
-        ? userById.get(assignment.triaged_by)
-        : undefined;
-      const status = ['open', 'in_progress', 'resolved', 'false_positive'].includes(assignment.status)
-        ? assignment.status as AgentThreatAssignment['status']
-        : 'open';
-      const priority = ['critical', 'high', 'medium', 'low'].includes(assignment.priority)
-        ? assignment.priority as AgentThreatAssignment['priority']
-        : 'medium';
-
-      return {
-        id: assignment.id,
-        status,
-        priority,
-        notes: assignment.notes,
-        createdAt: assignment.created_at,
-        updatedAt: assignment.updated_at,
-        assignedAt: assignment.triaged_at,
-        owner: {
-          id: owner.id,
-          email: owner.email,
-          fullName: owner.full_name,
-        },
-        assignedBy: assignedByUser ? {
-          id: assignedByUser.id,
-          email: assignedByUser.email,
-          fullName: assignedByUser.full_name,
-        } : null,
-        finding: {
-          id: finding.id,
-          cve_id: finding.cve_id,
-          description: finding.description,
-          severity: finding.severity,
-          cvss_score: finding.cvss_score,
-          status: finding.status,
-          endpoint_id: finding.endpoint_id,
-          endpoint_name: endpoint.hostname,
-          environment: endpoint.environment,
-          discovered_date: finding.discovered_date,
-          affected_packages: finding.affected_packages ?? [],
-          source: 'osv',
-          source_id: finding.source_id,
-          reference_urls: finding.reference_urls ?? [],
-        },
-      };
-    });
+    return result;
   }
 
   async assignThreat(input: {
@@ -348,54 +240,25 @@ export class DashboardDataService {
     cveId: string;
     endpointId: string;
     assignedTo: string;
-    assignedBy: string;
     priority: 'critical' | 'high' | 'medium' | 'low';
     notes: string;
   }): Promise<void> {
-    const { data: cve, error: cveError } = await supabase
-      .from('cves')
-      .select('id')
-      .eq('cve_id', input.cveId)
-      .maybeSingle();
-
-    if (cveError) {
-      throw new Error(`Failed to find CVE record for assignment: ${cveError.message}`);
-    }
-    if (!cve) {
-      throw new Error(`CVE ${input.cveId} is missing from the CVE catalog`);
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+      throw new Error(`Unable to verify the current session: ${sessionError.message}`);
     }
 
-    const { error: triageError } = await supabase
-      .from('triage_actions')
-      .upsert(
-        {
-          cve_id: cve.id,
-          endpoint_id: input.endpointId,
-          status: 'in_progress',
-          priority: input.priority,
-          assigned_to: input.assignedTo,
-          notes: input.notes,
-          triaged_by: input.assignedBy,
-          triaged_at: new Date().toISOString(),
-        },
-        { onConflict: 'cve_id,endpoint_id' },
-      );
-
-    if (triageError) {
-      throw new Error(`Failed to save threat assignment: ${triageError.message}`);
-    }
-
-    const { count: updatedCount, error: vulnerabilityError } = await supabase
-      .from('vulnerabilities')
-      .update({ status: 'in_progress' }, { count: 'exact' })
-      .eq('id', input.vulnerabilityId)
-      .select('id');
-
-    if (vulnerabilityError) {
-      throw new Error(`Assignment saved, but finding status update failed: ${vulnerabilityError.message}`);
-    }
-    if (updatedCount === 0) {
-      throw new Error('Assignment saved, but finding status update affected no rows.');
+    const response = await fetch('/api/dashboard/assign-threat', {
+      method: 'POST',
+      headers: {
+        ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(input),
+    });
+    const result = await response.json() as { error?: string };
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to save threat assignment.');
     }
   }
 

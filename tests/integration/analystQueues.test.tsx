@@ -72,7 +72,7 @@ describe('Analyst assignment queues', () => {
     expect(screen.getByText('Owner: Assigned Analyst')).toBeInTheDocument();
     expect(screen.getByText('Endpoint: agent-prod-1 (production)')).toBeInTheDocument();
     await waitFor(() => {
-      expect(getAssignedAgentThreats).toHaveBeenCalledWith('analyst-123');
+      expect(getAssignedAgentThreats).toHaveBeenCalledWith();
     });
   });
 
@@ -86,7 +86,7 @@ describe('Analyst assignment queues', () => {
     expect(screen.getAllByText('Assigned Analyst')).not.toHaveLength(0);
     expect(screen.getByText('Security Admin')).toBeInTheDocument();
     await waitFor(() => {
-      expect(getAssignedAgentThreats).toHaveBeenCalledWith('analyst-123');
+      expect(getAssignedAgentThreats).toHaveBeenCalledWith();
     });
   });
 });

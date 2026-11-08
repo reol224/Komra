@@ -17,6 +17,12 @@ vi.mock('@supabase/supabase-js', () => {
   return {
     createClient: () => ({
       from,
+      auth: {
+        getSession: vi.fn().mockResolvedValue({
+          data: { session: null },
+          error: null,
+        }),
+      },
     }),
   };
 });
@@ -575,44 +581,24 @@ describe('DashboardDataService', () => {
     });
 
     describe('assignThreat', () => {
-      it('reports a partial failure when the finding update affects no rows', async () => {
-        const update = vi.fn();
-        const updateQuery = {
-          eq: vi.fn().mockReturnThis(),
-          select: vi.fn().mockResolvedValue({ count: 0, data: [], error: null }),
-        };
-        update.mockReturnValue(updateQuery);
-        mocks.from.mockImplementation((table: string) => {
-          if (table === 'cves') {
-            return {
-              select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'cve-row-1' }, error: null }),
-                }),
-              }),
-            };
-          }
-          if (table === 'triage_actions') {
-            return { upsert: vi.fn().mockResolvedValue({ error: null }) };
-          }
-          if (table === 'vulnerabilities') {
-            return { update };
-          }
-          throw new Error(`Unexpected table: ${table}`);
-        });
-
-        await expect(service.assignThreat({
+      it('uses the server-authorized assignment endpoint without sending a caller-supplied actor', async () => {
+        mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({ success: true }) });
+        const input = {
           vulnerabilityId: 'finding-missing',
           cveId: 'CVE-2025-0001',
           endpointId: 'endpoint-1',
           assignedTo: 'analyst-1',
-          assignedBy: 'admin-1',
           priority: 'high',
           notes: '',
-        })).rejects.toThrow('Assignment saved, but finding status update affected no rows.');
+        } as const;
 
-        expect(updateQuery.select).toHaveBeenCalledWith('id');
-        expect(update).toHaveBeenCalledWith({ status: 'in_progress' }, { count: 'exact' });
+        await expect(service.assignThreat(input)).resolves.toBeUndefined();
+
+        expect(mockFetch).toHaveBeenCalledWith('/api/dashboard/assign-threat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        });
       });
     });
 
@@ -886,77 +872,25 @@ describe('DashboardDataService', () => {
     it('loads the analyst assigned OSV finding with endpoint and owner details', async () => {
       const assignment = {
         id: 'assignment-1',
-        cve_id: 'cve-row-1',
-        endpoint_id: 'endpoint-1',
         status: 'in_progress',
         priority: 'critical',
-        assigned_to: 'analyst-1',
-        triaged_by: 'admin-1',
         notes: 'Investigate affected package',
-        triaged_at: '2026-11-07T18:00:00.000Z',
-        created_at: '2026-11-07T17:00:00.000Z',
-        updated_at: '2026-11-07T18:00:00.000Z',
+        owner: { id: 'analyst-1', email: 'analyst@example.com', fullName: 'Analyst Owner' },
+        assignedBy: { id: 'admin-1', email: 'admin@example.com', fullName: 'Admin User' },
+        finding: {
+          id: 'finding-1',
+          cve_id: 'OSV-2026-1234',
+          source: 'osv',
+          source_id: 'GHSA-abcd-efgh-ijkl',
+          endpoint_name: 'agent-host',
+        },
       };
-      const finding = {
-        id: 'finding-1',
-        cve_id: 'OSV-2026-1234',
-        description: 'Vulnerable package finding',
-        severity: 'high',
-        cvss_score: 8.2,
-        status: 'in_progress',
-        endpoint_id: 'endpoint-1',
-        discovered_date: '2026-11-07T16:00:00.000Z',
-        source_id: 'GHSA-abcd-efgh-ijkl',
-        reference_urls: ['https://osv.dev/vulnerability/GHSA-abcd-efgh-ijkl'],
-        affected_packages: ['example-package'],
-      };
-      const queryResult = (data: unknown) => Promise.resolve({ data, error: null });
-      mocks.from.mockImplementation((table: string) => {
-        if (table === 'triage_actions') {
-          const order = vi.fn().mockResolvedValue({ data: [assignment], error: null });
-          const eq = vi.fn().mockReturnValue({ order });
-          return { select: vi.fn().mockReturnValue({ eq }) };
-        }
-        if (table === 'cves') {
-          return {
-            select: vi.fn().mockReturnValue({
-              in: vi.fn().mockImplementation((_column: string, ids: string[]) =>
-                queryResult(ids.includes('cve-row-1') ? [{ id: 'cve-row-1', cve_id: 'OSV-2026-1234' }] : []),
-              ),
-            }),
-          };
-        }
-        if (table === 'vulnerabilities') {
-          const inEndpoints = vi.fn().mockImplementation(() => queryResult([finding]));
-          const inCves = vi.fn().mockReturnValue({ in: inEndpoints });
-          const eq = vi.fn().mockReturnValue({ in: inCves });
-          return { select: vi.fn().mockReturnValue({ eq }) };
-        }
-        if (table === 'endpoints') {
-          return {
-            select: vi.fn().mockReturnValue({
-              in: vi.fn().mockReturnValue(queryResult([{
-                id: 'endpoint-1',
-                hostname: 'agent-host',
-                environment: 'production',
-              }])),
-            }),
-          };
-        }
-        if (table === 'users') {
-          return {
-            select: vi.fn().mockReturnValue({
-              in: vi.fn().mockReturnValue(queryResult([
-                { id: 'analyst-1', email: 'analyst@example.com', full_name: 'Analyst Owner' },
-                { id: 'admin-1', email: 'admin@example.com', full_name: 'Admin User' },
-              ])),
-            }),
-          };
-        }
-        return {};
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve([assignment]),
       });
 
-      const result = await service.getAssignedAgentThreats('analyst-1');
+      const result = await service.getAssignedAgentThreats();
 
       expect(result).toHaveLength(1);
       expect(result[0]).toMatchObject({
@@ -973,16 +907,31 @@ describe('DashboardDataService', () => {
           endpoint_name: 'agent-host',
         },
       });
-      expect(mocks.from).toHaveBeenCalledWith('triage_actions');
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/dashboard/assigned-agent-threats',
+        { headers: undefined },
+      );
     });
 
-    it('returns an empty result without related queries when the analyst has no assignments', async () => {
-      const order = vi.fn().mockResolvedValue({ data: [], error: null });
-      const eq = vi.fn().mockReturnValue({ order });
-      mocks.from.mockReturnValue({ select: vi.fn().mockReturnValue({ eq }) });
+    it('passes optional admin target IDs to the database-authorized route', async () => {
+      mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve([]) });
 
-      await expect(service.getAssignedAgentThreats('analyst-with-no-assignments')).resolves.toEqual([]);
-      expect(mocks.from).toHaveBeenCalledTimes(1);
+      await expect(service.getAssignedAgentThreats('analyst-target')).resolves.toEqual([]);
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/dashboard/assigned-agent-threats?assigneeId=analyst-target',
+        { headers: undefined },
+      );
+    });
+
+    it('surfaces server authorization errors', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        json: () => Promise.resolve({ error: 'You are not authorized to view these assignments.' }),
+      });
+
+      await expect(service.getAssignedAgentThreats('other-analyst')).rejects.toThrow(
+        'You are not authorized to view these assignments.',
+      );
     });
   });
 

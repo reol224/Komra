@@ -290,7 +290,6 @@ export default function AdminThreatSummary() {
         cveId: selectedThreat.cve_id,
         endpointId: selectedThreat.endpoint_id,
         assignedTo: assignedMember.id,
-        assignedBy: user.id,
         priority: priority as 'critical' | 'high' | 'medium' | 'low',
         notes: assignmentNotes,
       });
