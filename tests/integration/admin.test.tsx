@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { ActiveSession } from '@/lib/sessionManagementService';
 import type { DashboardVulnerability } from '@/lib/dashboardDataService';
+import type { AuditLogEntry } from '@/lib/auditLogger';
 
 // ============================================================================
 // TEST UTILITIES & MOCKS
@@ -139,9 +140,14 @@ vi.mock('@/lib/sessionManagementService', () => ({
   },
 }));
 
+const { mockAuditLogs } = vi.hoisted(() => ({
+  mockAuditLogs: vi.fn<() => Promise<AuditLogEntry[]>>(() => Promise.resolve([])),
+}));
+
 // Mock audit logger
 vi.mock('@/lib/auditLogger', () => ({
   auditLogger: {
+    getAuditLogs: mockAuditLogs,
     log: vi.fn(),
     logSecurityEvent: vi.fn(),
     logUserAction: vi.fn(),
@@ -272,6 +278,22 @@ describe('Admin Components Integration Tests', () => {
       error: null,
     });
     mockAgentVulnerabilities.mockResolvedValue([]);
+    mockAuditLogs.mockResolvedValue([{
+      id: 'default-audit-event',
+      user_id: 'admin-user',
+      user_email: 'admin@example.com',
+      action: 'USER_LOGIN',
+      resource_type: 'authentication',
+      resource_id: 'session-default',
+      details: { method: 'password' },
+      ip_address: '192.0.2.1',
+      user_agent: 'Test browser',
+      session_id: 'session-default',
+      timestamp: new Date().toISOString(),
+      severity: 'low',
+      status: 'success',
+      metadata: {},
+    }]);
   });
 
   afterEach(() => {
@@ -2428,6 +2450,46 @@ describe('Admin Components Integration Tests', () => {
       testLogger.pass('Audit logs table display');
     });
 
+    it('should display persisted audit events from the audit logger', async () => {
+      mockAuditLogs.mockResolvedValue([{
+        id: 'audit-event-1',
+        user_id: 'admin-user-1',
+        user_email: 'admin@example.com',
+        action: 'THREAT_ESCALATED',
+        resource_type: 'vulnerability',
+        resource_id: 'CVE-2026-1234',
+        details: { reason: 'Active exploitation', level: 'Incident Response Team' },
+        ip_address: '192.0.2.10',
+        user_agent: 'Komra SOC test browser',
+        session_id: 'session-1',
+        timestamp: new Date().toISOString(),
+        severity: 'high',
+        status: 'success',
+        metadata: {},
+      }]);
+
+      await renderWithAct(<AdminAuditTrail />);
+
+      expect(screen.getByText('admin@example.com')).toBeInTheDocument();
+      expect(screen.getByText('THREAT ESCALATED')).toBeInTheDocument();
+      expect(screen.getByText('vulnerability/CVE-2026-1234')).toBeInTheDocument();
+      expect(screen.getByText(/reason: Active exploitation/)).toBeInTheDocument();
+      expect(mockAuditLogs).toHaveBeenCalledWith(expect.objectContaining({
+        limit: 1000,
+        throwOnError: true,
+        startDate: expect.any(String),
+      }));
+    });
+
+    it('should show a visible error when persisted audit events cannot be loaded', async () => {
+      mockAuditLogs.mockRejectedValue(new Error('Audit database unavailable'));
+
+      await renderWithAct(<AdminAuditTrail />);
+
+      expect(screen.getByRole('alert')).toHaveTextContent('Audit database unavailable');
+      expect(screen.getByText('Audit events could not be loaded.')).toBeInTheDocument();
+    });
+
     it('should display table headers', async () => {
       testLogger.test('Table headers display');
       await renderWithAct(<AdminAuditTrail />);
@@ -2619,7 +2681,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminAuditTrail />);
 
         await waitFor(() => {
-          const totalEventsText = screen.getByText(/Total Events/i);
+          const totalEventsText = screen.getByText(/Matching Events Loaded/i);
           expect(totalEventsText).toBeInTheDocument();
         });
         testLogger.pass('Total events count displayed');
@@ -2874,7 +2936,7 @@ describe('Admin Components Integration Tests', () => {
 
         await waitFor(() => {
           // Check for summary stats
-          expect(screen.getByText(/Total Events/i)).toBeInTheDocument();
+          expect(screen.getByText(/Matching Events Loaded/i)).toBeInTheDocument();
         });
         testLogger.pass('Summary statistics cards');
       });
@@ -2934,7 +2996,7 @@ describe('Admin Components Integration Tests', () => {
 
         // Count should update
         await waitFor(() => {
-          const updatedHeader = screen.getByText(/Audit Events/i);
+          const updatedHeader = screen.getAllByText(/Audit Events/i)[0];
           expect(updatedHeader).toBeInTheDocument();
         });
         testLogger.pass('Filtered count updates');

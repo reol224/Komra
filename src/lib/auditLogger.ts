@@ -328,6 +328,8 @@ export class AuditLogger {
     endDate?: string;
     severity?: string;
     limit?: number;
+    offset?: number;
+    throwOnError?: boolean;
   } = {}): Promise<AuditLogEntry[]> {
     try {
       let query = supabase
@@ -354,19 +356,27 @@ export class AuditLogger {
         query = query.eq('severity', filters.severity);
       }
       if (filters.limit) {
-        query = query.limit(filters.limit);
+        query = filters.offset !== undefined
+          ? query.range(filters.offset, filters.offset + filters.limit - 1)
+          : query.limit(filters.limit);
       }
 
       const { data, error } = await query;
 
       if (error) {
         console.error('Failed to retrieve audit logs:', error);
+        if (filters.throwOnError) {
+          throw new Error(`Failed to retrieve audit logs: ${error.message}`);
+        }
         return [];
       }
 
       return data || [];
     } catch (error) {
       console.error('Error querying audit logs:', error);
+      if (filters.throwOnError) {
+        throw error;
+      }
       return [];
     }
   }

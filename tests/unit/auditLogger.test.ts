@@ -625,6 +625,18 @@ describe("AuditLogger", () => {
       );
       consoleErrorSpy.mockRestore();
     });
+
+    it("should propagate retrieval errors when strict handling is requested", async () => {
+      mocks.order.mockResolvedValue({
+        data: null,
+        error: new Error("Query failed"),
+      });
+      vi.spyOn(console, "error").mockImplementation(() => {});
+
+      await expect(
+        auditLogger.getAuditLogs({ throwOnError: true }),
+      ).rejects.toThrow("Failed to retrieve audit logs: Query failed");
+    });
   });
 
   describe("getAuditSummary", () => {
