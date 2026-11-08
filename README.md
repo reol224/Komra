@@ -12,7 +12,7 @@ their results for production decisions.
 ## Features
 
 - **Cross-Platform System Data Collection** - Automated agents for Windows, Linux, and macOS
-- **Real-Time Vulnerability Assessment** - Continuous CVE monitoring with CVSS scoring
+- **OSV-Backed Vulnerability Matching** - Match installed package versions against live OSV advisories, with NVD details for CVE records
 - **Comprehensive Endpoint Inventory** - Complete visibility into monitored systems
 - **Intelligent Triage Interface** - Priority-based vulnerability management
 - **Advanced Search & Investigation** - Unified search across audit logs and vulnerabilities
@@ -73,6 +73,15 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+### Vulnerability data sources
+
+Apply the Supabase migrations with `supabase db push` before storing OSV scan
+results. Scans run when endpoint inventory is ingested and currently support
+npm, PyPI, and Debian/Ubuntu packages; other package types are reported as
+unsupported and are not matched. CVE details are fetched from NVD when a
+finding is opened. You may set `NVD_API_KEY` in the server environment to use
+your NVD API key; do not expose it through a `NEXT_PUBLIC_` variable.
+
 ## Available Scripts
 
 - `npm run dev` - Start development server
@@ -128,7 +137,11 @@ node scripts/komra-agent.js
 The agent defaults to `http://localhost:3000/api/agent/ingest`. If the
 development server starts on another port, set `KOMRA_API_ENDPOINT` to that
 local URL before running the agent. Each run scans and submits the current
-machine's inventory once; it does not continuously run in the background.
+machine's inventory and current CPU, memory, disk, and running-service report
+once; it does not continuously run in the background. The System Health
+dashboard uses agent reports from the last five minutes for resource averages.
+Run the updated agent again on existing endpoints to start sending resource
+telemetry; older reports still show inventory and the services they reported.
 
 ## Role-Based Access
 

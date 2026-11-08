@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { SessionManagementService } from "@/lib/sessionManagementService";
+import { auditLogger } from "@/lib/auditLogger";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -90,6 +91,29 @@ const permissions: Record<UserRole, Record<string, string[]>> = {
     system: ["read", "create", "update", "delete"],
   },
 };
+
+function logAuthenticationEvent(
+  action: string,
+  email: string,
+  status: "success" | "failure",
+  actor?: { id: string; email: string },
+) {
+  void auditLogger.log(
+    action,
+    "authentication",
+    { account_email: email },
+    {
+      severity: status === "failure" ? "high" : "low",
+      status,
+      metadata: {
+        action_category: "authentication",
+        security_relevant: true,
+      },
+      actorUserId: actor?.id,
+      actorUserEmail: actor?.email,
+    },
+  );
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -197,10 +221,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         console.error("Password verification error:", error);
+        logAuthenticationEvent("USER_LOGIN_FAILED", email, "failure");
         throw new Error("Invalid login credentials");
       }
 
       if (!isValid) {
+        logAuthenticationEvent("USER_LOGIN_FAILED", email, "failure");
         throw new Error("Invalid login credentials");
       }
 
@@ -258,6 +284,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setUser(userData);
       localStorage.setItem("demo_user", JSON.stringify(userData));
+      logAuthenticationEvent("USER_LOGIN", dbUser.email, "success", {
+        id: dbUser.id,
+        email: dbUser.email,
+      });
       return;
     }
 
@@ -269,10 +299,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     if (authError) {
       console.error("Supabase auth error:", authError);
+      logAuthenticationEvent("USER_LOGIN_FAILED", email, "failure");
       throw new Error("Invalid login credentials");
     }
 
     if (!authData.user) {
+      logAuthenticationEvent("USER_LOGIN_FAILED", email, "failure");
       throw new Error("Authentication failed");
     }
 
@@ -322,6 +354,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     // Update last activity
     await updateLastActivity();
+    logAuthenticationEvent("USER_LOGIN", dbUser.email, "success", {
+      id: dbUser.id,
+      email: dbUser.email,
+    });
   };
 
   const signOut = async () => {
@@ -346,7 +382,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Also sign out from Supabase if there's a session
     const { error } = await supabase.auth.signOut();
-    if (error) console.error("Supabase signout error:", error);
+    if (error) {
+      console.error("Supabase signout error:", error);
+      logAuthenticationEvent("USER_LOGOUT_FAILED", user?.email || "unknown", "failure", user || undefined);
+      return;
+    }
+    if (user) {
+      logAuthenticationEvent("USER_LOGOUT", user.email, "success", user);
+    }
   };
 
   const updateLastActivity = async () => {

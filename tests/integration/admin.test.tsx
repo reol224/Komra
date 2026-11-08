@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, act, cleanup } from '@testing-library/react';
+import { render, screen, waitFor, act, cleanup, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { ActiveSession } from '@/lib/sessionManagementService';
+import type { DashboardVulnerability } from '@/lib/dashboardDataService';
+import type { AuditLogEntry } from '@/lib/auditLogger';
 
 // ============================================================================
 // TEST UTILITIES & MOCKS
@@ -138,9 +140,14 @@ vi.mock('@/lib/sessionManagementService', () => ({
   },
 }));
 
+const { mockAuditLogs } = vi.hoisted(() => ({
+  mockAuditLogs: vi.fn<() => Promise<AuditLogEntry[]>>(() => Promise.resolve([])),
+}));
+
 // Mock audit logger
 vi.mock('@/lib/auditLogger', () => ({
   auditLogger: {
+    getAuditLogs: mockAuditLogs,
     log: vi.fn(),
     logSecurityEvent: vi.fn(),
     logUserAction: vi.fn(),
@@ -157,11 +164,31 @@ vi.mock('@/components/ui/use-toast', () => ({
 }));
 
 // Mock dashboardDataService - mock as a class constructor using hoisted
-const { MockDashboardDataService, MockSystemResourceService } = vi.hoisted(() => {
+const { MockDashboardDataService, mockAgentSystemHealth, mockAgentVulnerabilities } = vi.hoisted(() => {
+  const mockAgentSystemHealth = vi.fn(() => Promise.resolve([{
+    id: 'endpoint-health-1',
+    hostname: 'health-agent',
+    osType: 'Ubuntu 24.04',
+    lastScan: new Date().toISOString(),
+    runningServices: ['sshd.service', 'nginx.service'],
+    resourceMetrics: {
+      cpu_usage_percent: 28,
+      memory_usage_percent: 44,
+      memory_used_bytes: 440,
+      memory_total_bytes: 1000,
+      disk_usage_percent: 51,
+      disk_used_bytes: 510,
+      disk_total_bytes: 1000,
+    },
+  }]));
+  const mockAgentVulnerabilities = vi.fn<() => Promise<DashboardVulnerability[]>>(() => Promise.resolve([]));
   // Create a proper class mock
   class MockDashboardDataServiceClass {
     getEndpoints = vi.fn(() => Promise.resolve([]));
+    getAgentSystemHealth = mockAgentSystemHealth;
     getVulnerabilities = vi.fn(() => Promise.resolve([]));
+    getAgentVulnerabilities = mockAgentVulnerabilities;
+    getThreatAssignees = vi.fn(() => Promise.resolve([]));
     getRiskMetrics = vi.fn(() => Promise.resolve({
       criticalCount: 0,
       highCount: 0,
@@ -175,30 +202,15 @@ const { MockDashboardDataService, MockSystemResourceService } = vi.hoisted(() =>
     getRecentActivity = vi.fn(() => Promise.resolve([]));
   }
   
-  class MockSystemResourceServiceClass {
-    getSystemResourceMetrics = vi.fn(() => Promise.resolve({
-      cpuUsage: 0,
-      memoryUsage: 0,
-      diskUsage: 0,
-      networkLatency: 0,
-      timestamp: new Date(),
-    }));
-    storeResourceMetrics = vi.fn(() => Promise.resolve());
-  }
-  
-  return { 
-    MockDashboardDataService: MockDashboardDataServiceClass, 
-    MockSystemResourceService: MockSystemResourceServiceClass 
+  return {
+    MockDashboardDataService: MockDashboardDataServiceClass,
+    mockAgentSystemHealth,
+    mockAgentVulnerabilities,
   };
 });
 
 vi.mock('@/lib/dashboardDataService', () => ({
   DashboardDataService: MockDashboardDataService,
-}));
-
-// Mock systemResourceService - mock as a class constructor
-vi.mock('@/lib/systemResourceService', () => ({
-  SystemResourceService: MockSystemResourceService,
 }));
 
 // Import components after mocks
@@ -265,6 +277,23 @@ describe('Admin Components Integration Tests', () => {
       ],
       error: null,
     });
+    mockAgentVulnerabilities.mockResolvedValue([]);
+    mockAuditLogs.mockResolvedValue([{
+      id: 'default-audit-event',
+      user_id: 'admin-user',
+      user_email: 'admin@example.com',
+      action: 'USER_LOGIN',
+      resource_type: 'authentication',
+      resource_id: 'session-default',
+      details: { method: 'password' },
+      ip_address: '192.0.2.1',
+      user_agent: 'Test browser',
+      session_id: 'session-default',
+      timestamp: new Date().toISOString(),
+      severity: 'low',
+      status: 'success',
+      metadata: {},
+    }]);
   });
 
   afterEach(() => {
@@ -1111,52 +1140,30 @@ describe('Admin Components Integration Tests', () => {
         vi.useRealTimers();
       });
 
-      it('should set up auto-refresh interval on mount', async () => {
-        testLogger.test('Auto-refresh setup');
+      it('should load sessions on mount without polling', async () => {
+        testLogger.test('Initial session load');
         await renderWithAct(<SessionManagement />);
 
         await waitFor(() => {
           expect(mockGetAllActiveSessions).toHaveBeenCalledTimes(1);
         });
-        testLogger.pass('Auto-refresh setup');
+        testLogger.pass('Initial session load');
       });
 
-      it('should refresh sessions every 30 seconds', async () => {
-        testLogger.test('30 second refresh interval');
+      it('does not automatically refresh sessions after mount', async () => {
+        testLogger.test('No automatic session polling');
         await renderWithAct(<SessionManagement />);
 
         await waitFor(() => {
           expect(mockGetAllActiveSessions).toHaveBeenCalledTimes(1);
         });
 
-        // Advance time by 30 seconds
-        await act(async () => {
-          vi.advanceTimersByTime(30000);
-        });
-
-        await waitFor(() => {
-          expect(mockGetAllActiveSessions).toHaveBeenCalledTimes(2);
-        });
-        testLogger.pass('30 second refresh interval');
-      });
-
-      it('should refresh multiple times over time', async () => {
-        testLogger.test('Multiple refreshes');
-        await renderWithAct(<SessionManagement />);
-
-        await waitFor(() => {
-          expect(mockGetAllActiveSessions).toHaveBeenCalledTimes(1);
-        });
-
-        // Advance time by 90 seconds (3 refresh cycles)
         await act(async () => {
           vi.advanceTimersByTime(90000);
         });
 
-        await waitFor(() => {
-          expect(mockGetAllActiveSessions).toHaveBeenCalledTimes(4); // 1 initial + 3 interval calls
-        });
-        testLogger.pass('Multiple refreshes');
+        expect(mockGetAllActiveSessions).toHaveBeenCalledTimes(1);
+        testLogger.pass('No automatic session polling');
       });
 
       it('should call refresh when Refresh button is clicked', async () => {
@@ -2443,6 +2450,73 @@ describe('Admin Components Integration Tests', () => {
       testLogger.pass('Audit logs table display');
     });
 
+    it('should display persisted audit events from the audit logger', async () => {
+      mockAuditLogs.mockResolvedValue([{
+        id: 'audit-event-1',
+        user_id: 'admin-user-1',
+        user_email: 'admin@example.com',
+        action: 'THREAT_ESCALATED',
+        resource_type: 'vulnerability',
+        resource_id: 'CVE-2026-1234',
+        details: { reason: 'Active exploitation', level: 'Incident Response Team' },
+        ip_address: '192.0.2.10',
+        user_agent: 'Komra SOC test browser',
+        session_id: 'session-1',
+        timestamp: new Date().toISOString(),
+        severity: 'high',
+        status: 'success',
+        metadata: {},
+      }]);
+
+      await renderWithAct(<AdminAuditTrail />);
+
+      expect(screen.getByText('admin@example.com')).toBeInTheDocument();
+      expect(screen.getByText('THREAT ESCALATED')).toBeInTheDocument();
+      expect(screen.getByText('vulnerability/CVE-2026-1234')).toBeInTheDocument();
+      expect(screen.getByText(/reason: Active exploitation/)).toBeInTheDocument();
+      expect(mockAuditLogs).toHaveBeenCalledWith(expect.objectContaining({
+        limit: 1000,
+        throwOnError: true,
+        startDate: expect.any(String),
+      }));
+    });
+
+    it('should show metadata, session ID, and a copyable event ID in the details view', async () => {
+      mockAuditLogs.mockResolvedValue([{
+        id: 'audit-detail-event',
+        user_id: 'admin-user-1',
+        user_email: 'admin@example.com',
+        action: 'USER_ROLE_CHANGED',
+        resource_type: 'user',
+        resource_id: 'target-user',
+        details: { previous_role: 'viewer', new_role: 'analyst' },
+        ip_address: '192.0.2.10',
+        user_agent: 'Test browser',
+        session_id: 'session-detail',
+        timestamp: new Date().toISOString(),
+        severity: 'high',
+        status: 'success',
+        metadata: { security_relevant: true, source: 'admin_console' },
+      }]);
+
+      await renderWithAct(<AdminAuditTrail />);
+      await userEvent.click(screen.getAllByRole('button').find((button) => button.querySelector('svg.lucide-eye'))!);
+
+      expect(screen.getByText('audit-detail-event')).toBeInTheDocument();
+      expect(screen.getByText('session-detail')).toBeInTheDocument();
+      expect(screen.getByText(/admin_console/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /copy id/i })).toBeInTheDocument();
+    });
+
+    it('should show a visible error when persisted audit events cannot be loaded', async () => {
+      mockAuditLogs.mockRejectedValue(new Error('Audit database unavailable'));
+
+      await renderWithAct(<AdminAuditTrail />);
+
+      expect(screen.getByRole('alert')).toHaveTextContent('Audit database unavailable');
+      expect(screen.getByText('Audit events could not be loaded.')).toBeInTheDocument();
+    });
+
     it('should display table headers', async () => {
       testLogger.test('Table headers display');
       await renderWithAct(<AdminAuditTrail />);
@@ -2634,7 +2708,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminAuditTrail />);
 
         await waitFor(() => {
-          const totalEventsText = screen.getByText(/Total Events/i);
+          const totalEventsText = screen.getByText(/Matching Events Loaded/i);
           expect(totalEventsText).toBeInTheDocument();
         });
         testLogger.pass('Total events count displayed');
@@ -2889,7 +2963,7 @@ describe('Admin Components Integration Tests', () => {
 
         await waitFor(() => {
           // Check for summary stats
-          expect(screen.getByText(/Total Events/i)).toBeInTheDocument();
+          expect(screen.getByText(/Matching Events Loaded/i)).toBeInTheDocument();
         });
         testLogger.pass('Summary statistics cards');
       });
@@ -2949,7 +3023,7 @@ describe('Admin Components Integration Tests', () => {
 
         // Count should update
         await waitFor(() => {
-          const updatedHeader = screen.getByText(/Audit Events/i);
+          const updatedHeader = screen.getAllByText(/Audit Events/i)[0];
           expect(updatedHeader).toBeInTheDocument();
         });
         testLogger.pass('Filtered count updates');
@@ -3243,7 +3317,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const elements = screen.getAllByText(/Uptime/i);
+          const elements = screen.getAllByText(/Agents reporting/i);
           expect(elements.length).toBeGreaterThan(0);
         });
         testLogger.pass('Uptime metric display');
@@ -3255,8 +3329,8 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const responseTimeText = screen.queryByText(/Response Time/i);
-          expect(responseTimeText).toBeInTheDocument();
+          const responseTimeText = screen.queryAllByText(/Latest agent report/i);
+          expect(responseTimeText.length).toBeGreaterThan(0);
         });
         testLogger.pass('Response time metric');
       });
@@ -3267,7 +3341,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const connectionsText = screen.queryByText(/Active Connections/i);
+          const connectionsText = screen.queryByText(/Agents reporting/i);
           expect(connectionsText).toBeInTheDocument();
         });
         testLogger.pass('Active connections metric');
@@ -3279,22 +3353,26 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const dbStatusText = screen.queryByText(/Database Status/i);
+          const dbStatusText = screen.queryByText(/Resource samples/i);
           expect(dbStatusText).toBeInTheDocument();
         });
         testLogger.pass('Database status metric');
       });
 
-      it('should have auto-refresh interval configured', async () => {
-        testLogger.test('Auto-refresh interval configured');
+      it('should refresh system health when requested manually', async () => {
+        testLogger.test('Manual system health refresh');
         vi.useRealTimers();
         await renderWithAct(<AdminSystemHealth />);
 
-        // Component should mount without errors
         await waitFor(() => {
-          expect(document.querySelector('.space-y-6')).toBeInTheDocument();
+          expect(mockAgentSystemHealth).toHaveBeenCalled();
         });
-        testLogger.pass('Auto-refresh interval configured');
+        const callsBeforeRefresh = mockAgentSystemHealth.mock.calls.length;
+        await userEvent.click(screen.getByRole('button', { name: /refresh system health/i }));
+        await waitFor(() => {
+          expect(mockAgentSystemHealth).toHaveBeenCalledTimes(callsBeforeRefresh + 1);
+        });
+        testLogger.pass('Manual system health refresh');
       });
     });
 
@@ -3385,7 +3463,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const dbStatusText = screen.queryByText(/Database Status/i);
+          const dbStatusText = screen.queryByText(/Resource samples/i);
           expect(dbStatusText).toBeInTheDocument();
         });
         testLogger.pass('Healthy database status');
@@ -3396,8 +3474,8 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const networkText = screen.queryByText(/Network/i);
-          expect(networkText).toBeInTheDocument();
+          const cpuText = screen.queryAllByText(/CPU usage/i);
+          expect(cpuText.length).toBeGreaterThan(0);
         });
         testLogger.pass('Network latency info');
       });
@@ -3500,7 +3578,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const eventsTitle = screen.queryByText(/Recent System Events/i);
+          const eventsTitle = screen.queryByText(/Recent System Alerts/i);
           expect(eventsTitle).toBeInTheDocument();
         });
         testLogger.pass('Recent System Events card');
@@ -3512,7 +3590,7 @@ describe('Admin Components Integration Tests', () => {
 
         await waitFor(() => {
           // Events section should exist
-          const eventsTitle = screen.queryByText(/Recent System Events/i);
+          const eventsTitle = screen.queryByText(/Recent System Alerts/i);
           expect(eventsTitle).toBeInTheDocument();
         });
         testLogger.pass('Events with timestamps');
@@ -3536,7 +3614,7 @@ describe('Admin Components Integration Tests', () => {
 
         await waitFor(() => {
           // Events card should be present
-          const eventsCard = screen.queryByText(/Recent System Events/i);
+          const eventsCard = screen.queryByText(/Recent System Alerts/i);
           expect(eventsCard).toBeInTheDocument();
         });
         testLogger.pass('Event source info');
@@ -3548,8 +3626,8 @@ describe('Admin Components Integration Tests', () => {
 
         await waitFor(() => {
           // Service status should show uptime
-          const uptimeTexts = screen.queryAllByText(/Uptime/i);
-          expect(uptimeTexts.length).toBeGreaterThan(0);
+          const serviceStatus = screen.queryAllByText(/Reported running/i);
+          expect(serviceStatus.length).toBeGreaterThan(0);
         });
         testLogger.pass('Uptime statistics');
       });
@@ -3574,12 +3652,51 @@ describe('Admin Components Integration Tests', () => {
         testLogger.pass('Service Status section');
       });
 
+      it('virtualizes and searches large service lists', async () => {
+        const services = Array.from({ length: 2000 }, (_, index) => `service-${index}`);
+        mockAgentSystemHealth.mockResolvedValueOnce([{
+          id: 'large-service-endpoint',
+          hostname: 'large-service-host',
+          osType: 'Ubuntu 24.04',
+          lastScan: new Date().toISOString(),
+          runningServices: services,
+          resourceMetrics: {
+            cpu_usage_percent: 28,
+            memory_usage_percent: 44,
+            memory_used_bytes: 440,
+            memory_total_bytes: 1000,
+            disk_usage_percent: 51,
+            disk_used_bytes: 510,
+            disk_total_bytes: 1000,
+          },
+        }]);
+        const user = userEvent.setup();
+        await renderWithAct(<AdminSystemHealth />);
+
+        const list = await screen.findByRole('list', { name: 'Reported running services' });
+        await waitFor(() => {
+          expect(screen.getByText('Showing 2,000 of 2,000 service reports')).toBeInTheDocument();
+          expect(list.querySelectorAll('[role="listitem"]').length).toBeLessThan(30);
+        });
+
+        list.scrollTop = 72 * 1995;
+        fireEvent.scroll(list);
+        await waitFor(() => {
+          expect(screen.getByText('service-1999')).toBeInTheDocument();
+          expect(screen.queryByText('service-0')).not.toBeInTheDocument();
+        });
+
+        await user.type(screen.getByRole('textbox', { name: 'Search services or endpoints' }), 'service-1999');
+        expect(screen.getByText('Showing 1 of 2,000 service reports')).toBeInTheDocument();
+        expect(screen.getByText('service-1999')).toBeInTheDocument();
+      });
+
       it('should display Web Server status', async () => {
         testLogger.test('Web Server status');
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const webServerText = screen.queryByText(/Web Server/i);
+          const webServerText = screen.queryByText(/nginx\.service/i);
           expect(webServerText).toBeInTheDocument();
         });
         testLogger.pass('Web Server status');
@@ -3590,7 +3707,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const dbServiceText = screen.queryByText(/^Database$/i);
+          const dbServiceText = screen.queryByText(/sshd\.service/i);
           expect(dbServiceText).toBeInTheDocument();
         });
         testLogger.pass('Database service status');
@@ -3601,7 +3718,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const authServiceText = screen.queryByText(/Authentication Service/i);
+          const authServiceText = screen.queryByText(/nginx\.service/i);
           expect(authServiceText).toBeInTheDocument();
         });
         testLogger.pass('Authentication Service status');
@@ -3612,7 +3729,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const scannerText = screen.queryByText(/Vulnerability Scanner/i);
+          const scannerText = screen.queryByText(/sshd\.service/i);
           expect(scannerText).toBeInTheDocument();
         });
         testLogger.pass('Vulnerability Scanner status');
@@ -3623,7 +3740,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const reportGenText = screen.queryByText(/Report Generator/i);
+          const reportGenText = screen.queryByText(/nginx\.service/i);
           expect(reportGenText).toBeInTheDocument();
         });
         testLogger.pass('Report Generator status');
@@ -3634,7 +3751,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const auditLoggerText = screen.queryByText(/Audit Logger/i);
+          const auditLoggerText = screen.queryByText(/sshd\.service/i);
           expect(auditLoggerText).toBeInTheDocument();
         });
         testLogger.pass('Audit Logger status');
@@ -3645,8 +3762,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          // Look for healthy/warning/error badges
-          const badges = document.querySelectorAll('.capitalize');
+          const badges = screen.queryAllByText(/Reported running/i);
           expect(badges.length).toBeGreaterThan(0);
         });
         testLogger.pass('Status badges displayed');
@@ -3695,8 +3811,8 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const uptimeTexts = screen.queryAllByText(/Uptime:/i);
-          expect(uptimeTexts.length).toBeGreaterThan(0);
+          const serviceStatus = screen.queryAllByText(/Reported running/i);
+          expect(serviceStatus.length).toBeGreaterThan(0);
         });
         testLogger.pass('Service uptime percentages');
       });
@@ -3718,9 +3834,8 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          // Services should be in a list with borders
-          const serviceContainers = document.querySelectorAll('.border.rounded-lg');
-          expect(serviceContainers.length).toBeGreaterThan(0);
+          const serviceList = screen.queryByRole('list', { name: 'Reported running services' });
+          expect(serviceList).toBeInTheDocument();
         });
         testLogger.pass('Service list container');
       });
@@ -3742,23 +3857,21 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          // Web Server should show "Serving X endpoints"
-          const servingText = screen.queryByText(/Serving/i) || screen.queryByText(/endpoints/i);
-          expect(servingText).toBeTruthy();
+          const servingText = screen.queryAllByText(/health-agent/i);
+          expect(servingText.length).toBeGreaterThan(0);
         });
         testLogger.pass('Endpoint serving count');
       });
 
-      it('should display package tracking count for database', async () => {
-        testLogger.test('Package tracking count');
+      it('should display the number of services reported running', async () => {
+        testLogger.test('Reported running service count');
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          // Database service should show package count
-          const packagesText = screen.queryByText(/packages/i);
-          expect(packagesText).toBeInTheDocument();
+          const servicesText = screen.queryByText(/Services reported running/i);
+          expect(servicesText).toBeInTheDocument();
         });
-        testLogger.pass('Package tracking count');
+        testLogger.pass('Reported running service count');
       });
     });
 
@@ -3770,48 +3883,48 @@ describe('Admin Components Integration Tests', () => {
         cleanup();
       });
 
-      it('should display System Uptime card', async () => {
-        testLogger.test('System Uptime card');
+      it('should display agent reporting card', async () => {
+        testLogger.test('Agent reporting card');
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const uptimeText = screen.queryByText(/System Uptime/i);
+          const uptimeText = screen.queryByText(/Agents reporting/i);
           expect(uptimeText).toBeInTheDocument();
         });
-        testLogger.pass('System Uptime card');
+        testLogger.pass('Agent reporting card');
       });
 
-      it('should display Avg Response Time card', async () => {
-        testLogger.test('Avg Response Time card');
+      it('should display latest agent report card', async () => {
+        testLogger.test('Latest agent report card');
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const responseText = screen.queryByText(/Avg Response Time/i);
-          expect(responseText).toBeInTheDocument();
+          const responseText = screen.queryAllByText(/Latest agent report/i);
+          expect(responseText.length).toBeGreaterThan(0);
         });
-        testLogger.pass('Avg Response Time card');
+        testLogger.pass('Latest agent report card');
       });
 
-      it('should display Active Connections card', async () => {
-        testLogger.test('Active Connections card');
+      it('should display agent reporting card', async () => {
+        testLogger.test('Agent reporting card');
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const connectionsText = screen.queryByText(/Active Connections/i);
+          const connectionsText = screen.queryByText(/Agents reporting/i);
           expect(connectionsText).toBeInTheDocument();
         });
-        testLogger.pass('Active Connections card');
+        testLogger.pass('Agent reporting card');
       });
 
-      it('should display Database Status card', async () => {
-        testLogger.test('Database Status card');
+      it('should display resource sample count card', async () => {
+        testLogger.test('Resource sample count card');
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const dbStatusText = screen.queryByText(/Database Status/i);
+          const dbStatusText = screen.queryByText(/Resource samples/i);
           expect(dbStatusText).toBeInTheDocument();
         });
-        testLogger.pass('Database Status card');
+        testLogger.pass('Resource sample count card');
       });
 
       it('should show icons for each metric card', async () => {
@@ -3856,8 +3969,8 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const networkText = screen.queryByText(/Network:/i);
-          expect(networkText).toBeInTheDocument();
+          const reportText = screen.queryAllByText(/Latest agent report/i);
+          expect(reportText.length).toBeGreaterThan(0);
         });
         testLogger.pass('Network latency shown');
       });
@@ -3923,7 +4036,7 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          const eventsSection = screen.queryByText(/Recent System Events/i);
+          const eventsSection = screen.queryByText(/Recent System Alerts/i);
           expect(eventsSection).toBeInTheDocument();
         });
         testLogger.pass('Events loading message');
@@ -3959,6 +4072,111 @@ describe('Admin Components Integration Tests', () => {
         expect(elements.length).toBeGreaterThan(0);
       });
       testLogger.pass('Threat statistics display');
+    });
+
+    it('should show searchable findings across all severities', async () => {
+      mockAgentVulnerabilities.mockResolvedValue([
+        {
+          id: 'finding-medium',
+          cve_id: 'MEDIUM-TEST-1',
+          description: 'Medium severity test finding',
+          severity: 'medium',
+          cvss_score: 5.4,
+          status: 'open',
+          endpoint_id: 'endpoint-1',
+          endpoint_name: 'test-endpoint',
+          environment: 'production',
+          discovered_date: new Date().toISOString(),
+          affected_packages: ['test-package'],
+        },
+        {
+          id: 'finding-low',
+          cve_id: 'LOW-TEST-2',
+          description: 'Low severity test finding',
+          severity: 'low',
+          cvss_score: 2.1,
+          status: 'resolved',
+          endpoint_id: 'endpoint-1',
+          endpoint_name: 'test-endpoint',
+          environment: 'production',
+          discovered_date: new Date().toISOString(),
+          affected_packages: ['another-package'],
+        },
+      ]);
+
+      await renderWithAct(<AdminThreatSummary />);
+
+      expect(screen.getByText('All Vulnerability Findings (2)')).toBeInTheDocument();
+      expect(screen.getByText(/MEDIUM-TEST-1/)).toBeInTheDocument();
+      expect(screen.getByText(/LOW-TEST-2/)).toBeInTheDocument();
+
+      await userEvent.type(screen.getByRole('textbox', { name: /search vulnerability findings/i }), 'LOW-TEST-2');
+
+      expect(screen.queryByText(/MEDIUM-TEST-1/)).not.toBeInTheDocument();
+      expect(screen.getByText(/LOW-TEST-2/)).toBeInTheDocument();
+    });
+
+    it('should let users choose how many findings appear per page', async () => {
+      mockAgentVulnerabilities.mockResolvedValue(
+        Array.from({ length: 12 }, (_, index) => ({
+          id: `finding-${index + 1}`,
+          cve_id: `CVE-TEST-${index + 1}`,
+          description: `Finding ${index + 1}`,
+          severity: 'medium' as const,
+          cvss_score: 5.4,
+          status: 'open' as const,
+          endpoint_id: 'endpoint-1',
+          endpoint_name: 'test-endpoint',
+          environment: 'production',
+          discovered_date: new Date().toISOString(),
+          affected_packages: ['test-package'],
+        }))
+      );
+
+      const { container } = await renderWithAct(<AdminThreatSummary />);
+
+      expect(container.querySelectorAll('details')).toHaveLength(10);
+      expect(screen.getByText('Showing 1–10 of 12 findings')).toBeInTheDocument();
+
+      await userEvent.selectOptions(screen.getByRole('combobox', { name: /findings per page/i }), '25');
+
+      expect(container.querySelectorAll('details')).toHaveLength(12);
+      expect(screen.getByText('Showing 1–12 of 12 findings')).toBeInTheDocument();
+    });
+
+    it('should label reference destinations and expand additional references', async () => {
+      const longDescription = 'A long vulnerability description that should be clamped in the findings summary but remain fully available when the finding is expanded.';
+      mockAgentVulnerabilities.mockResolvedValue([{
+        id: 'finding-with-references',
+        cve_id: 'REF-TEST-1',
+        description: longDescription,
+        severity: 'medium',
+        cvss_score: 5.4,
+        status: 'open',
+        endpoint_id: 'endpoint-1',
+        endpoint_name: 'test-endpoint',
+        environment: 'production',
+        discovered_date: new Date().toISOString(),
+        affected_packages: ['test-package'],
+        reference_urls: [
+          'https://advisories.example.org/first',
+          'https://advisories.example.org/second',
+          'https://advisories.example.org/third',
+          'https://advisories.example.org/fourth',
+          'https://advisories.example.org/fifth',
+        ],
+      }]);
+
+      const { container } = await renderWithAct(<AdminThreatSummary />);
+
+      expect(screen.getByRole('link', { name: /advisories\.example\.org\/first/i })).toBeInTheDocument();
+      expect(screen.getAllByRole('link', { name: /advisories\.example\.org/i })).toHaveLength(3);
+      expect(container.querySelector('.line-clamp-2[title]')).toHaveAttribute('title', longDescription);
+      expect(container.querySelector('details p.whitespace-pre-wrap')).toHaveTextContent(longDescription);
+      await userEvent.click(screen.getByRole('button', { name: 'Show all references (5)' }));
+
+      expect(screen.getAllByRole('link', { name: /advisories\.example\.org/i })).toHaveLength(5);
+      expect(screen.getByRole('button', { name: 'Show fewer references' })).toHaveAttribute('aria-expanded', 'true');
     });
 
     it('should display threat UI', async () => {

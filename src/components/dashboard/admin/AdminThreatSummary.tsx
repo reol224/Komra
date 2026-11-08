@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { PermissionGuard } from '@/components/auth/PermissionGuard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,16 +9,55 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/use-toast';
-import { AlertTriangle, Shield, TrendingUp, Clock, Eye, ExternalLink, Users, Calendar, UserCheck, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { DashboardDataService, DashboardVulnerability, RiskMetrics } from '@/lib/dashboardDataService';
+import { AlertTriangle, Shield, TrendingUp, Clock, Eye, ExternalLink, Users, Calendar, UserCheck, AlertCircle, CheckCircle2, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { DashboardDataService, DashboardVulnerability, ThreatAssignee } from '@/lib/dashboardDataService';
 import { auditLogger } from '@/lib/auditLogger';
+import { useAuth } from '@/contexts/AuthContext';
+
+interface NvdCveDetails {
+  id: string;
+  description: string | null;
+  cvssScore: number | null;
+  severity: string | null;
+  published: string | null;
+  lastModified: string | null;
+  references: Array<{ url: string; tags?: string[] }>;
+  url: string;
+}
+
+function safeExternalUrl(value: string): string | null {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function formatReferenceLabel(value: string): string | null {
+  const safeUrl = safeExternalUrl(value);
+  if (!safeUrl) return null;
+
+  const url = new URL(safeUrl);
+  const path = url.pathname === '/' ? '' : url.pathname;
+  const preview = path.length > 40 ? `${path.slice(0, 37)}...` : path;
+  return `${url.hostname}${preview}`;
+}
 
 export default function AdminThreatSummary() {
-  const [selectedThreat, setSelectedThreat] = useState<any>(null);
+  const { user } = useAuth();
+  const [selectedThreat, setSelectedThreat] = useState<DashboardVulnerability | null>(null);
   const [assignmentDialog, setAssignmentDialog] = useState(false);
   const [escalationDialog, setEscalationDialog] = useState(false);
-  const [isAssigning, setIsAssigning] = useState(false); // Loading state for assignment
+  const [isAssigning, setIsAssigning] = useState(false);
+  const [isEscalating, setIsEscalating] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<ThreatAssignee[]>([]);
+  const [assigneeError, setAssigneeError] = useState<string | null>(null);
+  const [nvdDetails, setNvdDetails] = useState<NvdCveDetails | null>(null);
+  const [isLoadingNvd, setIsLoadingNvd] = useState(false);
+  const [nvdError, setNvdError] = useState<string | null>(null);
   const [selectedTeamMember, setSelectedTeamMember] = useState('');
   const [assignmentNotes, setAssignmentNotes] = useState('');
   const [priority, setPriority] = useState('');
@@ -26,61 +65,138 @@ export default function AdminThreatSummary() {
   const [escalationLevel, setEscalationLevel] = useState('');
   const [escalationNotes, setEscalationNotes] = useState('');
   
-  // Real data state
   const [vulnerabilities, setVulnerabilities] = useState<DashboardVulnerability[]>([]);
-  const [riskMetrics, setRiskMetrics] = useState<RiskMetrics>({
-    criticalCount: 0,
-    highCount: 0,
-    mediumCount: 0,
-    lowCount: 0,
-    totalEndpoints: 0,
-    healthyEndpoints: 0,
-    vulnerableEndpoints: 0,
-    criticalEndpoints: 0
-  });
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [findingsSearch, setFindingsSearch] = useState('');
+  const [findingsSeverity, setFindingsSeverity] = useState('all');
+  const [findingsStatus, setFindingsStatus] = useState('all');
+  const [findingsPage, setFindingsPage] = useState(0);
+  const [findingsPageSize, setFindingsPageSize] = useState(10);
+  const [expandedReferenceFindings, setExpandedReferenceFindings] = useState<Set<string>>(
+    () => new Set()
+  );
 
-  const dashboardService = new DashboardDataService();
-
-  // Load real threat data
-  useEffect(() => {
-    loadThreatData();
-    
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(loadThreatData, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const loadThreatData = async () => {
+  const loadThreatData = useCallback(async () => {
     try {
       setIsLoading(true);
-      const [vulnData, metricsData] = await Promise.all([
-        dashboardService.getVulnerabilities(),
-        dashboardService.getRiskMetrics()
-      ]);
-
-      setVulnerabilities(vulnData);
-      setRiskMetrics(metricsData);
-      
-      console.log('🔍 Threat data loaded:', {
-        vulnerabilities: vulnData.length,
-        critical: metricsData.criticalCount,
-        high: metricsData.highCount
-      });
+      setLoadError(null);
+      const findings = await new DashboardDataService().getAgentVulnerabilities();
+      setVulnerabilities(findings);
+      setLastUpdatedAt(new Date());
     } catch (error) {
-      console.error('❌ Error loading threat data:', error);
+      console.error('Error loading agent vulnerability findings:', error);
+      setLoadError('Unable to load vulnerability findings. Check the database connection and try again.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const teamMembers = [
-    { id: 'john-doe', name: 'John Doe', role: 'Senior Security Analyst', availability: 'available' },
-    { id: 'jane-smith', name: 'Jane Smith', role: 'Incident Response Lead', availability: 'busy' },
-    { id: 'mike-johnson', name: 'Mike Johnson', role: 'Vulnerability Researcher', availability: 'available' },
-    { id: 'sarah-wilson', name: 'Sarah Wilson', role: 'Security Engineer', availability: 'available' },
-    { id: 'david-brown', name: 'David Brown', role: 'Threat Hunter', availability: 'offline' }
-  ];
+  useEffect(() => {
+    void loadThreatData();
+    const loadAssignees = async () => {
+      try {
+        setTeamMembers(await new DashboardDataService().getThreatAssignees());
+      } catch (error) {
+        console.error('Error loading threat assignees:', error);
+        setAssigneeError('Unable to load team members.');
+      }
+    };
+    void loadAssignees();
+
+  }, [loadThreatData]);
+
+  useEffect(() => {
+    const cveId = selectedThreat?.cve_id;
+    setNvdDetails(null);
+    setNvdError(null);
+    if (!cveId || !/^CVE-\d{4}-\d{4,}$/i.test(cveId)) {
+      setIsLoadingNvd(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setIsLoadingNvd(true);
+    fetch(`/api/cves/${encodeURIComponent(cveId)}`, { signal: controller.signal })
+      .then(async (response) => {
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || 'Unable to load NVD details.');
+        }
+        setNvdDetails(result as NvdCveDetails);
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        console.error('Unable to load NVD CVE details:', error);
+        setNvdError(error instanceof Error ? error.message : 'Unable to load NVD details.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoadingNvd(false);
+      });
+
+    return () => controller.abort();
+  }, [selectedThreat?.cve_id]);
+
+  const activeFindings = vulnerabilities.filter(
+    (vulnerability) => vulnerability.status === 'open' || vulnerability.status === 'in_progress'
+  );
+  const severityCounts = {
+    critical: activeFindings.filter((vulnerability) => vulnerability.severity === 'critical').length,
+    high: activeFindings.filter((vulnerability) => vulnerability.severity === 'high').length,
+    medium: activeFindings.filter((vulnerability) => vulnerability.severity === 'medium').length,
+    low: activeFindings.filter((vulnerability) => vulnerability.severity === 'low').length,
+  };
+  const affectedEndpointCount = new Set(activeFindings.map((vulnerability) => vulnerability.endpoint_id)).size;
+  const isWithinDays = (date: string, days: number) => {
+    const timestamp = Date.parse(date);
+    return !Number.isNaN(timestamp) && timestamp >= Date.now() - days * 24 * 60 * 60 * 1000;
+  };
+  const recentThreats = activeFindings
+    .filter((vulnerability) => vulnerability.severity === 'critical' || vulnerability.severity === 'high')
+    .slice(0, 10);
+  const threatTrends = [7, 30, 90].map((days) => ({
+    period: `Last ${days} days`,
+    detected: vulnerabilities.filter((vulnerability) =>
+      isWithinDays(vulnerability.discovered_date, days)
+    ).length,
+  }));
+  const newFindingsLastDay = vulnerabilities.filter((vulnerability) =>
+    isWithinDays(vulnerability.discovered_date, 1)
+  ).length;
+  const filteredFindings = useMemo(() => {
+    const search = findingsSearch.trim().toLocaleLowerCase();
+    return vulnerabilities.filter((vulnerability) => {
+      const matchesSearch = !search || [
+        vulnerability.cve_id,
+        vulnerability.description,
+        vulnerability.endpoint_name,
+        vulnerability.environment,
+        ...vulnerability.affected_packages,
+      ].some((value) => value.toLocaleLowerCase().includes(search));
+      const matchesSeverity = findingsSeverity === 'all' || vulnerability.severity === findingsSeverity;
+      const matchesStatus = findingsStatus === 'all' || vulnerability.status === findingsStatus;
+      return matchesSearch && matchesSeverity && matchesStatus;
+    });
+  }, [findingsSearch, findingsSeverity, findingsStatus, vulnerabilities]);
+  const findingsPageCount = Math.ceil(filteredFindings.length / findingsPageSize);
+  useEffect(() => {
+    setFindingsPage((page) => Math.min(page, Math.max(0, findingsPageCount - 1)));
+  }, [findingsPageCount]);
+  const paginatedFindings = filteredFindings.slice(
+    findingsPage * findingsPageSize,
+    (findingsPage + 1) * findingsPageSize
+  );
+  const findingsStart = filteredFindings.length === 0 ? 0 : findingsPage * findingsPageSize + 1;
+  const findingsEnd = Math.min((findingsPage + 1) * findingsPageSize, filteredFindings.length);
+  const toggleFindingReferences = (findingId: string) => {
+    setExpandedReferenceFindings((current) => {
+      const next = new Set(current);
+      if (next.has(findingId)) next.delete(findingId);
+      else next.add(findingId);
+      return next;
+    });
+  };
 
   const escalationLevels = [
     { id: 'incident-response', name: 'Incident Response Team', description: 'For active security incidents' },
@@ -100,84 +216,6 @@ export default function AdminThreatSummary() {
     'Other (specify in notes)'
   ];
 
-  // Calculate threat stats from real data
-  const threatStats = {
-    totalThreats: vulnerabilities.length,
-    criticalThreats: riskMetrics.criticalCount,
-    highThreats: riskMetrics.highCount,
-    mediumThreats: riskMetrics.mediumCount,
-    lowThreats: riskMetrics.lowCount,
-    resolvedToday: vulnerabilities.filter(v => 
-      v.status === 'resolved' && 
-      new Date(v.discovered_date).toDateString() === new Date().toDateString()
-    ).length,
-    newThreatsToday: vulnerabilities.filter(v => 
-      new Date(v.discovered_date).toDateString() === new Date().toDateString()
-    ).length,
-    avgResolutionTime: '4.2 hours' // This would need historical data to calculate properly
-  };
-
-  // Get recent high-priority threats from real data
-  const recentThreats = vulnerabilities
-    .filter(v => v.severity === 'critical' || v.severity === 'high')
-    .sort((a, b) => new Date(b.discovered_date).getTime() - new Date(a.discovered_date).getTime())
-    .slice(0, 10)
-    .map(vuln => ({
-      id: vuln.cve_id,
-      severity: vuln.severity,
-      title: vuln.description || `Vulnerability ${vuln.cve_id}`,
-      affectedSystems: 1, // This would need endpoint relationship data
-      detectedAt: vuln.discovered_date,
-      status: vuln.status === 'resolved' ? 'resolved' : 
-              vuln.status === 'in_progress' ? 'mitigating' : 'active',
-      description: vuln.description || `Security vulnerability ${vuln.cve_id} detected in system`,
-      impact: vuln.severity === 'critical' ? 'Complete system compromise possible' :
-              vuln.severity === 'high' ? 'Significant security risk' :
-              'Moderate security concern',
-      recommendation: vuln.severity === 'critical' ? 'Immediate patching required' :
-                     vuln.severity === 'high' ? 'Apply security updates within 24 hours' :
-                     'Schedule maintenance window for patching',
-      affectedEndpoints: [vuln.endpoint_name]
-    }));
-
-  // Calculate threat trends from real data
-  const threatTrends = [
-    { 
-      period: 'Last 7 days', 
-      detected: vulnerabilities.filter(v => {
-        const weekAgo = new Date();
-        weekAgo.setDate(weekAgo.getDate() - 7);
-        return new Date(v.discovered_date) >= weekAgo;
-      }).length,
-      resolved: vulnerabilities.filter(v => {
-        const weekAgo = new Date();
-        weekAgo.setDate(weekAgo.getDate() - 7);
-        return v.status === 'resolved' && new Date(v.discovered_date) >= weekAgo;
-      }).length,
-      trend: 'stable' as const
-    },
-    { 
-      period: 'Last 30 days', 
-      detected: vulnerabilities.filter(v => {
-        const monthAgo = new Date();
-        monthAgo.setDate(monthAgo.getDate() - 30);
-        return new Date(v.discovered_date) >= monthAgo;
-      }).length,
-      resolved: vulnerabilities.filter(v => {
-        const monthAgo = new Date();
-        monthAgo.setDate(monthAgo.getDate() - 30);
-        return v.status === 'resolved' && new Date(v.discovered_date) >= monthAgo;
-      }).length,
-      trend: 'down' as const
-    },
-    { 
-      period: 'Last 90 days', 
-      detected: vulnerabilities.length,
-      resolved: vulnerabilities.filter(v => v.status === 'resolved').length,
-      trend: 'stable' as const
-    }
-  ];
-
   const getSeverityColor = (severity: string) => {
     switch (severity) {
       case 'critical': return 'bg-violet-800 text-white border-violet-900';
@@ -190,46 +228,26 @@ export default function AdminThreatSummary() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': return 'bg-red-700 text-white border-red-800';
-      case 'investigating': return 'bg-blue-700 text-white border-blue-800';
-      case 'mitigating': return 'bg-purple-700 text-white border-purple-800';
+      case 'open': return 'bg-red-700 text-white border-red-800';
+      case 'in_progress': return 'bg-blue-700 text-white border-blue-800';
       case 'resolved': return 'bg-green-700 text-white border-green-800';
+      case 'false_positive': return 'bg-gray-700 text-white border-gray-800';
       default: return 'bg-gray-700 text-white border-gray-800';
     }
   };
 
-  const getTrendIcon = (trend: string) => {
-    switch (trend) {
-      case 'up': return <TrendingUp className="h-4 w-4 text-red-600" />;
-      case 'down': return <TrendingUp className="h-4 w-4 text-green-600 rotate-180" />;
-      case 'stable': return <div className="h-4 w-4 bg-gray-400 rounded-full" />;
-      default: return null;
-    }
-  };
-
-  const getAvailabilityColor = (availability: string) => {
-    switch (availability) {
-      case 'available': return 'text-green-600';
-      case 'busy': return 'text-yellow-600';
-      case 'offline': return 'text-gray-400';
-      default: return 'text-gray-600';
-    }
-  };
-
   const handleViewCVE = (threatId: string) => {
-    // Extract CVE ID from threat ID (e.g., CVE-2024-1234)
-    const cveId = threatId;
-    
-    // Open CVE in NIST National Vulnerability Database
-    const cveUrl = `https://nvd.nist.gov/vuln/detail/${cveId}`;
-    window.open(cveUrl, '_blank', 'noopener,noreferrer');
+    const url = /^CVE-\d{4}-\d{4,}$/i.test(threatId)
+      ? `https://nvd.nist.gov/vuln/detail/${threatId}`
+      : `https://osv.dev/vulnerability/${encodeURIComponent(threatId)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  const handleViewThreatDetails = (threat: any) => {
+  const handleViewThreatDetails = (threat: DashboardVulnerability) => {
     setSelectedThreat(threat);
   };
 
-  const handleAssignThreat = (threat: any) => {
+  const handleAssignThreat = (threat: DashboardVulnerability) => {
     setSelectedThreat(threat);
     setAssignmentDialog(true);
     setSelectedTeamMember('');
@@ -238,101 +256,95 @@ export default function AdminThreatSummary() {
   };
 
   const handleConfirmAssignment = async () => {
-    if (!selectedTeamMember || !priority) {
+    if (!selectedThreat || !user || !selectedTeamMember || !priority) {
       toast({
         title: "Missing Information",
-        description: "Please select a team member and priority level",
+        description: "Select a team member and priority, and make sure you are signed in.",
         variant: "destructive",
       });
       return;
     }
 
-    const assignedMember = teamMembers.find(member => member.id === selectedTeamMember);
-    
-    setIsAssigning(true);
-    
-    try {
-      // Create audit log entry
-      const auditEntry = {
-        action: 'threat_assignment',
-        threat_id: selectedThreat?.id,
-        assigned_to: assignedMember?.name,
-        assigned_by: 'Current Admin User', // This would come from auth context
-        priority: priority,
-        notes: assignmentNotes,
-        timestamp: new Date().toISOString(),
-        details: {
-          threat_title: selectedThreat?.title,
-          severity: selectedThreat?.severity,
-          affected_systems: selectedThreat?.affectedSystems
-        }
-      };
-
-      // Log the assignment action
-      auditLogger.log(
-        'THREAT_ASSIGNED',
-        'threat_management',
-        {
-          threat_id: selectedThreat?.id,
-          threat_type: selectedThreat?.title,
-          severity: selectedThreat?.severity,
-          assigned_to: assignedMember?.name,
-          assignment_timestamp: new Date().toISOString(),
-          threat_description: selectedThreat?.description
-        },
-        {
-          severity: 'medium',
-          status: 'success',
-          metadata: {
-            action_category: 'threat_management',
-            security_relevant: true
-          }
-        }
-      );
-      
-      // Simulate assignment API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Update threat status to assigned (simulate database update)
-      if (selectedThreat) {
-        selectedThreat.status = 'assigned';
-        selectedThreat.assignedTo = assignedMember?.name;
-        selectedThreat.assignedAt = new Date().toISOString();
-        selectedThreat.priority = priority;
-      }
-      
-      // Show success toast immediately
+    if (!['critical', 'high', 'medium', 'low'].includes(priority)) {
       toast({
-        title: "Assignment Successful! ✅",
+        title: "Invalid priority",
+        description: "Choose a valid threat priority.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const assignedMember = teamMembers.find((member) => member.id === selectedTeamMember);
+    if (!assignedMember) {
+      toast({
+        title: "Team member unavailable",
+        description: "Refresh the page and select a current team member.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsAssigning(true);
+    try {
+      const { auditLogged } = await new DashboardDataService().assignThreat({
+        vulnerabilityId: selectedThreat.id,
+        cveId: selectedThreat.cve_id,
+        endpointId: selectedThreat.endpoint_id,
+        assignedTo: assignedMember.id,
+        assignedBy: user.id,
+        assignedByEmail: user.email,
+        priority: priority as 'critical' | 'high' | 'medium' | 'low',
+        notes: assignmentNotes,
+      });
+      await loadThreatData();
+      toast({
+        title: auditLogged ? "Threat assigned" : "Threat assigned with audit warning",
         description: (
           <div className="flex items-center space-x-2">
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <CheckCircle2 className={`h-4 w-4 ${auditLogged ? "text-green-600" : "text-amber-600"}`} />
             <span>
-              {selectedThreat?.id} assigned to {assignedMember?.name} with {priority} priority
+              {selectedThreat.cve_id} assigned to {assignedMember.full_name || assignedMember.email}.
+              {!auditLogged && " The audit event could not be recorded; contact an administrator."}
             </span>
           </div>
         ),
         duration: 4000,
       });
-      
-    } catch (error) {
-      toast({
-        title: "Assignment Failed",
-        description: "There was an error assigning the threat. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      // Always reset state and close dialog
-      setIsAssigning(false);
       setAssignmentDialog(false);
+      setSelectedThreat(null);
       setSelectedTeamMember('');
       setAssignmentNotes('');
       setPriority('');
-      setSelectedThreat(null);
+    } catch (error) {
+      console.error('Failed to assign threat:', error);
+      void auditLogger.log(
+        'THREAT_ASSIGNMENT_ATTEMPT_FAILED',
+        'vulnerability',
+        {
+          vulnerability_id: selectedThreat.id,
+          cve_id: selectedThreat.cve_id,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+        {
+          resourceId: selectedThreat.id,
+          severity: 'high',
+          status: 'failure',
+          metadata: { action_category: 'threat_management', security_relevant: true },
+          actorUserId: user?.id,
+          actorUserEmail: user?.email,
+        },
+      );
+      toast({
+        title: "Assignment Failed",
+        description: error instanceof Error ? error.message : "Unable to save the assignment.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAssigning(false);
     }
   };
 
-  const handleEscalateThreat = (threat: any) => {
+  const handleEscalateThreat = (threat: DashboardVulnerability) => {
     setSelectedThreat(threat);
     setEscalationDialog(true);
     setEscalationReason('');
@@ -350,39 +362,74 @@ export default function AdminThreatSummary() {
       return;
     }
 
-    const selectedLevel = escalationLevels.find(level => level.id === escalationLevel);
-    
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Show success toast
+    if (!selectedThreat || !user) {
       toast({
-        title: "Escalation Successful! ����",
+        title: "Sign-in required",
+        description: "Sign in before escalating a finding.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const selectedLevel = escalationLevels.find((level) => level.id === escalationLevel);
+    if (!selectedLevel) return;
+
+    setIsEscalating(true);
+    try {
+      await new DashboardDataService().recordThreatEscalation({
+        userId: user.id,
+        userEmail: user.email,
+        vulnerabilityId: selectedThreat.id,
+        cveId: selectedThreat.cve_id,
+        endpointId: selectedThreat.endpoint_id,
+        reason: escalationReason,
+        level: selectedLevel.name,
+        notes: escalationNotes,
+      });
+      toast({
+        title: "Threat escalation recorded",
         description: (
           <div className="flex items-center space-x-2">
             <AlertCircle className="h-4 w-4 text-orange-600" />
             <span>
-              {selectedThreat?.id} escalated to {selectedLevel?.name}
+              {selectedThreat.cve_id} escalated to {selectedLevel.name}.
             </span>
           </div>
         ),
         duration: 4000,
       });
-      
-      // Reset form
       setEscalationDialog(false);
       setEscalationReason('');
       setEscalationLevel('');
       setEscalationNotes('');
       setSelectedThreat(null);
-      
     } catch (error) {
+      console.error('Failed to record threat escalation:', error);
+      void auditLogger.log(
+        'THREAT_ESCALATION_ATTEMPT_FAILED',
+        'vulnerability',
+        {
+          vulnerability_id: selectedThreat.id,
+          cve_id: selectedThreat.cve_id,
+          escalation_level: selectedLevel.name,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+        {
+          resourceId: selectedThreat.id,
+          severity: 'high',
+          status: 'failure',
+          metadata: { action_category: 'threat_management', security_relevant: true },
+          actorUserId: user?.id,
+          actorUserEmail: user?.email,
+        },
+      );
       toast({
         title: "Escalation Failed",
-        description: "There was an error escalating the threat. Please try again.",
+        description: error instanceof Error ? error.message : "Unable to record the escalation.",
         variant: "destructive",
       });
+    } finally {
+      setIsEscalating(false);
     }
   };
 
@@ -404,11 +451,14 @@ export default function AdminThreatSummary() {
             <h3 className="text-lg font-semibold">Threat Detection Summary</h3>
           </div>
           <div className="text-sm text-gray-500">
-            {isLoading ? 'Loading...' : `Last updated: ${new Date().toLocaleTimeString()}`}
+            {isLoading ? 'Loading...' : lastUpdatedAt ? `Last updated: ${lastUpdatedAt.toLocaleTimeString()}` : 'Not updated yet'}
           </div>
         </div>
 
-        {/* Threat Overview - Now with real data */}
+        {loadError && <p role="alert" className="text-sm text-destructive">{loadError}</p>}
+        <p className="text-sm text-muted-foreground">
+          Findings are package-version matches against the configured CVE catalog for agent-reported endpoints.
+        </p>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="pt-6">
@@ -416,9 +466,9 @@ export default function AdminThreatSummary() {
                 <AlertTriangle className="h-5 w-5 text-red-600" />
                 <div>
                   <div className="text-2xl font-bold text-red-600">
-                    {isLoading ? '...' : threatStats.criticalThreats}
+                    {isLoading ? '...' : loadError ? 'Unavailable' : severityCounts.critical}
                   </div>
-                  <div className="text-sm text-gray-500">Critical Threats</div>
+                  <div className="text-sm text-gray-500">Active Critical Findings</div>
                 </div>
               </div>
             </CardContent>
@@ -429,22 +479,9 @@ export default function AdminThreatSummary() {
                 <AlertTriangle className="h-5 w-5 text-orange-600" />
                 <div>
                   <div className="text-2xl font-bold text-orange-600">
-                    {isLoading ? '...' : threatStats.highThreats}
+                    {isLoading ? '...' : loadError ? 'Unavailable' : severityCounts.high}
                   </div>
-                  <div className="text-sm text-gray-500">High Threats</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center space-x-2">
-                <Shield className="h-5 w-5 text-green-600" />
-                <div>
-                  <div className="text-2xl font-bold text-green-600">
-                    {isLoading ? '...' : threatStats.resolvedToday}
-                  </div>
-                  <div className="text-sm text-gray-500">Resolved Today</div>
+                  <div className="text-sm text-gray-500">Active High Findings</div>
                 </div>
               </div>
             </CardContent>
@@ -454,59 +491,69 @@ export default function AdminThreatSummary() {
               <div className="flex items-center space-x-2">
                 <Clock className="h-5 w-5 text-blue-600" />
                 <div>
-                  <div className="text-2xl font-bold">{threatStats.avgResolutionTime}</div>
-                  <div className="text-sm text-gray-500">Avg Resolution</div>
+                  <div className="text-2xl font-bold text-blue-600">
+                    {isLoading ? '...' : loadError ? 'Unavailable' : newFindingsLastDay}
+                  </div>
+                  <div className="text-sm text-gray-500">New Findings (24h)</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center space-x-2">
+                <Shield className="h-5 w-5 text-purple-600" />
+                <div>
+                  <div className="text-2xl font-bold text-purple-600">
+                    {isLoading ? '...' : loadError ? 'Unavailable' : affectedEndpointCount}
+                  </div>
+                  <div className="text-sm text-gray-500">Affected Endpoints</div>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Threat Distribution - Now with real data */}
         <Card>
           <CardHeader>
-            <CardTitle>Threat Distribution</CardTitle>
+            <CardTitle>Active Findings by Severity</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center p-4 border rounded-lg">
                 <div className="text-3xl font-bold text-red-600">
-                  {isLoading ? '...' : threatStats.criticalThreats}
+                  {isLoading ? '...' : loadError ? '—' : severityCounts.critical}
                 </div>
                 <div className="text-sm text-gray-500">Critical</div>
                 <div className="text-xs text-gray-400">
-                  {threatStats.totalThreats > 0 ? 
-                    ((threatStats.criticalThreats / threatStats.totalThreats) * 100).toFixed(1) : '0'}%
+                  {isLoading ? '...' : loadError ? '—' : `${activeFindings.length > 0 ? ((severityCounts.critical / activeFindings.length) * 100).toFixed(1) : '0'}%`}
                 </div>
               </div>
               <div className="text-center p-4 border rounded-lg">
                 <div className="text-3xl font-bold text-orange-600">
-                  {isLoading ? '...' : threatStats.highThreats}
+                  {isLoading ? '...' : loadError ? '—' : severityCounts.high}
                 </div>
                 <div className="text-sm text-gray-500">High</div>
                 <div className="text-xs text-gray-400">
-                  {threatStats.totalThreats > 0 ? 
-                    ((threatStats.highThreats / threatStats.totalThreats) * 100).toFixed(1) : '0'}%
+                  {isLoading ? '...' : loadError ? '—' : `${activeFindings.length > 0 ? ((severityCounts.high / activeFindings.length) * 100).toFixed(1) : '0'}%`}
                 </div>
               </div>
               <div className="text-center p-4 border rounded-lg">
                 <div className="text-3xl font-bold text-yellow-600">
-                  {isLoading ? '...' : threatStats.mediumThreats}
+                  {isLoading ? '...' : loadError ? '—' : severityCounts.medium}
                 </div>
                 <div className="text-sm text-gray-500">Medium</div>
                 <div className="text-xs text-gray-400">
-                  {threatStats.totalThreats > 0 ? 
-                    ((threatStats.mediumThreats / threatStats.totalThreats) * 100).toFixed(1) : '0'}%
+                  {isLoading ? '...' : loadError ? '—' : `${activeFindings.length > 0 ? ((severityCounts.medium / activeFindings.length) * 100).toFixed(1) : '0'}%`}
                 </div>
               </div>
               <div className="text-center p-4 border rounded-lg">
                 <div className="text-3xl font-bold text-green-600">
-                  {isLoading ? '...' : threatStats.lowThreats}
+                  {isLoading ? '...' : loadError ? '—' : severityCounts.low}
                 </div>
                 <div className="text-sm text-gray-500">Low</div>
                 <div className="text-xs text-gray-400">
-                  {threatStats.totalThreats > 0 ? 
-                    ((threatStats.lowThreats / threatStats.totalThreats) * 100).toFixed(1) : '0'}%
+                  {isLoading ? '...' : loadError ? '—' : `${activeFindings.length > 0 ? ((severityCounts.low / activeFindings.length) * 100).toFixed(1) : '0'}%`}
                 </div>
               </div>
             </div>
@@ -521,11 +568,12 @@ export default function AdminThreatSummary() {
           <CardContent>
             {isLoading ? (
               <div className="text-center py-8 text-gray-500">Loading threat data...</div>
+            ) : loadError ? (
+              <div className="text-center py-8 text-gray-500">Vulnerability findings are unavailable.</div>
             ) : recentThreats.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
-                <Shield className="h-12 w-12 mx-auto mb-4 text-green-500" />
-                <p>No high-priority threats detected</p>
-                <p className="text-sm">Your systems appear to be secure</p>
+                <Shield className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                <p>No open high-priority CVE matches on agent-reported endpoints.</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -538,11 +586,16 @@ export default function AdminThreatSummary() {
                         'text-yellow-600'
                       }`} />
                       <div>
-                        <div className="font-medium">{threat.title}</div>
-                        <div className="text-sm text-gray-500">{threat.id}</div>
+                        <div
+                          className="line-clamp-2 font-medium"
+                          title={threat.description || threat.cve_id}
+                        >
+                          {threat.description || threat.cve_id}
+                        </div>
+                        <div className="text-sm text-gray-500">{threat.cve_id}</div>
                         <div className="text-sm text-gray-500">
-                          {threat.affectedSystems} affected systems • 
-                          Detected {new Date(threat.detectedAt).toLocaleString()}
+                          {threat.endpoint_name} ({threat.environment}) • Detected{' '}
+                          {new Date(threat.discovered_date).toLocaleString()}
                         </div>
                       </div>
                     </div>
@@ -551,7 +604,7 @@ export default function AdminThreatSummary() {
                         {threat.severity}
                       </Badge>
                       <Badge className={getStatusColor(threat.status) + " capitalize"}>
-                        {threat.status}
+                        {threat.status.replace('_', ' ')}
                       </Badge>
                       <Dialog>
                         <DialogTrigger asChild>
@@ -571,7 +624,7 @@ export default function AdminThreatSummary() {
                                 threat.severity === 'high' ? 'text-orange-600' : 
                                 'text-yellow-600'
                               }`} />
-                              <span>{threat.title}</span>
+                              <span>{threat.description || threat.cve_id}</span>
                             </DialogTitle>
                           </DialogHeader>
                           <div className="space-y-4">
@@ -580,47 +633,85 @@ export default function AdminThreatSummary() {
                                 {threat.severity}
                               </Badge>
                               <Badge className={getStatusColor(threat.status) + " capitalize"}>
-                                {threat.status}
+                                {threat.status.replace('_', ' ')}
                               </Badge>
-                              <span className="text-sm text-gray-500">{threat.id}</span>
+                              <span className="text-sm text-gray-500">{threat.cve_id}</span>
                             </div>
                             
                             <div>
                               <h4 className="font-semibold mb-2">Description</h4>
-                              <p className="text-sm text-gray-600">{threat.description}</p>
+                              <p className="text-sm text-gray-600">{threat.description || 'No description is available in the CVE catalog.'}</p>
                             </div>
-                            
-                            <div>
-                              <h4 className="font-semibold mb-2">Impact</h4>
-                              <p className="text-sm text-gray-600">{threat.impact}</p>
-                            </div>
-                            
-                            <div>
-                              <h4 className="font-semibold mb-2">Recommendation</h4>
-                              <p className="text-sm text-gray-600">{threat.recommendation}</p>
-                            </div>
+
+                            {threat.cvss_score !== null && (
+                              <div>
+                                <h4 className="font-semibold mb-2">CVSS Score</h4>
+                                <p className="text-sm text-gray-600">{threat.cvss_score}</p>
+                              </div>
+                            )}
+
+                            {/^CVE-\d{4}-\d{4,}$/i.test(threat.cve_id) && (
+                              <div className="space-y-2 rounded-md border p-3">
+                                <h4 className="font-semibold">NVD details</h4>
+                                {isLoadingNvd && (
+                                  <p className="text-sm text-gray-500">Loading current NVD data...</p>
+                                )}
+                                {nvdError && (
+                                  <p role="status" className="text-sm text-amber-700">{nvdError}</p>
+                                )}
+                                {nvdDetails && (
+                                  <>
+                                    {nvdDetails.description && (
+                                      <p className="text-sm text-gray-600">{nvdDetails.description}</p>
+                                    )}
+                                    <p className="text-sm text-gray-600">
+                                      CVSS {nvdDetails.cvssScore ?? 'not available'}
+                                      {nvdDetails.severity ? ` (${nvdDetails.severity})` : ''}
+                                      {' · '}Published {nvdDetails.published
+                                        ? new Date(nvdDetails.published).toLocaleDateString()
+                                        : 'date unavailable'}
+                                    </p>
+                                    {nvdDetails.references.length > 0 && (
+                                      <ul className="list-inside list-disc space-y-1 text-sm">
+                                        {nvdDetails.references.slice(0, 5).map((reference) => {
+                                          const url = safeExternalUrl(reference.url);
+                                          return url ? (
+                                            <li key={url}>
+                                              <a
+                                                href={url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-blue-600 underline"
+                                              >
+                                                {url}
+                                              </a>
+                                            </li>
+                                          ) : null;
+                                        })}
+                                      </ul>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            )}
                             
                             <div>
                               <h4 className="font-semibold mb-2 flex items-center space-x-2">
                                 <Users className="h-4 w-4" />
-                                <span>Affected Endpoints ({threat.affectedSystems})</span>
+                                <span>Affected Endpoint</span>
                               </h4>
-                              <div className="flex flex-wrap gap-2">
-                                {threat.affectedEndpoints.map((endpoint, index) => (
-                                  <Badge key={index} variant="outline" className="text-xs">
-                                    {endpoint}
-                                  </Badge>
-                                ))}
-                              </div>
+                              <Badge variant="outline" className="text-xs">
+                                {threat.endpoint_name} ({threat.environment})
+                              </Badge>
                             </div>
                             
                             <div className="flex items-center space-x-2 text-sm text-gray-500">
                               <Calendar className="h-4 w-4" />
-                              <span>Detected: {new Date(threat.detectedAt).toLocaleString()}</span>
+                              <span>Detected: {new Date(threat.discovered_date).toLocaleString()}</span>
                             </div>
                             
                             <div className="flex space-x-2 pt-4">
-                              <Button 
+                              <Button
                                 onClick={() => handleAssignThreat(threat)}
                                 className="flex-1"
                               >
@@ -628,7 +719,7 @@ export default function AdminThreatSummary() {
                                 Assign to Team
                               </Button>
                               {threat.severity === 'critical' && (
-                                <Button 
+                                <Button
                                   variant="destructive"
                                   onClick={() => handleEscalateThreat(threat)}
                                   className="flex-1"
@@ -640,10 +731,10 @@ export default function AdminThreatSummary() {
                               <Button 
                                 variant="outline" 
                                 className="flex items-center space-x-2"
-                                onClick={() => handleViewCVE(threat.id)}
+                                onClick={() => handleViewCVE(threat.cve_id)}
                               >
                                 <ExternalLink className="h-4 w-4" />
-                                <span>View CVE</span>
+                                <span>{/^CVE-\d{4}-\d{4,}$/i.test(threat.cve_id) ? 'View NVD' : 'View OSV'}</span>
                               </Button>
                             </div>
                           </div>
@@ -653,6 +744,212 @@ export default function AdminThreatSummary() {
                   </div>
                 ))}
               </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>All Vulnerability Findings ({isLoading ? '...' : vulnerabilities.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_180px]">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  aria-label="Search vulnerability findings"
+                  placeholder="Search CVE, package, endpoint..."
+                  className="pl-9"
+                  value={findingsSearch}
+                  onChange={(event) => {
+                    setFindingsSearch(event.target.value);
+                    setFindingsPage(0);
+                  }}
+                />
+              </div>
+              <Select value={findingsSeverity} onValueChange={(value) => {
+                setFindingsSeverity(value);
+                setFindingsPage(0);
+              }}>
+                <SelectTrigger aria-label="Filter findings by severity">
+                  <SelectValue placeholder="All severities" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All severities</SelectItem>
+                  <SelectItem value="critical">Critical</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={findingsStatus} onValueChange={(value) => {
+                setFindingsStatus(value);
+                setFindingsPage(0);
+              }}>
+                <SelectTrigger aria-label="Filter findings by status">
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="open">Open</SelectItem>
+                  <SelectItem value="in_progress">In progress</SelectItem>
+                  <SelectItem value="resolved">Resolved</SelectItem>
+                  <SelectItem value="false_positive">False positive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {isLoading ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">Loading vulnerability findings...</p>
+            ) : loadError ? (
+              <p className="py-8 text-center text-sm text-destructive">Vulnerability findings are unavailable.</p>
+            ) : filteredFindings.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                {vulnerabilities.length === 0
+                  ? 'No vulnerability findings have been reported.'
+                  : 'No findings match these search and filter criteria.'}
+              </p>
+            ) : (
+              <>
+                <div className="space-y-3">
+                  {paginatedFindings.map((finding) => {
+                    const references = (finding.reference_urls || [])
+                      .map((reference) => ({
+                        url: safeExternalUrl(reference),
+                        label: formatReferenceLabel(reference),
+                      }))
+                      .filter((reference): reference is { url: string; label: string } =>
+                        reference.url !== null && reference.label !== null
+                      );
+                    const showAllReferences = expandedReferenceFindings.has(finding.id);
+                    const visibleReferences = showAllReferences ? references : references.slice(0, 3);
+
+                    return (
+                    <details key={finding.id} className="rounded-lg border p-4">
+                      <summary className="flex cursor-pointer list-none flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div className="min-w-0">
+                          <div
+                            className="line-clamp-2 font-medium"
+                            title={finding.description || finding.cve_id}
+                          >
+                            {finding.description || finding.cve_id}
+                          </div>
+                          <div className="mt-1 text-sm text-muted-foreground">
+                            {finding.cve_id} · {finding.endpoint_name} ({finding.environment})
+                          </div>
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            Detected {new Date(finding.discovered_date).toLocaleString()}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Badge className={`${getSeverityColor(finding.severity)} capitalize`}>
+                            {finding.severity}
+                          </Badge>
+                          <Badge className={`${getStatusColor(finding.status)} capitalize`}>
+                            {finding.status.replace('_', ' ')}
+                          </Badge>
+                        </div>
+                      </summary>
+                      <div className="mt-4 space-y-3 border-t pt-3 text-sm">
+                        <p className="whitespace-pre-wrap">{finding.description || 'No description available.'}</p>
+                        {finding.cvss_score !== null && (
+                          <p><span className="font-medium">CVSS score:</span> {finding.cvss_score}</p>
+                        )}
+                        <p>
+                          <span className="font-medium">Affected packages:</span>{' '}
+                          {finding.affected_packages.length > 0
+                            ? finding.affected_packages.join(', ')
+                            : 'Package details unavailable'}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button variant="outline" size="sm" onClick={() => handleViewCVE(finding.cve_id)}>
+                            <ExternalLink className="mr-2 h-4 w-4" />
+                            {/^CVE-\d{4}-\d{4,}$/i.test(finding.cve_id) ? 'View NVD' : 'View OSV'}
+                          </Button>
+                          {visibleReferences.map((reference) => (
+                              <a
+                                key={reference.url}
+                                href={reference.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={reference.url}
+                                aria-label={`Open reference ${reference.label} in a new tab`}
+                                className="inline-flex h-9 max-w-full items-center gap-1.5 rounded-md border px-3 text-sm font-medium hover:bg-accent"
+                              >
+                                <span className="truncate">{reference.label}</span>
+                                <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                              </a>
+                          ))}
+                          {references.length > 3 && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleFindingReferences(finding.id)}
+                              aria-expanded={showAllReferences}
+                            >
+                              {showAllReferences
+                                ? 'Show fewer references'
+                                : `Show all references (${references.length})`}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </details>
+                    );
+                  })}
+                </div>
+                <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+                    <p className="text-sm text-muted-foreground">
+                      Showing {findingsStart}–{findingsEnd} of {filteredFindings.length} findings
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="findings-page-size" className="whitespace-nowrap text-sm text-muted-foreground">
+                        Per page
+                      </Label>
+                      <select
+                        id="findings-page-size"
+                        aria-label="Findings per page"
+                        value={findingsPageSize}
+                        onChange={(event) => {
+                          setFindingsPageSize(Number(event.target.value));
+                          setFindingsPage(0);
+                        }}
+                        className="h-9 w-20 rounded-md border border-input bg-background px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      >
+                        {[5, 10, 25, 50, 100].map((pageSize) => (
+                          <option key={pageSize} value={pageSize}>{pageSize}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setFindingsPage((page) => Math.max(0, page - 1))}
+                      disabled={findingsPage === 0}
+                      aria-label="Previous findings page"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Previous
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      Page {findingsPage + 1} of {findingsPageCount}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setFindingsPage((page) => Math.min(findingsPageCount - 1, page + 1))}
+                      disabled={findingsPage >= findingsPageCount - 1}
+                      aria-label="Next findings page"
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
@@ -671,26 +968,24 @@ export default function AdminThreatSummary() {
                 <div>
                   <Label className="text-sm font-medium">Threat</Label>
                   <div className="mt-1 p-2 rounded border text-sm text-white" style={{ backgroundColor: '#344256' }}>
-                    {selectedThreat?.title} ({selectedThreat?.id})
+                    {selectedThreat?.description || selectedThreat?.cve_id} ({selectedThreat?.cve_id})
                   </div>
                 </div>
 
                 <div>
                   <Label htmlFor="team-member" className="text-sm font-medium">Assign to Team Member</Label>
+                  {assigneeError && <p role="alert" className="mt-1 text-sm text-destructive">{assigneeError}</p>}
                   <Select value={selectedTeamMember} onValueChange={setSelectedTeamMember}>
                     <SelectTrigger className="mt-1">
                       <SelectValue placeholder="Select team member" />
                     </SelectTrigger>
                     <SelectContent>
                       {teamMembers.map((member) => (
-                        <SelectItem key={member.id} value={member.id} disabled={member.availability === 'offline'}>
+                        <SelectItem key={member.id} value={member.id}>
                           <div className="flex items-center justify-between w-full">
                             <div>
-                              <div className="font-medium">{member.name}</div>
+                              <div className="font-medium">{member.full_name || member.email}</div>
                               <div className="text-xs text-gray-500">{member.role}</div>
-                            </div>
-                            <div className={`text-xs ml-2 ${getAvailabilityColor(member.availability)}`}>
-                              {member.availability}
                             </div>
                           </div>
                         </SelectItem>
@@ -706,7 +1001,7 @@ export default function AdminThreatSummary() {
                       <SelectValue placeholder="Select priority" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="urgent">Urgent - Immediate attention required</SelectItem>
+                      <SelectItem value="critical">Critical - Immediate attention required</SelectItem>
                       <SelectItem value="high">High - Address within 4 hours</SelectItem>
                       <SelectItem value="medium">Medium - Address within 24 hours</SelectItem>
                       <SelectItem value="low">Low - Address within 72 hours</SelectItem>
@@ -772,7 +1067,7 @@ export default function AdminThreatSummary() {
                 <div>
                   <Label className="text-sm font-medium">Threat</Label>
                   <div className="mt-1 p-2 rounded border text-sm text-white" style={{ backgroundColor: '#344256' }}>
-                    {selectedThreat?.title} ({selectedThreat?.id})
+                    {selectedThreat?.description || selectedThreat?.cve_id} ({selectedThreat?.cve_id})
                   </div>
                 </div>
 
@@ -840,9 +1135,9 @@ export default function AdminThreatSummary() {
                     onClick={handleConfirmEscalation} 
                     variant="destructive"
                     className="flex-1"
+                    disabled={isEscalating}
                   >
-                    <AlertCircle className="h-4 w-4 mr-2" />
-                    Confirm Escalation
+                    {isEscalating ? 'Recording...' : <><AlertCircle className="h-4 w-4 mr-2" />Confirm Escalation</>}
                   </Button>
                   <Button variant="outline" onClick={() => setEscalationDialog(false)} className="flex-1">
                     Cancel
@@ -853,34 +1148,24 @@ export default function AdminThreatSummary() {
           </Dialog>
         </PermissionGuard>
 
-        {/* Threat Trends - Now with real data */}
         <Card>
           <CardHeader>
-            <CardTitle>Threat Trends</CardTitle>
+            <CardTitle>New Catalog Matches</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {threatTrends.map((trend, index) => (
                 <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    {getTrendIcon(trend.trend)}
-                    <div>
-                      <div className="font-medium">{trend.period}</div>
-                      <div className="text-sm text-gray-500">
-                        {trend.detected} detected • {trend.resolved} resolved
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-lg font-semibold">
-                      {trend.detected - trend.resolved > 0 ? '+' : ''}
-                      {trend.detected - trend.resolved}
-                    </div>
-                    <div className="text-sm text-gray-500">Net change</div>
+                  <div className="font-medium">{trend.period}</div>
+                  <div className="text-lg font-semibold">
+                    {isLoading ? '...' : loadError ? 'Unavailable' : trend.detected}
                   </div>
                 </div>
               ))}
             </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Counts use each finding&apos;s recorded discovery date. Resolution trends are not available.
+            </p>
           </CardContent>
         </Card>
       </div>

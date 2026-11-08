@@ -186,6 +186,78 @@ describe('DashboardDataService', () => {
     });
   });
 
+  describe('getAgentInventoryStats', () => {
+    it('aggregates package and service counts from agent endpoint metadata', async () => {
+      const filter = vi.fn().mockResolvedValue({
+        data: [
+          {
+            last_scan: '2025-03-01T12:00:00Z',
+            metadata: {
+              reported_package_count: 120,
+              running_services: ['ssh', 'nginx'],
+            },
+          },
+          {
+            last_scan: '2025-03-02T12:00:00Z',
+            metadata: {
+              reported_package_count: '45',
+              running_services: ['cron'],
+            },
+          },
+          {
+            last_scan: 'invalid-date',
+            metadata: { reported_package_count: 5, running_services: 'not-an-array' },
+          },
+        ],
+        error: null,
+      });
+      const select = vi.fn().mockReturnValue({ filter });
+      mocks.from.mockReturnValue({ select });
+
+      await expect(service.getAgentInventoryStats()).resolves.toEqual({
+        totalEndpoints: 3,
+        reportedPackages: 170,
+        reportedServices: 3,
+        latestCollection: '2025-03-02T12:00:00Z',
+      });
+      expect(mocks.from).toHaveBeenCalledWith('endpoints');
+      expect(select).toHaveBeenCalledWith('last_scan, metadata');
+      expect(filter).toHaveBeenCalledWith(
+        'metadata->>collection_source',
+        'eq',
+        'agent',
+      );
+    });
+
+    it('returns zero counts when no agent endpoints are reported', async () => {
+      const filter = vi.fn().mockResolvedValue({ data: [], error: null });
+      mocks.from.mockReturnValue({
+        select: vi.fn().mockReturnValue({ filter }),
+      });
+
+      await expect(service.getAgentInventoryStats()).resolves.toEqual({
+        totalEndpoints: 0,
+        reportedPackages: 0,
+        reportedServices: 0,
+        latestCollection: null,
+      });
+    });
+
+    it('surfaces endpoint query errors', async () => {
+      const filter = vi.fn().mockResolvedValue({
+        data: null,
+        error: { message: 'permission denied' },
+      });
+      mocks.from.mockReturnValue({
+        select: vi.fn().mockReturnValue({ filter }),
+      });
+
+      await expect(service.getAgentInventoryStats()).rejects.toThrow(
+        'Failed to fetch agent inventory: permission denied',
+      );
+    });
+  });
+
   describe('getEndpoints', () => {
     it('should return mapped endpoints successfully', async () => {
       const mockEndpoints = [
@@ -507,6 +579,176 @@ describe('DashboardDataService', () => {
       expect(vulns).toEqual([]);
 
       consoleSpy.mockRestore();
+    });
+  });
+
+  describe('getAgentVulnerabilities', () => {
+    it('returns findings only for endpoints collected by an agent', async () => {
+      const order = vi.fn().mockResolvedValue({
+        data: [
+          {
+            id: 'finding-1',
+            cve_id: 'CVE-2025-0001',
+            description: 'Known issue',
+            severity: 'critical',
+            cvss_score: 9.8,
+            status: 'open',
+            endpoint_id: 'agent-endpoint',
+            discovered_date: '2025-03-01T12:00:00Z',
+            source_id: 'OSV-2025-0001',
+            reference_urls: ['https://osv.dev/vulnerability/OSV-2025-0001'],
+            affected_packages: ['openssl'],
+            endpoints: {
+              hostname: 'agent-host',
+              environment: 'production',
+              metadata: { collection_source: 'agent' },
+            },
+          },
+          {
+            id: 'finding-2',
+            cve_id: 'CVE-2025-0002',
+            description: 'Seeded issue',
+            severity: 'high',
+            cvss_score: 7.5,
+            status: 'open',
+            endpoint_id: 'seed-endpoint',
+            discovered_date: '2025-03-01T11:00:00Z',
+            endpoints: {
+              hostname: 'seed-host',
+              environment: 'testing',
+              metadata: {},
+            },
+          },
+        ],
+        error: null,
+      });
+      const query = { eq: vi.fn().mockReturnThis(), order };
+      const select = vi.fn().mockReturnValue(query);
+      mocks.from.mockReturnValue({ select, eq: query.eq, order });
+
+      await expect(service.getAgentVulnerabilities()).resolves.toEqual([
+        {
+          id: 'finding-1',
+          cve_id: 'CVE-2025-0001',
+          description: 'Known issue',
+          severity: 'critical',
+          cvss_score: 9.8,
+          status: 'open',
+          endpoint_id: 'agent-endpoint',
+          endpoint_name: 'agent-host',
+          environment: 'production',
+          discovered_date: '2025-03-01T12:00:00Z',
+          affected_packages: ['openssl'],
+          source: 'osv',
+          source_id: 'OSV-2025-0001',
+          reference_urls: ['https://osv.dev/vulnerability/OSV-2025-0001'],
+        },
+      ]);
+      expect(mocks.from).toHaveBeenCalledWith('vulnerabilities');
+      expect(select).toHaveBeenCalledWith(expect.stringContaining('metadata'));
+      expect(query.eq).toHaveBeenCalledWith('source', 'osv');
+    });
+
+    it('surfaces query errors instead of showing zero findings', async () => {
+      const order = vi.fn().mockResolvedValue({
+        data: null,
+        error: { message: 'permission denied' },
+      });
+      mocks.from.mockReturnValue({
+        select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnThis(), order }),
+      });
+
+      await expect(service.getAgentVulnerabilities()).rejects.toThrow(
+        'Failed to fetch agent vulnerability findings: permission denied',
+      );
+    });
+  });
+
+  describe('getAgentSystemHealth', () => {
+    it('returns agent service reports and validates resource telemetry', async () => {
+      const order = vi.fn().mockResolvedValue({
+        data: [
+          {
+            id: 'endpoint-1',
+            hostname: 'agent-host',
+            os_type: 'Ubuntu 24.04',
+            last_scan: '2026-11-07T18:00:00.000Z',
+            metadata: {
+              collection_source: 'agent',
+              running_services: ['ssh.service', 'cron.service', 1],
+              resource_metrics: {
+                cpu_usage_percent: 51.2,
+                memory_usage_percent: 72,
+                memory_used_bytes: 720,
+                memory_total_bytes: 1000,
+                disk_usage_percent: 84.5,
+                disk_used_bytes: 845,
+                disk_total_bytes: 1000,
+              },
+            },
+          },
+          {
+            id: 'endpoint-2',
+            hostname: 'old-agent',
+            os_type: 'Windows Server',
+            last_scan: null,
+            metadata: {
+              running_services: [],
+              resource_metrics: { cpu_usage_percent: 180 },
+            },
+          },
+        ],
+        error: null,
+      });
+      const filter = vi.fn().mockReturnValue({ order });
+      const select = vi.fn().mockReturnValue({ filter });
+      mocks.from.mockReturnValue({ select });
+
+      await expect(service.getAgentSystemHealth()).resolves.toEqual([
+        {
+          id: 'endpoint-1',
+          hostname: 'agent-host',
+          osType: 'Ubuntu 24.04',
+          lastScan: '2026-11-07T18:00:00.000Z',
+          runningServices: ['ssh.service', 'cron.service'],
+          resourceMetrics: {
+            cpu_usage_percent: 51.2,
+            memory_usage_percent: 72,
+            memory_used_bytes: 720,
+            memory_total_bytes: 1000,
+            disk_usage_percent: 84.5,
+            disk_used_bytes: 845,
+            disk_total_bytes: 1000,
+          },
+        },
+        {
+          id: 'endpoint-2',
+          hostname: 'old-agent',
+          osType: 'Windows Server',
+          lastScan: null,
+          runningServices: [],
+          resourceMetrics: null,
+        },
+      ]);
+      expect(mocks.from).toHaveBeenCalledWith('endpoints');
+      expect(filter).toHaveBeenCalledWith('metadata->>collection_source', 'eq', 'agent');
+      expect(order).toHaveBeenCalledWith('last_scan', { ascending: false });
+    });
+
+    it('surfaces endpoint query errors', async () => {
+      const order = vi.fn().mockResolvedValue({
+        data: null,
+        error: { message: 'connection failed' },
+      });
+      mocks.from.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          filter: vi.fn().mockReturnValue({ order }),
+        }),
+      });
+
+      await expect(service.getAgentSystemHealth()).rejects.toThrow(
+        'Failed to fetch agent system health: connection failed',
+      );
     });
   });
 

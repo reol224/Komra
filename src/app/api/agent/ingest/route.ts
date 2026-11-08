@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { scanEndpointForKnownVulnerabilities } from '@/lib/vulnerabilityDetection';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -15,6 +16,15 @@ interface AgentData {
     architecture: string;
     cpu_info: string;
     memory_total: number;
+    resource_metrics?: {
+      cpu_usage_percent: number | null;
+      memory_usage_percent: number;
+      memory_used_bytes: number;
+      memory_total_bytes: number;
+      disk_usage_percent: number | null;
+      disk_used_bytes: number | null;
+      disk_total_bytes: number | null;
+    };
     disk_usage: any;
     network_interfaces: any[];
     running_services: string[];
@@ -69,9 +79,12 @@ export async function POST(request: NextRequest) {
       last_scan: agentData.last_scan,
       status: 'healthy',
       metadata: {
+        collection_source: 'agent',
         architecture: agentData.endpoint.architecture,
         cpu_info: agentData.endpoint.cpu_info,
         memory_total: agentData.endpoint.memory_total,
+        resource_metrics: agentData.endpoint.resource_metrics ?? null,
+        reported_package_count: agentData.packages.length,
         disk_usage: agentData.endpoint.disk_usage,
         network_interfaces: agentData.endpoint.network_interfaces,
         running_services: agentData.endpoint.running_services
@@ -144,6 +157,13 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`📦 Processed ${packagesProcessed} packages (${packagesSkipped} skipped)`);
+    const vulnerabilityScan = await scanEndpointForKnownVulnerabilities(
+      supabase,
+      endpoint.id,
+    );
+    console.log(
+      `🚨 Found ${vulnerabilityScan.matches} OSV matches across ${vulnerabilityScan.scannedPackages} supported packages`,
+    );
 
     return NextResponse.json({
       success: true,
@@ -153,6 +173,9 @@ export async function POST(request: NextRequest) {
         hostname: endpoint.hostname,
         packages_processed: packagesProcessed,
         packages_skipped: packagesSkipped,
+        vulnerability_matches: vulnerabilityScan.matches,
+        vulnerability_packages_scanned: vulnerabilityScan.scannedPackages,
+        unsupported_package_types: vulnerabilityScan.unsupportedPackages,
         last_scan: agentData.last_scan
       }
     });

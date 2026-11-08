@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock SystemDataCollector
 const mockCollectSystemData = vi.fn();
+const { mockScanEndpointForKnownVulnerabilities } = vi.hoisted(() => ({
+  mockScanEndpointForKnownVulnerabilities: vi.fn(),
+}));
 vi.mock('@/lib/systemDataCollector', () => {
   return {
     default: class MockSystemDataCollector {
@@ -10,6 +13,9 @@ vi.mock('@/lib/systemDataCollector', () => {
     MachineData: {},
   };
 });
+vi.mock('@/lib/vulnerabilityDetection', () => ({
+  scanEndpointForKnownVulnerabilities: mockScanEndpointForKnownVulnerabilities,
+}));
 
 // Mock Supabase functions
 interface MockFns {
@@ -50,6 +56,15 @@ describe('DataIngestionService Integration Tests', () => {
     architecture: 'x64',
     cpu_info: 'Intel Core i7',
     memory_total: 16000000000,
+    resource_metrics: {
+      cpu_usage_percent: 28,
+      memory_usage_percent: 44,
+      memory_used_bytes: 7040000000,
+      memory_total_bytes: 16000000000,
+      disk_usage_percent: 40,
+      disk_used_bytes: 200000000000,
+      disk_total_bytes: 500000000000,
+    },
     disk_usage: { total: '500GB', used: '200GB' },
     network_interfaces: [{ name: 'eth0', interfaces: [{ address: '192.168.1.100', family: 'IPv4', internal: false }] }],
     running_services: ['nginx', 'postgresql', 'docker'],
@@ -309,76 +324,38 @@ describe('DataIngestionService Integration Tests', () => {
   describe('Vulnerability Scanning Workflows', () => {
     it('should scan endpoint and create vulnerability records', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      let vulnerabilityUpsertCalled = false;
-      let upsertData: any = null;
-
-      mocks.from.mockImplementation((table: string) => {
-        if (table === 'endpoint_packages') {
-          return {
-            select: () => ({
-              eq: () => Promise.resolve({
-                data: [
-                  { id: 'ep-1', packages: { name: 'nginx', version: '1.24.0' }, endpoints: { hostname: 'prod-web-01' } },
-                  { id: 'ep-2', packages: { name: 'openssl', version: '3.0.1' }, endpoints: { hostname: 'prod-web-01' } },
-                ],
-                error: null,
-              }),
-            }),
-          };
-        }
-        if (table === 'vulnerabilities') {
-          return {
-            upsert: (data: any) => {
-              vulnerabilityUpsertCalled = true;
-              upsertData = data;
-              return Promise.resolve({ error: null });
-            },
-          };
-        }
-        return {};
+      mockScanEndpointForKnownVulnerabilities.mockResolvedValue({
+        matches: 1,
+        scannedPackages: 1,
+        unsupportedPackages: 0,
       });
 
       await service.scanForVulnerabilities('endpoint-prod-1');
 
-      expect(vulnerabilityUpsertCalled).toBe(true);
-      expect(upsertData).toBeDefined();
-      expect(upsertData.cve_id).toBe('CVE-2024-0001');
-      expect(upsertData.severity).toBe('high');
-      expect(upsertData.status).toBe('open');
-
+      expect(mockScanEndpointForKnownVulnerabilities).toHaveBeenCalledWith(
+        expect.anything(),
+        'endpoint-prod-1',
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '🚨 Found 1 OSV matches across 1 supported packages',
+      );
       consoleSpy.mockRestore();
     });
 
     it('should handle vulnerability scan on endpoint with no packages', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      let vulnerabilityUpsertCalled = false;
-
-      mocks.from.mockImplementation((table: string) => {
-        if (table === 'endpoint_packages') {
-          return {
-            select: () => ({
-              eq: () => Promise.resolve({
-                data: [],
-                error: null,
-              }),
-            }),
-          };
-        }
-        if (table === 'vulnerabilities') {
-          return {
-            upsert: () => {
-              vulnerabilityUpsertCalled = true;
-              return Promise.resolve({ error: null });
-            },
-          };
-        }
-        return {};
+      mockScanEndpointForKnownVulnerabilities.mockResolvedValue({
+        matches: 0,
+        scannedPackages: 0,
+        unsupportedPackages: 0,
       });
 
       await service.scanForVulnerabilities('endpoint-empty');
 
-      // Mock vulnerabilities are still inserted (as per current implementation)
-      expect(vulnerabilityUpsertCalled).toBe(true);
+      expect(mockScanEndpointForKnownVulnerabilities).toHaveBeenCalledWith(
+        expect.anything(),
+        'endpoint-empty',
+      );
 
       consoleSpy.mockRestore();
     });
@@ -509,17 +486,13 @@ describe('DataIngestionService Integration Tests', () => {
 
     it('should handle vulnerability scan failure', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      mockScanEndpointForKnownVulnerabilities.mockRejectedValue(
+        new Error('OSV service unavailable'),
+      );
 
-      mocks.from.mockReturnValue({
-        select: () => ({
-          eq: () => Promise.resolve({
-            data: null,
-            error: { message: 'Table not found' },
-          }),
-        }),
-      });
-
-      await expect(service.scanForVulnerabilities('endpoint-1')).rejects.toThrow('Failed to get endpoint packages: Table not found');
+      await expect(service.scanForVulnerabilities('endpoint-1')).rejects.toThrow(
+        'OSV service unavailable',
+      );
 
       consoleSpy.mockRestore();
     });
