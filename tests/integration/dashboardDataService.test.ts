@@ -36,6 +36,14 @@ import {
 // Helper to get mocks
 const getMocks = () => (global as any).__supabaseDashboardIntegrationMocks as MockFns;
 
+function pagedTable(data: unknown, error: unknown = null) {
+  const query = {
+    order: vi.fn().mockReturnThis(),
+    range: vi.fn().mockResolvedValue({ data, error }),
+  };
+  return { select: vi.fn().mockReturnValue(query) };
+}
+
 describe('DashboardDataService Integration Tests', () => {
   let mocks: MockFns;
   let service: DashboardDataService;
@@ -105,9 +113,7 @@ describe('DashboardDataService Integration Tests', () => {
         },
       ];
 
-      mocks.from.mockReturnValue({
-        select: () => Promise.resolve({ data: mockEndpoints, error: null }),
-      });
+      mocks.from.mockReturnValue(pagedTable(mockEndpoints));
 
       const endpoints = await service.getEndpoints();
 
@@ -155,9 +161,9 @@ describe('DashboardDataService Integration Tests', () => {
       mocks.from.mockImplementation(() => {
         callCount++;
         if (callCount === 1) {
-          return { select: () => Promise.resolve({ data: mockEndpoints, error: null }) };
+          return pagedTable(mockEndpoints);
         } else {
-          return { select: () => ({ order: () => Promise.resolve({ data: mockVulns, error: null }) }) };
+          return pagedTable(mockVulns);
         }
       });
 
@@ -190,11 +196,7 @@ describe('DashboardDataService Integration Tests', () => {
         { id: '7', cve_id: 'CVE-2024-007', description: 'Low 1', severity: 'low', cvss_score: 2.0, status: 'resolved', endpoint_id: 'e5', discovered_date: '', endpoints: { hostname: 's5', environment: 'development' } },
       ];
 
-      mocks.from.mockReturnValue({
-        select: () => ({
-          order: () => Promise.resolve({ data: mockVulns, error: null }),
-        }),
-      });
+      mocks.from.mockReturnValue(pagedTable(mockVulns));
 
       const distribution = await service.getVulnerabilityDistribution();
 
@@ -230,11 +232,7 @@ describe('DashboardDataService Integration Tests', () => {
         },
       ];
 
-      mocks.from.mockReturnValue({
-        select: () => ({
-          order: () => Promise.resolve({ data: initialVulns, error: null }),
-        }),
-      });
+      mocks.from.mockReturnValue(pagedTable(initialVulns));
 
       const vulns = await service.getVulnerabilities();
 
@@ -423,9 +421,7 @@ describe('DashboardDataService Integration Tests', () => {
     it('should handle database connection failures gracefully', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      mocks.from.mockReturnValue({
-        select: () => Promise.resolve({ data: null, error: { message: 'Connection refused' } }),
-      });
+      mocks.from.mockReturnValue(pagedTable(null, { message: 'Connection refused' }));
 
       const endpoints = await service.getEndpoints();
       expect(endpoints).toEqual([]);
@@ -466,9 +462,7 @@ describe('DashboardDataService Integration Tests', () => {
         },
       ];
 
-      mocks.from.mockReturnValue({
-        select: () => Promise.resolve({ data: mockEndpoints, error: null }),
-      });
+      mocks.from.mockReturnValue(pagedTable(mockEndpoints));
 
       const endpoints = await service.getEndpoints();
 
@@ -487,9 +481,7 @@ describe('DashboardDataService Integration Tests', () => {
         { id: 'dev-1', hostname: 'dev-web-01', ip_address: '10.0.3.1', os_type: 'Linux', status: 'active', last_scan: '', environment: 'development', endpoint_packages: [], vulnerabilities: [] },
       ];
 
-      mocks.from.mockReturnValue({
-        select: () => Promise.resolve({ data: mockEndpoints, error: null }),
-      });
+      mocks.from.mockReturnValue(pagedTable(mockEndpoints));
 
       const endpoints = await service.getEndpoints();
 
@@ -520,11 +512,7 @@ describe('DashboardDataService Integration Tests', () => {
         { id: '3', cve_id: 'CVE-2024-HIGH-1', description: 'High XSS', severity: 'high', cvss_score: 8.5, status: 'open', endpoint_id: 'e3', discovered_date: '2024-01-14T00:00:00Z', endpoints: { hostname: 'staging-1', environment: 'staging' } },
       ];
 
-      mocks.from.mockReturnValue({
-        select: () => ({
-          order: () => Promise.resolve({ data: mockVulns, error: null }),
-        }),
-      });
+      mocks.from.mockReturnValue(pagedTable(mockVulns));
 
       const vulns = await service.getVulnerabilities();
       const criticalVulns = vulns.filter(v => v.severity === 'critical');

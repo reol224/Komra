@@ -43,6 +43,19 @@ import { MachineData, SystemInfo, SystemPackage } from '@/lib/systemDataCollecto
 // Helper to get mocks
 const getMocks = () => (global as any).__supabaseDataIngestionMocks as MockFns;
 
+function endpointTable<T extends object>(table: T, metadata: unknown = null) {
+  return Object.assign({
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: metadata ? { metadata } : null,
+          error: null,
+        }),
+      }),
+    }),
+  }, table);
+}
+
 describe('DataIngestionService', () => {
   let mocks: MockFns;
   let service: DataIngestionService;
@@ -109,7 +122,7 @@ describe('DataIngestionService', () => {
       // Mock endpoint upsert
       mocks.from.mockImplementation((table: string) => {
         if (table === 'endpoints') {
-          return {
+          return endpointTable({
             upsert: () => ({
               select: () => ({
                 single: () => Promise.resolve({
@@ -118,7 +131,7 @@ describe('DataIngestionService', () => {
                 }),
               }),
             }),
-          };
+          });
         }
         if (table === 'packages') {
           return {
@@ -187,7 +200,7 @@ describe('DataIngestionService', () => {
 
       mocks.from.mockImplementation((table: string) => {
         if (table === 'endpoints') {
-          return {
+          return endpointTable({
             upsert: () => ({
               select: () => ({
                 single: () => Promise.resolve({
@@ -196,7 +209,7 @@ describe('DataIngestionService', () => {
                 }),
               }),
             }),
-          };
+          });
         }
         if (table === 'packages') {
           return {
@@ -228,6 +241,39 @@ describe('DataIngestionService', () => {
   });
 
   describe('storeSystemData (via collectAndStoreSystemData)', () => {
+    it('preserves agent collection provenance when local data updates the endpoint', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      mockCollectSystemData.mockResolvedValue({
+        ...sampleMachineData,
+        packages: [],
+      });
+      const upsert = vi.fn().mockReturnValue({
+        select: () => ({
+          single: () => Promise.resolve({
+            data: { id: 'endpoint-1', hostname: 'test-server-01' },
+            error: null,
+          }),
+        }),
+      });
+      mocks.from.mockImplementation((table: string) => {
+        if (table === 'endpoints') {
+          return endpointTable({ upsert }, { collection_source: 'agent' });
+        }
+        return {};
+      });
+
+      const result = await service.collectAndStoreSystemData();
+
+      expect(result.success).toBe(true);
+      expect(upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ collection_source: 'agent' }),
+        }),
+        { onConflict: 'hostname' },
+      );
+      consoleSpy.mockRestore();
+    });
+
     it('should throw error when endpoint upsert fails', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -236,7 +282,7 @@ describe('DataIngestionService', () => {
 
       mocks.from.mockImplementation((table: string) => {
         if (table === 'endpoints') {
-          return {
+          return endpointTable({
             upsert: () => ({
               select: () => ({
                 single: () => Promise.resolve({
@@ -245,7 +291,7 @@ describe('DataIngestionService', () => {
                 }),
               }),
             }),
-          };
+          });
         }
         return {};
       });
@@ -267,7 +313,7 @@ describe('DataIngestionService', () => {
 
       mocks.from.mockImplementation((table: string) => {
         if (table === 'endpoints') {
-          return {
+          return endpointTable({
             upsert: () => ({
               select: () => ({
                 single: () => Promise.resolve({
@@ -276,7 +322,7 @@ describe('DataIngestionService', () => {
                 }),
               }),
             }),
-          };
+          });
         }
         if (table === 'packages') {
           return {
@@ -310,7 +356,7 @@ describe('DataIngestionService', () => {
 
       mocks.from.mockImplementation((table: string) => {
         if (table === 'endpoints') {
-          return {
+          return endpointTable({
             upsert: () => ({
               select: () => ({
                 single: () => Promise.resolve({
@@ -319,7 +365,7 @@ describe('DataIngestionService', () => {
                 }),
               }),
             }),
-          };
+          });
         }
         if (table === 'packages') {
           return {
@@ -359,7 +405,7 @@ describe('DataIngestionService', () => {
       let packageCallCount = 0;
       mocks.from.mockImplementation((table: string) => {
         if (table === 'endpoints') {
-          return {
+          return endpointTable({
             upsert: () => ({
               select: () => ({
                 single: () => Promise.resolve({
@@ -368,7 +414,7 @@ describe('DataIngestionService', () => {
                 }),
               }),
             }),
-          };
+          });
         }
         if (table === 'packages') {
           packageCallCount++;
@@ -485,7 +531,7 @@ describe('DataIngestionService', () => {
 
       mocks.from.mockImplementation((table: string) => {
         if (table === 'endpoints') {
-          return {
+          return endpointTable({
             upsert: () => ({
               select: () => ({
                 single: () => Promise.resolve({
@@ -494,7 +540,7 @@ describe('DataIngestionService', () => {
                 }),
               }),
             }),
-          };
+          });
         }
         if (table === 'packages') {
           return {
@@ -537,7 +583,7 @@ describe('DataIngestionService', () => {
 
       mocks.from.mockImplementation((table: string) => {
         if (table === 'endpoints') {
-          return {
+          return endpointTable({
             upsert: () => ({
               select: () => ({
                 single: () => Promise.resolve({
@@ -546,7 +592,7 @@ describe('DataIngestionService', () => {
                 }),
               }),
             }),
-          };
+          });
         }
         return {};
       });
@@ -575,7 +621,7 @@ describe('DataIngestionService', () => {
 
         mocks.from.mockImplementation((table: string) => {
           if (table === 'endpoints') {
-            return {
+            return endpointTable({
               upsert: () => ({
                 select: () => ({
                   single: () => Promise.resolve({
@@ -584,7 +630,7 @@ describe('DataIngestionService', () => {
                   }),
                 }),
               }),
-            };
+            });
           }
           if (table === 'packages') {
             return {
@@ -629,7 +675,7 @@ describe('DataIngestionService', () => {
 
         mocks.from.mockImplementation((table: string) => {
           if (table === 'endpoints') {
-            return {
+            return endpointTable({
               upsert: () => ({
                 select: () => ({
                   single: () => Promise.resolve({
@@ -638,7 +684,7 @@ describe('DataIngestionService', () => {
                   }),
                 }),
               }),
-            };
+            });
           }
           if (table === 'packages') {
             return {
@@ -690,7 +736,7 @@ describe('DataIngestionService', () => {
 
       mocks.from.mockImplementation((table: string) => {
         if (table === 'endpoints') {
-          return {
+          return endpointTable({
             upsert: () => ({
               select: () => ({
                 single: () => Promise.resolve({
@@ -699,7 +745,7 @@ describe('DataIngestionService', () => {
                 }),
               }),
             }),
-          };
+          });
         }
         if (table === 'packages') {
           return {

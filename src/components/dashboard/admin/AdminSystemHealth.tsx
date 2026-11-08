@@ -274,7 +274,10 @@ export default function AdminSystemHealth() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => void loadSystemHealth()}
+              onClick={() => {
+                resetServiceList();
+                void loadSystemHealth();
+              }}
               disabled={isLoading}
               aria-label="Refresh system health"
             >
@@ -296,7 +299,7 @@ export default function AdminSystemHealth() {
               <Server className="h-5 w-5 text-blue-600" />
               <div>
                 <div className="text-2xl font-bold">
-                  {isLoading ? '...' : `${reportingEndpoints.length}/${endpoints.length}`}
+                  {isLoading ? '...' : loadError ? 'Unavailable' : `${reportingEndpoints.length}/${endpoints.length}`}
                 </div>
                 <div className="text-sm text-muted-foreground">Agents reporting</div>
                 <div className="text-xs text-muted-foreground">Reports within 5 minutes</div>
@@ -308,11 +311,15 @@ export default function AdminSystemHealth() {
               <Clock className="h-5 w-5 text-purple-600" />
               <div>
                 <div className="text-2xl font-bold">
-                  {isLoading ? '...' : formatAge(latestReport, now)}
+                  {isLoading ? '...' : loadError ? 'Unavailable' : formatAge(latestReport, now)}
                 </div>
                 <div className="text-sm text-muted-foreground">Latest agent report</div>
                 <div className="text-xs text-muted-foreground">
-                  {latestReport === null ? 'No agent reports received' : new Date(latestReport).toLocaleString()}
+                  {loadError
+                    ? 'Report data unavailable'
+                    : latestReport === null
+                      ? 'No agent reports received'
+                      : new Date(latestReport).toLocaleString()}
                 </div>
               </div>
             </CardContent>
@@ -322,7 +329,7 @@ export default function AdminSystemHealth() {
               <Activity className="h-5 w-5 text-green-600" />
               <div>
                 <div className="text-2xl font-bold">
-                  {isLoading ? '...' : resourceSamples.length}
+                  {isLoading ? '...' : loadError ? 'Unavailable' : resourceSamples.length}
                 </div>
                 <div className="text-sm text-muted-foreground">Resource samples</div>
                 <div className="text-xs text-muted-foreground">Recent reports with telemetry</div>
@@ -334,7 +341,7 @@ export default function AdminSystemHealth() {
               <CheckCircle className="h-5 w-5 text-teal-600" />
               <div>
                 <div className="text-2xl font-bold">
-                  {isLoading ? '...' : runningServiceReports.length}
+                  {isLoading ? '...' : loadError ? 'Unavailable' : runningServiceReports.length}
                 </div>
                 <div className="text-sm text-muted-foreground">Services reported running</div>
                 <div className="text-xs text-muted-foreground">From latest stored endpoint reports</div>
@@ -353,6 +360,8 @@ export default function AdminSystemHealth() {
           <CardContent>
             {isLoading ? (
               <p className="py-4 text-sm text-muted-foreground">Loading endpoint telemetry...</p>
+            ) : loadError ? (
+              <p className="py-4 text-sm text-muted-foreground">Resource health data is unavailable.</p>
             ) : resourceSamples.length === 0 ? (
               <p className="py-4 text-sm text-muted-foreground">
                 No recent resource telemetry. Run the updated agent on an endpoint to report CPU, memory, and disk usage.
@@ -380,6 +389,8 @@ export default function AdminSystemHealth() {
           <CardContent>
             {isLoading ? (
               <p className="py-4 text-center text-sm text-muted-foreground">Loading service reports...</p>
+            ) : loadError ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">Service health data is unavailable.</p>
             ) : runningServiceReports.length === 0 ? (
               <p className="py-4 text-center text-sm text-muted-foreground">
                 No running services were included in the latest endpoint reports.
@@ -507,6 +518,8 @@ export default function AdminSystemHealth() {
           <CardContent>
             {isLoading ? (
               <p className="py-4 text-center text-sm text-muted-foreground">Loading agent alerts...</p>
+            ) : loadError ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">Agent alert data is unavailable.</p>
             ) : events.length === 0 ? (
               <div className="py-4 text-center text-sm text-muted-foreground">
                 <CheckCircle className="mx-auto mb-2 h-8 w-8 text-green-600" />

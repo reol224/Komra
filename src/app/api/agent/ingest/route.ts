@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
             package_type: pkg.package_type,
             description: pkg.description
           }, {
-            onConflict: 'name,version'
+            onConflict: 'name,version,package_type'
           })
           .select()
           .single();

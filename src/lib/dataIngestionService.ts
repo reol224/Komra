@@ -42,6 +42,17 @@ export class DataIngestionService {
   }
 
   private async storeSystemData(machineData: MachineData): Promise<void> {
+    const { data: existingEndpoint, error: existingEndpointError } = await supabase
+      .from('endpoints')
+      .select('metadata')
+      .eq('hostname', machineData.endpoint.hostname)
+      .maybeSingle();
+
+    if (existingEndpointError) {
+      throw new Error(`Failed to retrieve existing endpoint metadata: ${existingEndpointError.message}`);
+    }
+
+    const existingMetadata = existingEndpoint?.metadata;
     // Insert or update endpoint
     const endpointData = {
       hostname: machineData.endpoint.hostname,
@@ -52,6 +63,9 @@ export class DataIngestionService {
       last_scan: machineData.last_scan,
       status: 'healthy',
       metadata: {
+        ...(existingMetadata?.collection_source
+          ? { collection_source: existingMetadata.collection_source }
+          : {}),
         architecture: machineData.endpoint.architecture,
         cpu_info: machineData.endpoint.cpu_info,
         memory_total: machineData.endpoint.memory_total,
@@ -89,7 +103,7 @@ export class DataIngestionService {
             package_type: pkg.package_type,
             description: pkg.description
           }, {
-            onConflict: 'name,version'
+            onConflict: 'name,version,package_type'
           })
           .select()
           .single();

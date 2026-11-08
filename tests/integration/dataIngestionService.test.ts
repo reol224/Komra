@@ -43,6 +43,16 @@ import { MachineData, SystemInfo, SystemPackage } from '@/lib/systemDataCollecto
 // Helper to get mocks
 const getMocks = () => (global as any).__supabaseDataIngestionIntegrationMocks as MockFns;
 
+function endpointTable<T extends object>(table: T) {
+  return Object.assign({
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+      }),
+    }),
+  }, table);
+}
+
 describe('DataIngestionService Integration Tests', () => {
   let mocks: MockFns;
   let service: DataIngestionService;
@@ -132,7 +142,7 @@ describe('DataIngestionService Integration Tests', () => {
 
       mocks.from.mockImplementation((table: string) => {
         if (table === 'endpoints') {
-          return {
+          return endpointTable({
             upsert: () => {
               endpointUpsertCalled = true;
               return {
@@ -144,7 +154,7 @@ describe('DataIngestionService Integration Tests', () => {
                 }),
               };
             },
-          };
+          });
         }
         if (table === 'packages') {
           return {
@@ -206,7 +216,7 @@ describe('DataIngestionService Integration Tests', () => {
 
         mocks.from.mockImplementation((table: string) => {
           if (table === 'endpoints') {
-            return {
+            return endpointTable({
               upsert: () => ({
                 select: () => ({
                   single: () => Promise.resolve({
@@ -215,7 +225,7 @@ describe('DataIngestionService Integration Tests', () => {
                   }),
                 }),
               }),
-            };
+            });
           }
           if (table === 'packages') {
             return {
@@ -370,6 +380,11 @@ describe('DataIngestionService Integration Tests', () => {
       mockCollectSystemData.mockResolvedValue(machineData);
 
       mocks.from.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
         upsert: () => ({
           select: () => ({
             single: () => Promise.resolve({
@@ -420,7 +435,7 @@ describe('DataIngestionService Integration Tests', () => {
       let packageCallCount = 0;
       mocks.from.mockImplementation((table: string) => {
         if (table === 'endpoints') {
-          return {
+          return endpointTable({
             upsert: () => ({
               select: () => ({
                 single: () => Promise.resolve({
@@ -429,7 +444,7 @@ describe('DataIngestionService Integration Tests', () => {
                 }),
               }),
             }),
-          };
+          });
         }
         if (table === 'packages') {
           packageCallCount++;
@@ -523,7 +538,7 @@ describe('DataIngestionService Integration Tests', () => {
 
       mocks.from.mockImplementation((table: string) => {
         if (table === 'endpoints') {
-          return {
+          return endpointTable({
             upsert: () => ({
               select: () => ({
                 single: () => Promise.resolve({
@@ -532,7 +547,7 @@ describe('DataIngestionService Integration Tests', () => {
                 }),
               }),
             }),
-          };
+          });
         }
         if (table === 'packages') {
           return {
@@ -590,7 +605,7 @@ describe('DataIngestionService Integration Tests', () => {
 
       mocks.from.mockImplementation((table: string) => {
         if (table === 'endpoints') {
-          return {
+          return endpointTable({
             upsert: () => ({
               select: () => ({
                 single: () => Promise.resolve({
@@ -599,7 +614,7 @@ describe('DataIngestionService Integration Tests', () => {
                 }),
               }),
             }),
-          };
+          });
         }
         if (table === 'packages') {
           return {
@@ -656,7 +671,7 @@ describe('DataIngestionService Integration Tests', () => {
 
       mocks.from.mockImplementation((table: string) => {
         if (table === 'endpoints') {
-          return {
+          return endpointTable({
             upsert: () => ({
               select: () => ({
                 single: () => Promise.resolve({
@@ -665,7 +680,7 @@ describe('DataIngestionService Integration Tests', () => {
                 }),
               }),
             }),
-          };
+          });
         }
         if (table === 'packages') {
           return {
@@ -719,7 +734,7 @@ describe('DataIngestionService Integration Tests', () => {
       let storedEndpointData: any = null;
       mocks.from.mockImplementation((table: string) => {
         if (table === 'endpoints') {
-          return {
+          return endpointTable({
             upsert: (data: any) => {
               storedEndpointData = data;
               return {
@@ -731,7 +746,7 @@ describe('DataIngestionService Integration Tests', () => {
                 }),
               };
             },
-          };
+          });
         }
         if (table === 'packages') {
           return {
@@ -780,7 +795,7 @@ describe('DataIngestionService Integration Tests', () => {
       let packageCount = 0;
       mocks.from.mockImplementation((table: string) => {
         if (table === 'endpoints') {
-          return {
+          return endpointTable({
             upsert: () => ({
               select: () => ({
                 single: () => Promise.resolve({
@@ -789,7 +804,7 @@ describe('DataIngestionService Integration Tests', () => {
                 }),
               }),
             }),
-          };
+          });
         }
         if (table === 'packages') {
           return {

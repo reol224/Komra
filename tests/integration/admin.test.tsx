@@ -3168,6 +3168,21 @@ describe('Admin Components Integration Tests', () => {
 
         expect(await screen.findByText('No agent report received')).toBeInTheDocument();
         expect(screen.getByText('missing-report-host · no report received')).toBeInTheDocument();
+      });
+
+      it('shows health data as unavailable after a load failure', async () => {
+        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        mockAgentSystemHealth.mockRejectedValueOnce(new Error('database unavailable'));
+
+        await renderWithAct(<AdminSystemHealth />);
+
+        await waitFor(() => {
+          expect(screen.getAllByText('Unavailable').length).toBeGreaterThan(0);
+        });
+        expect(screen.getByText('Resource health data is unavailable.')).toBeInTheDocument();
+        expect(screen.getByText('Agent alert data is unavailable.')).toBeInTheDocument();
+        expect(screen.queryByText('No resource threshold alerts or stale agent reports.')).not.toBeInTheDocument();
+        consoleErrorSpy.mockRestore();
         expect(screen.queryByText('missing-report-host · reported No report received')).not.toBeInTheDocument();
       });
 
@@ -3311,6 +3326,35 @@ describe('Admin Components Integration Tests', () => {
           expect(mockAgentSystemHealth).toHaveBeenCalledTimes(callsBeforeRefresh + 1);
         });
         testLogger.pass('Manual system health refresh');
+      });
+
+      it('resets the virtualized service list scroll position before refreshing', async () => {
+        mockAgentSystemHealth.mockResolvedValueOnce([{
+          id: 'scroll-test-endpoint',
+          hostname: 'scroll-test-host',
+          osType: 'Ubuntu 24.04',
+          lastScan: new Date().toISOString(),
+          receivedAt: new Date().toISOString(),
+          runningServices: Array.from({ length: 60 }, (_, index) => `service-${index}`),
+          resourceMetrics: {
+            cpu_usage_percent: 0,
+            memory_usage_percent: 0,
+            memory_used_bytes: 0,
+            memory_total_bytes: 1,
+            disk_usage_percent: 0,
+            disk_used_bytes: 0,
+            disk_total_bytes: 1,
+          },
+        }]);
+        await renderWithAct(<AdminSystemHealth />);
+
+        const serviceList = await screen.findByRole('list', { name: 'Reported running services' });
+        Object.defineProperty(serviceList, 'scrollTop', { configurable: true, writable: true, value: 500 });
+        fireEvent.scroll(serviceList);
+        expect(serviceList.scrollTop).toBe(500);
+
+        await userEvent.click(screen.getByRole('button', { name: /refresh system health/i }));
+        expect(serviceList.scrollTop).toBe(0);
       });
     });
 

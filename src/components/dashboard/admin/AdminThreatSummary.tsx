@@ -365,11 +365,7 @@ export default function AdminThreatSummary() {
     setIsEscalating(true);
     try {
       await new DashboardDataService().recordThreatEscalation({
-        userId: user.id,
-        userEmail: user.email,
         vulnerabilityId: threat.id,
-        cveId: threat.cve_id,
-        endpointId: threat.endpoint_id,
         reason: escalationReason,
         level: selectedLevel.name,
         notes: escalationNotes,
@@ -429,7 +425,7 @@ export default function AdminThreatSummary() {
 
         {loadError && <p role="alert" className="text-sm text-destructive">{loadError}</p>}
         <p className="text-sm text-muted-foreground">
-          Findings are package-version matches against the configured CVE catalog for agent-reported endpoints.
+          Findings are package-version matches against OSV advisories for agent-reported endpoints.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>

@@ -37,6 +37,19 @@ import {
 // Helper to get mocks
 const getMocks = () => (global as any).__supabaseDashboardMocks as MockFns;
 
+function pagedTable(data: unknown, error: unknown = null) {
+  const query = {
+    eq: vi.fn().mockReturnThis(),
+    filter: vi.fn().mockReturnThis(),
+    order: vi.fn().mockReturnThis(),
+    range: vi.fn().mockResolvedValue({ data, error }),
+  };
+  return {
+    select: vi.fn().mockReturnValue(query),
+    query,
+  };
+}
+
 describe('DashboardDataService', () => {
   let mocks: MockFns;
   let service: DashboardDataService;
@@ -187,10 +200,40 @@ describe('DashboardDataService', () => {
   });
 
   describe('getAgentInventoryStats', () => {
+    it('aggregates endpoints across API pages', async () => {
+      const firstPage = Array.from({ length: 1000 }, (_, index) => ({
+        id: `agent-${index}`,
+        last_scan: null,
+        metadata: { reported_package_count: 1, running_services: [] },
+      }));
+      const secondPage = [{
+        id: 'agent-1000',
+        last_scan: '2025-03-02T12:00:00Z',
+        metadata: { reported_package_count: 10, running_services: ['ssh'] },
+      }];
+      const query = {
+        filter: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        range: vi.fn().mockImplementation((start: number) => Promise.resolve({
+          data: start === 0 ? firstPage : secondPage,
+          error: null,
+        })),
+      };
+      mocks.from.mockReturnValue({ select: vi.fn().mockReturnValue(query) });
+
+      await expect(service.getAgentInventoryStats()).resolves.toEqual({
+        totalEndpoints: 1001,
+        reportedPackages: 1010,
+        reportedServices: 1,
+        latestCollection: '2025-03-02T12:00:00Z',
+      });
+      expect(query.range).toHaveBeenNthCalledWith(2, 1000, 1999);
+    });
+
     it('aggregates package and service counts from agent endpoint metadata', async () => {
-      const filter = vi.fn().mockResolvedValue({
-        data: [
+      const { query, ...table } = pagedTable([
           {
+            id: 'endpoint-1',
             last_scan: '2025-03-01T12:00:00Z',
             metadata: {
               reported_package_count: 120,
@@ -198,6 +241,7 @@ describe('DashboardDataService', () => {
             },
           },
           {
+            id: 'endpoint-2',
             last_scan: '2025-03-02T12:00:00Z',
             metadata: {
               reported_package_count: '45',
@@ -205,14 +249,12 @@ describe('DashboardDataService', () => {
             },
           },
           {
+            id: 'endpoint-3',
             last_scan: 'invalid-date',
             metadata: { reported_package_count: 5, running_services: 'not-an-array' },
           },
-        ],
-        error: null,
-      });
-      const select = vi.fn().mockReturnValue({ filter });
-      mocks.from.mockReturnValue({ select });
+      ]);
+      mocks.from.mockReturnValue(table);
 
       await expect(service.getAgentInventoryStats()).resolves.toEqual({
         totalEndpoints: 3,
@@ -221,19 +263,18 @@ describe('DashboardDataService', () => {
         latestCollection: '2025-03-02T12:00:00Z',
       });
       expect(mocks.from).toHaveBeenCalledWith('endpoints');
-      expect(select).toHaveBeenCalledWith('last_scan, metadata');
-      expect(filter).toHaveBeenCalledWith(
+      expect(table.select).toHaveBeenCalledWith('id, last_scan, metadata');
+      expect(query.filter).toHaveBeenCalledWith(
         'metadata->>collection_source',
         'eq',
         'agent',
       );
+      expect(query.range).toHaveBeenCalledWith(0, 999);
     });
 
     it('returns zero counts when no agent endpoints are reported', async () => {
-      const filter = vi.fn().mockResolvedValue({ data: [], error: null });
-      mocks.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({ filter }),
-      });
+      const table = pagedTable([]);
+      mocks.from.mockReturnValue(table);
 
       await expect(service.getAgentInventoryStats()).resolves.toEqual({
         totalEndpoints: 0,
@@ -244,13 +285,8 @@ describe('DashboardDataService', () => {
     });
 
     it('surfaces endpoint query errors', async () => {
-      const filter = vi.fn().mockResolvedValue({
-        data: null,
-        error: { message: 'permission denied' },
-      });
-      mocks.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({ filter }),
-      });
+      const table = pagedTable(null, { message: 'permission denied' });
+      mocks.from.mockReturnValue(table);
 
       await expect(service.getAgentInventoryStats()).rejects.toThrow(
         'Failed to fetch agent inventory: permission denied',
@@ -276,9 +312,7 @@ describe('DashboardDataService', () => {
         },
       ];
 
-      mocks.from.mockReturnValue({
-        select: () => Promise.resolve({ data: mockEndpoints, error: null }),
-      });
+      mocks.from.mockReturnValue(pagedTable(mockEndpoints));
 
       const endpoints = await service.getEndpoints();
 
@@ -307,9 +341,7 @@ describe('DashboardDataService', () => {
         },
       ];
 
-      mocks.from.mockReturnValue({
-        select: () => Promise.resolve({ data: mockEndpoints, error: null }),
-      });
+      mocks.from.mockReturnValue(pagedTable(mockEndpoints));
 
       const endpoints = await service.getEndpoints();
 
@@ -333,9 +365,7 @@ describe('DashboardDataService', () => {
         },
       ];
 
-      mocks.from.mockReturnValue({
-        select: () => Promise.resolve({ data: mockEndpoints, error: null }),
-      });
+      mocks.from.mockReturnValue(pagedTable(mockEndpoints));
 
       const endpoints = await service.getEndpoints();
 
@@ -345,9 +375,7 @@ describe('DashboardDataService', () => {
     it('should return empty array on error', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      mocks.from.mockReturnValue({
-        select: () => Promise.resolve({ data: null, error: { message: 'Database error' } }),
-      });
+      mocks.from.mockReturnValue(pagedTable(null, { message: 'Database error' }));
 
       const endpoints = await service.getEndpoints();
 
@@ -360,8 +388,12 @@ describe('DashboardDataService', () => {
     it('should handle exceptions gracefully', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
+      const query = {
+        order: vi.fn().mockReturnThis(),
+        range: vi.fn().mockRejectedValue(new Error('Network error')),
+      };
       mocks.from.mockReturnValue({
-        select: () => Promise.reject(new Error('Network error')),
+        select: vi.fn().mockReturnValue(query),
       });
 
       const endpoints = await service.getEndpoints();
@@ -483,6 +515,41 @@ describe('DashboardDataService', () => {
   });
 
   describe('getVulnerabilities', () => {
+    it('fetches all pages in stable discovered-date order', async () => {
+      const finding = {
+        id: 'finding',
+        cve_id: 'CVE-2025-0001',
+        description: 'Issue',
+        severity: 'high',
+        cvss_score: 7.5,
+        status: 'open',
+        endpoint_id: 'endpoint-1',
+        discovered_date: '2025-03-01T12:00:00Z',
+        endpoints: { hostname: 'agent-host', environment: 'production' },
+      };
+      const firstPage = Array.from({ length: 1000 }, (_, index) => ({
+        ...finding,
+        id: `finding-${index}`,
+      }));
+      const secondPage = [{ ...finding, id: 'finding-1000' }];
+      const query = {
+        order: vi.fn().mockReturnThis(),
+        range: vi.fn().mockImplementation((start: number) => Promise.resolve({
+          data: start === 0 ? firstPage : secondPage,
+          error: null,
+        })),
+      };
+      mocks.from.mockReturnValue({ select: vi.fn().mockReturnValue(query) });
+
+      const vulnerabilities = await service.getVulnerabilities();
+
+      expect(vulnerabilities).toHaveLength(1001);
+      expect(query.range).toHaveBeenNthCalledWith(1, 0, 999);
+      expect(query.range).toHaveBeenNthCalledWith(2, 1000, 1999);
+      expect(query.order).toHaveBeenCalledWith('discovered_date', { ascending: false });
+      expect(query.order).toHaveBeenCalledWith('id', { ascending: true });
+    });
+
     it('should return mapped vulnerabilities successfully', async () => {
       const mockVulns = [
         {
@@ -498,17 +565,55 @@ describe('DashboardDataService', () => {
         },
       ];
 
-      mocks.from.mockReturnValue({
-        select: () => ({
-          order: () => Promise.resolve({ data: mockVulns, error: null }),
-        }),
-      });
+      mocks.from.mockReturnValue(pagedTable(mockVulns));
 
       const vulns = await service.getVulnerabilities();
 
       expect(vulns).toHaveLength(1);
       expect(vulns[0].cve_id).toBe('CVE-2024-0001');
       expect(vulns[0].endpoint_name).toBe('web-server-01');
+    });
+
+    describe('assignThreat', () => {
+      it('reports a partial failure when the finding update affects no rows', async () => {
+        const update = vi.fn();
+        const updateQuery = {
+          eq: vi.fn().mockReturnThis(),
+          select: vi.fn().mockResolvedValue({ count: 0, data: [], error: null }),
+        };
+        update.mockReturnValue(updateQuery);
+        mocks.from.mockImplementation((table: string) => {
+          if (table === 'cves') {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'cve-row-1' }, error: null }),
+                }),
+              }),
+            };
+          }
+          if (table === 'triage_actions') {
+            return { upsert: vi.fn().mockResolvedValue({ error: null }) };
+          }
+          if (table === 'vulnerabilities') {
+            return { update };
+          }
+          throw new Error(`Unexpected table: ${table}`);
+        });
+
+        await expect(service.assignThreat({
+          vulnerabilityId: 'finding-missing',
+          cveId: 'CVE-2025-0001',
+          endpointId: 'endpoint-1',
+          assignedTo: 'analyst-1',
+          assignedBy: 'admin-1',
+          priority: 'high',
+          notes: '',
+        })).rejects.toThrow('Assignment saved, but finding status update affected no rows.');
+
+        expect(updateQuery.select).toHaveBeenCalledWith('id');
+        expect(update).toHaveBeenCalledWith({ status: 'in_progress' }, { count: 'exact' });
+      });
     });
 
     it('should handle array endpoints format', async () => {
@@ -526,11 +631,7 @@ describe('DashboardDataService', () => {
         },
       ];
 
-      mocks.from.mockReturnValue({
-        select: () => ({
-          order: () => Promise.resolve({ data: mockVulns, error: null }),
-        }),
-      });
+      mocks.from.mockReturnValue(pagedTable(mockVulns));
 
       const vulns = await service.getVulnerabilities();
 
@@ -553,11 +654,7 @@ describe('DashboardDataService', () => {
         },
       ];
 
-      mocks.from.mockReturnValue({
-        select: () => ({
-          order: () => Promise.resolve({ data: mockVulns, error: null }),
-        }),
-      });
+      mocks.from.mockReturnValue(pagedTable(mockVulns));
 
       const vulns = await service.getVulnerabilities();
 
@@ -568,11 +665,7 @@ describe('DashboardDataService', () => {
     it('should return empty array on error', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      mocks.from.mockReturnValue({
-        select: () => ({
-          order: () => Promise.resolve({ data: null, error: { message: 'Error' } }),
-        }),
-      });
+      mocks.from.mockReturnValue(pagedTable(null, { message: 'Error' }));
 
       const vulns = await service.getVulnerabilities();
 
@@ -583,9 +676,51 @@ describe('DashboardDataService', () => {
   });
 
   describe('getAgentVulnerabilities', () => {
+    it('fetches all filtered agent findings across API pages', async () => {
+      const finding = {
+        id: 'finding',
+        cve_id: 'CVE-2025-0001',
+        description: 'Issue',
+        severity: 'high',
+        cvss_score: 7.5,
+        status: 'open',
+        endpoint_id: 'endpoint-1',
+        discovered_date: '2025-03-01T12:00:00Z',
+        endpoints: {
+          hostname: 'agent-host',
+          environment: 'production',
+          metadata: { collection_source: 'agent' },
+        },
+      };
+      const firstPage = Array.from({ length: 1000 }, (_, index) => ({
+        ...finding,
+        id: `finding-${index}`,
+      }));
+      const secondPage = [{ ...finding, id: 'finding-1000' }];
+      const query = {
+        eq: vi.fn().mockReturnThis(),
+        filter: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        range: vi.fn().mockImplementation((start: number) => Promise.resolve({
+          data: start === 0 ? firstPage : secondPage,
+          error: null,
+        })),
+      };
+      mocks.from.mockReturnValue({ select: vi.fn().mockReturnValue(query) });
+
+      const findings = await service.getAgentVulnerabilities();
+
+      expect(findings).toHaveLength(1001);
+      expect(query.filter).toHaveBeenCalledWith(
+        'endpoints.metadata->>collection_source',
+        'eq',
+        'agent',
+      );
+      expect(query.range).toHaveBeenNthCalledWith(2, 1000, 1999);
+    });
+
     it('returns findings only for endpoints collected by an agent', async () => {
-      const order = vi.fn().mockResolvedValue({
-        data: [
+      const { query, ...table } = pagedTable([
           {
             id: 'finding-1',
             cve_id: 'CVE-2025-0001',
@@ -604,27 +739,8 @@ describe('DashboardDataService', () => {
               metadata: { collection_source: 'agent' },
             },
           },
-          {
-            id: 'finding-2',
-            cve_id: 'CVE-2025-0002',
-            description: 'Seeded issue',
-            severity: 'high',
-            cvss_score: 7.5,
-            status: 'open',
-            endpoint_id: 'seed-endpoint',
-            discovered_date: '2025-03-01T11:00:00Z',
-            endpoints: {
-              hostname: 'seed-host',
-              environment: 'testing',
-              metadata: {},
-            },
-          },
-        ],
-        error: null,
-      });
-      const query = { eq: vi.fn().mockReturnThis(), order };
-      const select = vi.fn().mockReturnValue(query);
-      mocks.from.mockReturnValue({ select, eq: query.eq, order });
+      ]);
+      mocks.from.mockReturnValue(table);
 
       await expect(service.getAgentVulnerabilities()).resolves.toEqual([
         {
@@ -645,18 +761,17 @@ describe('DashboardDataService', () => {
         },
       ]);
       expect(mocks.from).toHaveBeenCalledWith('vulnerabilities');
-      expect(select).toHaveBeenCalledWith(expect.stringContaining('metadata'));
+      expect(table.select).toHaveBeenCalledWith(expect.stringContaining('metadata'));
       expect(query.eq).toHaveBeenCalledWith('source', 'osv');
+      expect(query.filter).toHaveBeenCalledWith(
+        'endpoints.metadata->>collection_source',
+        'eq',
+        'agent',
+      );
     });
 
     it('surfaces query errors instead of showing zero findings', async () => {
-      const order = vi.fn().mockResolvedValue({
-        data: null,
-        error: { message: 'permission denied' },
-      });
-      mocks.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnThis(), order }),
-      });
+      mocks.from.mockReturnValue(pagedTable(null, { message: 'permission denied' }));
 
       await expect(service.getAgentVulnerabilities()).rejects.toThrow(
         'Failed to fetch agent vulnerability findings: permission denied',
@@ -665,9 +780,32 @@ describe('DashboardDataService', () => {
   });
 
   describe('getAgentSystemHealth', () => {
+    it('includes endpoints beyond the first page in health reports', async () => {
+      const endpoints = Array.from({ length: 1001 }, (_, index) => ({
+        id: `endpoint-${index}`,
+        hostname: `agent-${index}`,
+        os_type: 'Linux',
+        last_scan: '2026-11-07T18:00:00.000Z',
+        updated_at: '2026-11-07T18:05:00.000Z',
+        metadata: { collection_source: 'agent', running_services: [] },
+      }));
+      const query = {
+        filter: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        range: vi.fn().mockImplementation((start: number) => Promise.resolve({
+          data: start === 0 ? endpoints.slice(0, 1000) : endpoints.slice(1000),
+          error: null,
+        })),
+      };
+      mocks.from.mockReturnValue({ select: vi.fn().mockReturnValue(query) });
+
+      await expect(service.getAgentSystemHealth()).resolves.toHaveLength(1001);
+      expect(query.range).toHaveBeenNthCalledWith(2, 1000, 1999);
+      expect(query.order).toHaveBeenCalledWith('id', { ascending: true });
+    });
+
     it('returns agent service reports and validates resource telemetry', async () => {
-      const order = vi.fn().mockResolvedValue({
-        data: [
+      const { query, ...table } = pagedTable([
           {
             id: 'endpoint-1',
             hostname: 'agent-host',
@@ -699,12 +837,8 @@ describe('DashboardDataService', () => {
               resource_metrics: { cpu_usage_percent: 180 },
             },
           },
-        ],
-        error: null,
-      });
-      const filter = vi.fn().mockReturnValue({ order });
-      const select = vi.fn().mockReturnValue({ filter });
-      mocks.from.mockReturnValue({ select });
+      ]);
+      mocks.from.mockReturnValue(table);
 
       await expect(service.getAgentSystemHealth()).resolves.toEqual([
         {
@@ -735,20 +869,12 @@ describe('DashboardDataService', () => {
         },
       ]);
       expect(mocks.from).toHaveBeenCalledWith('endpoints');
-      expect(filter).toHaveBeenCalledWith('metadata->>collection_source', 'eq', 'agent');
-      expect(order).toHaveBeenCalledWith('last_scan', { ascending: false });
+      expect(query.filter).toHaveBeenCalledWith('metadata->>collection_source', 'eq', 'agent');
+      expect(query.order).toHaveBeenCalledWith('last_scan', { ascending: false });
     });
 
     it('surfaces endpoint query errors', async () => {
-      const order = vi.fn().mockResolvedValue({
-        data: null,
-        error: { message: 'connection failed' },
-      });
-      mocks.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          filter: vi.fn().mockReturnValue({ order }),
-        }),
-      });
+      mocks.from.mockReturnValue(pagedTable(null, { message: 'connection failed' }));
 
       await expect(service.getAgentSystemHealth()).rejects.toThrow(
         'Failed to fetch agent system health: connection failed',
@@ -880,11 +1006,7 @@ describe('DashboardDataService', () => {
       let callCount = 0;
       mocks.from.mockImplementation(() => {
         callCount++;
-        if (callCount === 1) {
-          return { select: () => Promise.resolve({ data: mockEndpoints, error: null }) };
-        } else {
-          return { select: () => ({ order: () => Promise.resolve({ data: mockVulns, error: null }) }) };
-        }
+        return pagedTable(callCount === 1 ? mockEndpoints : mockVulns);
       });
 
       const metrics = await service.getRiskMetrics();
@@ -899,9 +1021,7 @@ describe('DashboardDataService', () => {
     it('should return zero metrics on error', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      mocks.from.mockReturnValue({
-        select: () => Promise.resolve({ data: null, error: { message: 'Database error' } }),
-      });
+      mocks.from.mockReturnValue(pagedTable(null, { message: 'Database error' }));
 
       const metrics = await service.getRiskMetrics();
 
@@ -995,11 +1115,7 @@ describe('DashboardDataService', () => {
         { id: '3', cve_id: 'CVE-3', description: '', severity: 'medium', cvss_score: 5, status: 'resolved', endpoint_id: 'e1', discovered_date: '', endpoints: { hostname: 's1', environment: 'development' } },
       ];
 
-      mocks.from.mockReturnValue({
-        select: () => ({
-          order: () => Promise.resolve({ data: mockVulns, error: null }),
-        }),
-      });
+      mocks.from.mockReturnValue(pagedTable(mockVulns));
 
       const distribution = await service.getVulnerabilityDistribution();
 
@@ -1013,11 +1129,7 @@ describe('DashboardDataService', () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       // Return empty array when there's an error in getVulnerabilities
-      mocks.from.mockReturnValue({
-        select: () => ({
-          order: () => Promise.resolve({ data: null, error: { message: 'Error' } }),
-        }),
-      });
+      mocks.from.mockReturnValue(pagedTable(null, { message: 'Error' }));
 
       const distribution = await service.getVulnerabilityDistribution();
 
