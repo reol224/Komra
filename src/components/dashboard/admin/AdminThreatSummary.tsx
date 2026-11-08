@@ -84,8 +84,6 @@ export default function AdminThreatSummary() {
     };
     void loadAssignees();
 
-    const interval = setInterval(() => void loadThreatData(), 30000);
-    return () => clearInterval(interval);
   }, [loadThreatData]);
 
   useEffect(() => {

@@ -62,10 +62,6 @@ export default function SessionManagement() {
 
   useEffect(() => {
     loadSessions();
-    
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(loadSessions, 30000);
-    return () => clearInterval(interval);
   }, []);
 
   const handleTerminateSession = async (session: ActiveSession) => {

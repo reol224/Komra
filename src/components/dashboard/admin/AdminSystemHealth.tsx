@@ -24,7 +24,9 @@ import {
   MemoryStick,
   Search,
   Server,
+  RefreshCw,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import {
   AgentHealthEndpoint,
   DashboardDataService,
@@ -92,8 +94,6 @@ export default function AdminSystemHealth() {
 
   useEffect(() => {
     void loadSystemHealth();
-    const interval = setInterval(() => void loadSystemHealth(), 30_000);
-    return () => clearInterval(interval);
   }, [loadSystemHealth]);
 
   const reportingEndpoints = useMemo(
@@ -236,12 +236,24 @@ export default function AdminSystemHealth() {
             <Activity className="h-5 w-5" />
             <h3 className="text-lg font-semibold">System Health &amp; Performance</h3>
           </div>
-          <div className="text-sm text-muted-foreground">
-            {isLoading
-              ? 'Loading...'
-              : lastUpdatedAt
-                ? `Last updated: ${lastUpdatedAt.toLocaleTimeString()}`
-                : 'No dashboard refresh yet'}
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-muted-foreground">
+              {isLoading
+                ? 'Loading...'
+                : lastUpdatedAt
+                  ? `Last updated: ${lastUpdatedAt.toLocaleTimeString()}`
+                  : 'No dashboard refresh yet'}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void loadSystemHealth()}
+              disabled={isLoading}
+              aria-label="Refresh system health"
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Refresh
+            </Button>
           </div>
         </div>
 

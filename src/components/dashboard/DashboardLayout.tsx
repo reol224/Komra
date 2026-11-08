@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,8 +19,6 @@ import {
   Plus,
   Trash2,
   RefreshCw,
-  Play,
-  Square,
   BellOff,
   Server,
   FileText,
@@ -56,8 +54,6 @@ import AdminUserManagement from "./admin/AdminUserManagement";
 import AdminSystemHealth from "./admin/AdminSystemHealth";
 import AdminThreatSummary from "./admin/AdminThreatSummary";
 import AdminAuditTrail from "./admin/AdminAuditTrail";
-import BackgroundCollectionManager from "./BackgroundCollectionManager";
-
 import AnalystThreatFeed from "./analyst/AnalystThreatFeed";
 import AnalystIncidentResponse from "./analyst/AnalystIncidentResponse";
 import AnalystInvestigation from "./analyst/AnalystInvestigation";
@@ -76,8 +72,6 @@ export default function DashboardLayout() {
   const [isLoading, setIsLoading] = useState(true);
   const [inventoryError, setInventoryError] = useState<string | null>(null);
   const [settings, setSettings] = useState({
-    autoRefresh: true,
-    refreshInterval: "30",
     notifications: true,
     logSources: [
       { id: "1", name: "Windows Event Logs", enabled: true, type: "windows" },
@@ -98,42 +92,13 @@ export default function DashboardLayout() {
     type: "application",
   });
 
-  const dashboardService = new DashboardDataService();
+  const dashboardService = useMemo(() => new DashboardDataService(), []);
 
   const { permission, isSubscribed, requestPermission, subscribe } =
     useNotifications();
   const { triggerTestNotification } = useSecurityNotifications();
 
-  // Load real dashboard data
-  useEffect(() => {
-    loadDashboardData();
-
-    // Set up auto-refresh if enabled - this overrides the 30 second default
-    let interval: NodeJS.Timeout;
-    if (settings.autoRefresh) {
-      const intervalMs = parseInt(settings.refreshInterval) * 1000;
-      console.log(
-        `🔄 Auto-refresh enabled: ${settings.refreshInterval}s interval`,
-      );
-
-      interval = setInterval(() => {
-        console.log("🔄 Auto-refreshing dashboard data...");
-        loadDashboardData();
-      }, intervalMs);
-    }
-
-    return () => {
-      if (interval) {
-        clearInterval(interval);
-        console.log("🔄 Auto-refresh interval cleared");
-      }
-    };
-  }, [
-    settings.autoRefresh,
-    settings.refreshInterval,
-  ]);
-
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     try {
       setIsLoading(true);
       setInventoryError(null);
@@ -144,7 +109,11 @@ export default function DashboardLayout() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [dashboardService]);
+
+  useEffect(() => {
+    void loadDashboardData();
+  }, [loadDashboardData]);
 
   const handleSettingsChange = (key: string, value: boolean | string) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
@@ -306,12 +275,11 @@ export default function DashboardLayout() {
 
       {/* Admin Tabs */}
       <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="users">User Management</TabsTrigger>
           <TabsTrigger value="system">System Health</TabsTrigger>
           <TabsTrigger value="audit">Audit Trail</TabsTrigger>
-          <TabsTrigger value="collection">Background Collection</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
         </TabsList>
 
@@ -332,10 +300,6 @@ export default function DashboardLayout() {
 
         <TabsContent value="audit">
           <AdminAuditTrail />
-        </TabsContent>
-
-        <TabsContent value="collection">
-          <BackgroundCollectionManager />
         </TabsContent>
 
         <TabsContent value="notifications">
@@ -554,56 +518,6 @@ export default function DashboardLayout() {
                 </DialogTitle>
               </DialogHeader>
               <div className="space-y-6">
-                {/* Auto Refresh */}
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="flex items-center gap-2">
-                      <RefreshCw className="h-4 w-4" />
-                      Auto Refresh
-                    </Label>
-                    <p className="text-sm text-muted-foreground">
-                      Automatically refresh dashboard data (overrides 30s
-                      default)
-                    </p>
-                  </div>
-                  <Switch
-                    checked={settings.autoRefresh}
-                    onCheckedChange={(checked) =>
-                      handleSettingsChange("autoRefresh", checked)
-                    }
-                  />
-                </div>
-
-                {/* Refresh Interval */}
-                {settings.autoRefresh && (
-                  <div className="space-y-2 pl-6 border-l-2 border-muted">
-                    <Label>Refresh Interval</Label>
-                    <Select
-                      value={settings.refreshInterval}
-                      onValueChange={(value) =>
-                        handleSettingsChange("refreshInterval", value)
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="5">5 seconds</SelectItem>
-                        <SelectItem value="10">10 seconds</SelectItem>
-                        <SelectItem value="15">15 seconds</SelectItem>
-                        <SelectItem value="30">30 seconds</SelectItem>
-                        <SelectItem value="60">1 minute</SelectItem>
-                        <SelectItem value="120">2 minutes</SelectItem>
-                        <SelectItem value="300">5 minutes</SelectItem>
-                        <SelectItem value="600">10 minutes</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Current: Every {settings.refreshInterval} seconds
-                    </p>
-                  </div>
-                )}
-
                 {/* Push Notifications */}
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">

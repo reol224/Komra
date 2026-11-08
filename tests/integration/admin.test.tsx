@@ -1110,52 +1110,30 @@ describe('Admin Components Integration Tests', () => {
         vi.useRealTimers();
       });
 
-      it('should set up auto-refresh interval on mount', async () => {
-        testLogger.test('Auto-refresh setup');
+      it('should load sessions on mount without polling', async () => {
+        testLogger.test('Initial session load');
         await renderWithAct(<SessionManagement />);
 
         await waitFor(() => {
           expect(mockGetAllActiveSessions).toHaveBeenCalledTimes(1);
         });
-        testLogger.pass('Auto-refresh setup');
+        testLogger.pass('Initial session load');
       });
 
-      it('should refresh sessions every 30 seconds', async () => {
-        testLogger.test('30 second refresh interval');
+      it('does not automatically refresh sessions after mount', async () => {
+        testLogger.test('No automatic session polling');
         await renderWithAct(<SessionManagement />);
 
         await waitFor(() => {
           expect(mockGetAllActiveSessions).toHaveBeenCalledTimes(1);
         });
 
-        // Advance time by 30 seconds
-        await act(async () => {
-          vi.advanceTimersByTime(30000);
-        });
-
-        await waitFor(() => {
-          expect(mockGetAllActiveSessions).toHaveBeenCalledTimes(2);
-        });
-        testLogger.pass('30 second refresh interval');
-      });
-
-      it('should refresh multiple times over time', async () => {
-        testLogger.test('Multiple refreshes');
-        await renderWithAct(<SessionManagement />);
-
-        await waitFor(() => {
-          expect(mockGetAllActiveSessions).toHaveBeenCalledTimes(1);
-        });
-
-        // Advance time by 90 seconds (3 refresh cycles)
         await act(async () => {
           vi.advanceTimersByTime(90000);
         });
 
-        await waitFor(() => {
-          expect(mockGetAllActiveSessions).toHaveBeenCalledTimes(4); // 1 initial + 3 interval calls
-        });
-        testLogger.pass('Multiple refreshes');
+        expect(mockGetAllActiveSessions).toHaveBeenCalledTimes(1);
+        testLogger.pass('No automatic session polling');
       });
 
       it('should call refresh when Refresh button is clicked', async () => {
@@ -3284,16 +3262,20 @@ describe('Admin Components Integration Tests', () => {
         testLogger.pass('Database status metric');
       });
 
-      it('should have auto-refresh interval configured', async () => {
-        testLogger.test('Auto-refresh interval configured');
+      it('should refresh system health when requested manually', async () => {
+        testLogger.test('Manual system health refresh');
         vi.useRealTimers();
         await renderWithAct(<AdminSystemHealth />);
 
-        // Component should mount without errors
         await waitFor(() => {
-          expect(document.querySelector('.space-y-6')).toBeInTheDocument();
+          expect(mockAgentSystemHealth).toHaveBeenCalled();
         });
-        testLogger.pass('Auto-refresh interval configured');
+        const callsBeforeRefresh = mockAgentSystemHealth.mock.calls.length;
+        await userEvent.click(screen.getByRole('button', { name: /refresh system health/i }));
+        await waitFor(() => {
+          expect(mockAgentSystemHealth).toHaveBeenCalledTimes(callsBeforeRefresh + 1);
+        });
+        testLogger.pass('Manual system health refresh');
       });
     });
 
