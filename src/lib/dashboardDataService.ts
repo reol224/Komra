@@ -167,9 +167,10 @@ export class DashboardDataService {
     endpointId: string;
     assignedTo: string;
     assignedBy: string;
+    assignedByEmail: string;
     priority: 'critical' | 'high' | 'medium' | 'low';
     notes: string;
-  }): Promise<void> {
+  }): Promise<{ auditLogged: boolean }> {
     const { data: cve, error: cveError } = await supabase
       .from('cves')
       .select('id')
@@ -211,6 +212,31 @@ export class DashboardDataService {
     if (vulnerabilityError) {
       throw new Error(`Assignment saved, but finding status update failed: ${vulnerabilityError.message}`);
     }
+
+    const { error: auditError } = await supabase.from('audit_logs').insert({
+      user_id: input.assignedBy,
+      user_email: input.assignedByEmail,
+      action: 'THREAT_ASSIGNED',
+      resource_type: 'vulnerability',
+      resource_id: input.vulnerabilityId,
+      details: {
+        cve_id: input.cveId,
+        endpoint_id: input.endpointId,
+        assigned_to: input.assignedTo,
+        priority: input.priority,
+      },
+      timestamp: new Date().toISOString(),
+      severity: 'high',
+      status: 'success',
+      metadata: { action_category: 'threat_management', security_relevant: true, compliance_relevant: true },
+    });
+
+    if (auditError) {
+      console.error('Threat assignment was saved, but its audit event could not be recorded:', auditError);
+      return { auditLogged: false };
+    }
+
+    return { auditLogged: true };
   }
 
   async recordThreatEscalation(input: {

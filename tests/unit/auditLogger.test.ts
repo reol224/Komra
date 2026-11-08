@@ -164,6 +164,22 @@ describe("AuditLogger", () => {
       ]);
     });
 
+    it("should use the provided actor when available", async () => {
+      await auditLogger.log(
+        "ADMIN_ACTION",
+        "user",
+        {},
+        { actorUserId: "admin-123", actorUserEmail: "admin@example.com" },
+      );
+
+      expect(mocks.insert).toHaveBeenCalledWith([
+        expect.objectContaining({
+          user_id: "admin-123",
+          user_email: "admin@example.com",
+        }),
+      ]);
+    });
+
     it("should use custom status when provided", async () => {
       await auditLogger.log(
         "TEST_ACTION",
@@ -206,7 +222,7 @@ describe("AuditLogger", () => {
     });
 
     it("should include session_id in log entry", async () => {
-      await auditLogger.log("TEST_ACTION", "test_resource", {});
+      await auditLogger.log("TEST_ACTION", "test_resource", {}, { severity: "critical" });
 
       expect(mocks.insert).toHaveBeenCalledWith([
         expect.objectContaining({
@@ -234,7 +250,7 @@ describe("AuditLogger", () => {
 
       expect(mocks.insert).toHaveBeenCalledWith([
         expect.objectContaining({
-          user_id: "anonymous",
+          user_id: null,
           user_email: "anonymous@system.local",
         }),
       ]);
@@ -261,12 +277,24 @@ describe("AuditLogger", () => {
       });
       const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
 
-      await auditLogger.log("TEST_ACTION", "test_resource", {});
+      await auditLogger.log("TEST_ACTION", "test_resource", {}, { severity: "critical" });
 
       expect(setItemSpy).toHaveBeenCalledWith(
         "audit_logs_fallback",
         expect.any(String),
       );
+    });
+
+    it("should not fallback non-critical events to localStorage", async () => {
+      mocks.insert.mockResolvedValue({
+        error: new Error("Database error"),
+      });
+      const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
+      vi.spyOn(console, "error").mockImplementation(() => {});
+
+      await auditLogger.log("TEST_ACTION", "test_resource", {});
+
+      expect(setItemSpy).not.toHaveBeenCalled();
     });
 
     it("should handle exceptions gracefully", async () => {
@@ -748,7 +776,7 @@ describe("AuditLogger", () => {
 
       expect(mocks.insert).toHaveBeenCalledWith([
         expect.objectContaining({
-          ip_address: expect.any(String),
+          ip_address: null,
           user_agent: expect.any(String),
         }),
       ]);
@@ -770,7 +798,7 @@ describe("AuditLogger", () => {
         error: new Error("Limit of 100 fallback logs reached."),
       });
 
-      await auditLogger.log("NEW_ACTION", "test", {});
+      await auditLogger.log("NEW_ACTION", "test", {}, { severity: "critical" });
 
       const savedLogs = JSON.parse(setItemSpy.mock.calls[0][1]);
       expect(savedLogs.length).toBe(100);

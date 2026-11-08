@@ -311,22 +311,6 @@ export default function ReportGenerator({ isOpen, onClose }: ReportGeneratorProp
       // Log successful report generation with comprehensive details
       await auditLogger.logReportGeneration(mockReportData);
       
-      // Log data access for all endpoints included in report
-      for (const endpoint of mockReportData.endpointInventory.endpoints) {
-        await auditLogger.logDataAccess(
-          'endpoint_data',
-          endpoint.hostname,
-          'READ'
-        );
-      }
-
-      // Log vulnerability data access
-      await auditLogger.logDataAccess(
-        'vulnerability_data',
-        'cve_database',
-        'READ'
-      );
-
       setReportGenerated(true);
       
     } catch (error) {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Users, Plus, Edit, Trash2, Shield, Search } from 'lucide-react';
-import { UserRole } from '@/contexts/AuthContext';
+import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { createClient } from '@supabase/supabase-js';
 import { sanitizeText, sanitizeEmail } from '@/lib/sanitization';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -21,6 +21,7 @@ import { PERMISSIONS } from '@/lib/permissionService';
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import SessionManagement from './SessionManagement';
+import { auditLogger } from '@/lib/auditLogger';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -49,6 +50,7 @@ interface ReassignmentData {
 }
 
 export default function AdminUserManagement() {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -79,12 +81,18 @@ export default function AdminUserManagement() {
   });
   const [isReassigning, setIsReassigning] = useState(false);
 
-  // Load users from database
-  useEffect(() => {
-    loadUsers();
-  }, []);
+  const logAdminEvent = useCallback((
+    action: string,
+    resourceType: string,
+    details: Record<string, unknown>,
+    options: Parameters<typeof auditLogger.log>[3] = {},
+  ) => auditLogger.log(action, resourceType, details, {
+    ...options,
+    actorUserId: currentUser?.id,
+    actorUserEmail: currentUser?.email,
+  }), [currentUser?.id, currentUser?.email]);
 
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('users')
@@ -122,7 +130,11 @@ export default function AdminUserManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    void loadUsers();
+  }, [loadUsers]);
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -208,6 +220,12 @@ export default function AdminUserManagement() {
 
       if (error) {
         console.error('Error creating user:', error);
+        void logAdminEvent(
+          'USER_CREATED',
+          'user',
+          { email: sanitizedData.email, role: sanitizedData.role, error_code: error.code },
+          { severity: 'high', status: 'failure', metadata: { action_category: 'user_administration', security_relevant: true } },
+        );
         if (error.code === '23505') {
           setFormErrors({ email: 'A user with this email already exists' });
         } else {
@@ -215,6 +233,13 @@ export default function AdminUserManagement() {
         }
         return;
       }
+
+      void logAdminEvent(
+        'USER_CREATED',
+        'user',
+        { target_user_id: data.id, role: sanitizedData.role },
+        { resourceId: data.id, severity: 'high', metadata: { action_category: 'user_administration', security_relevant: true, compliance_relevant: true } },
+      );
 
       // Add to local state
       setUsers(prev => [data, ...prev]);
@@ -287,6 +312,12 @@ export default function AdminUserManagement() {
 
       if (error) {
         console.error('Error updating user:', error);
+        void logAdminEvent(
+          'USER_UPDATED',
+          'user',
+          { target_user_id: editingUser.id, error_code: error.code },
+          { resourceId: editingUser.id, severity: 'high', status: 'failure', metadata: { action_category: 'user_administration', security_relevant: true } },
+        );
         if (error.code === '23505') {
           setFormErrors({ email: 'A user with this email already exists' });
         } else {
@@ -294,6 +325,18 @@ export default function AdminUserManagement() {
         }
         return;
       }
+
+      void logAdminEvent(
+        'USER_UPDATED',
+        'user',
+        {
+          target_user_id: editingUser.id,
+          changed_fields: Object.keys(sanitizedData),
+          role: sanitizedData.role,
+          status: sanitizedData.status,
+        },
+        { resourceId: editingUser.id, severity: 'high', metadata: { action_category: 'user_administration', security_relevant: true, compliance_relevant: true } },
+      );
 
       // Update local state
       setUsers(users.map(user => 
@@ -399,9 +442,22 @@ export default function AdminUserManagement() {
 
       if (error) {
         console.error('Error deleting user:', error);
+        void logAdminEvent(
+          'USER_DELETED',
+          'user',
+          { target_user_id: userId, error_code: error.code },
+          { resourceId: userId, severity: 'critical', status: 'failure', metadata: { action_category: 'user_administration', security_relevant: true } },
+        );
         alert('Failed to delete user. Please try again.');
         return;
       }
+
+      void logAdminEvent(
+        'USER_DELETED',
+        'user',
+        { target_user_id: userId },
+        { resourceId: userId, severity: 'critical', metadata: { action_category: 'user_administration', security_relevant: true, compliance_relevant: true } },
+      );
 
       setUsers(users.filter(user => user.id !== userId));
       alert('User deleted successfully.');
@@ -492,21 +548,20 @@ export default function AdminUserManagement() {
           }))
       };
 
-      const reassignmentLog = {
-        action: 'user_deletion_reassignment',
-        user_id: userToDelete.id,
-        details: {
-          deleted_user: userToDelete.full_name,
-          reassignments: reassignmentDetails,
-          counts: {
-            remediation_plans: relatedRecords.remediationPlans.length,
-            triage_actions: relatedRecords.triageActions.length,
-            audit_logs: relatedRecords.auditLogs.length
-          }
-        }
-      };
-
-      await supabase.from('audit_logs').insert(reassignmentLog);
+      await logAdminEvent(
+        'USER_RECORDS_REASSIGNED',
+        'user',
+        {
+          target_user_id: userToDelete.id,
+          remediation_plan_count: reassignmentDetails.remediation_plans.length,
+          triage_action_count: reassignmentDetails.triage_actions.length,
+        },
+        {
+          resourceId: userToDelete.id,
+          severity: 'high',
+          metadata: { action_category: 'user_administration', security_relevant: true, compliance_relevant: true },
+        },
+      );
 
       // Now delete the user
       await performUserDeletion(userToDelete.id);
@@ -583,8 +638,22 @@ export default function AdminUserManagement() {
 
       if (error) {
         console.error('Error updating user role:', error);
+        void logAdminEvent(
+          'USER_ROLE_CHANGED',
+          'user',
+          { target_user_id: userId, new_role: newRole, error_code: error.code },
+          { resourceId: userId, severity: 'critical', status: 'failure', metadata: { action_category: 'user_administration', security_relevant: true } },
+        );
         return;
       }
+
+      const previousRole = users.find((user) => user.id === userId)?.role;
+      void logAdminEvent(
+        'USER_ROLE_CHANGED',
+        'user',
+        { target_user_id: userId, previous_role: previousRole, new_role: newRole },
+        { resourceId: userId, severity: 'critical', metadata: { action_category: 'user_administration', security_relevant: true, compliance_relevant: true } },
+      );
 
       // Update local state
       setUsers(users.map(user => 

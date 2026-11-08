@@ -11,18 +11,22 @@ vi.mock('bcryptjs', () => ({
 // Mock Supabase
 interface MockFns {
   from: ReturnType<typeof vi.fn>;
+  getUser: ReturnType<typeof vi.fn>;
 }
 
 vi.mock('@supabase/supabase-js', () => {
   const from = vi.fn();
+  const getUser = vi.fn().mockResolvedValue({ data: { user: null }, error: null });
 
   (global as any).__supabasePasswordResetIntegrationMocks = {
     from,
+    getUser,
   };
 
   return {
     createClient: () => ({
       from,
+      auth: { getUser },
     }),
   };
 });
@@ -243,9 +247,9 @@ describe('Password Reset Service Integration Tests', () => {
       expect(result.success).toBe(true);
       expect(passwordUpdated).toBe(true);
       expect(auditLogged).toBe(true);
-      expect(auditDetails.action).toBe('admin_password_reset');
-      expect(auditDetails.user_id).toBe('admin-123');
-      expect(auditDetails.resource_id).toBe('user-456');
+      expect(auditDetails[0].action).toBe('ADMIN_PASSWORD_RESET');
+      expect(auditDetails[0].user_id).toBe('admin-123');
+      expect(auditDetails[0].resource_id).toBe('user-456');
     });
 
     it('should prevent non-admin from resetting passwords', async () => {
@@ -566,12 +570,12 @@ describe('Password Reset Service Integration Tests', () => {
 
       await adminResetUserPassword('target-user-789', 'TempPassword123!', 'admin-001');
 
-      expect(capturedAuditLog).toEqual({
+      expect(capturedAuditLog[0]).toMatchObject({
         user_id: 'admin-001',
-        action: 'admin_password_reset',
+        action: 'ADMIN_PASSWORD_RESET',
         resource_type: 'user',
         resource_id: 'target-user-789',
-        details: { target_user_id: 'target-user-789' },
+        details: { target_user_id: 'target-user-789', admin_user_id: 'admin-001' },
       });
     });
   });

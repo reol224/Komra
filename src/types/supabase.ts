@@ -77,7 +77,7 @@ export type Database = {
           timestamp: string
           user_agent: string | null
           user_email: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           action: string
@@ -94,7 +94,7 @@ export type Database = {
           timestamp?: string
           user_agent?: string | null
           user_email: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           action?: string

@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { auditLogger, AuditLogEntry } from "@/lib/auditLogger";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface AuditLog {
   id: string;
@@ -50,6 +51,8 @@ interface AuditLog {
   severity: "low" | "medium" | "high" | "critical";
   ip_address: string;
   user_agent: string;
+  session_id: string;
+  metadata: Record<string, unknown> | null;
   status: "success" | "failure" | "warning";
 }
 
@@ -82,11 +85,16 @@ function mapAuditLog(entry: AuditLogEntry): AuditLog {
     severity: entry.severity,
     ip_address: entry.ip_address ? String(entry.ip_address) : "Unknown",
     user_agent: entry.user_agent || "Unknown",
+    session_id: entry.session_id || "Unknown",
+    metadata: entry.metadata && typeof entry.metadata === "object"
+      ? entry.metadata as Record<string, unknown>
+      : null,
     status: entry.status,
   };
 }
 
 export default function AdminAuditTrail() {
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSeverity, setSelectedSeverity] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
@@ -101,6 +109,8 @@ export default function AdminAuditTrail() {
   const [pageSize, setPageSize] = useState(25);
   const [hasMoreLogs, setHasMoreLogs] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [copiedLogId, setCopiedLogId] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
 
   const loadAuditLogs = useCallback(async () => {
     setIsLoading(true);
@@ -171,7 +181,21 @@ export default function AdminAuditTrail() {
 
   const handleViewDetails = (log: AuditLog) => {
     setSelectedLog(log);
+    setCopiedLogId(false);
+    setCopyError(null);
     setIsDetailDialogOpen(true);
+  };
+
+  const copyEventId = async (eventId: string) => {
+    try {
+      await navigator.clipboard.writeText(eventId);
+      setCopiedLogId(true);
+      setCopyError(null);
+    } catch (error) {
+      console.error("Failed to copy audit event ID:", error);
+      setCopiedLogId(false);
+      setCopyError("Could not copy the event ID. Select and copy it manually.");
+    }
   };
 
   const getSeverityColor = (severity: string) => {
@@ -203,6 +227,10 @@ export default function AdminAuditTrail() {
   };
 
   const exportAuditLogs = () => {
+    const csvEscape = (value: string) => {
+      const safeValue = /^[=+\-@]/.test(value) ? `'${value}` : value;
+      return `"${safeValue.replace(/"/g, '""')}"`;
+    };
     const csvContent = [
       [
         "ID",
@@ -215,6 +243,8 @@ export default function AdminAuditTrail() {
         "Status",
         "IP Address",
         "User Agent",
+        "Session ID",
+        "Metadata",
       ],
       ...filteredLogs.map((log) => [
         log.id,
@@ -227,9 +257,11 @@ export default function AdminAuditTrail() {
         log.status,
         log.ip_address,
         log.user_agent,
+        log.session_id,
+        JSON.stringify(log.metadata || {}),
       ]),
     ]
-      .map((row) => row.map((field) => `"${field}"`).join(","))
+      .map((row) => row.map((field) => csvEscape(String(field ?? ""))).join(","))
       .join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -238,12 +270,30 @@ export default function AdminAuditTrail() {
     link.setAttribute("href", url);
     link.setAttribute(
       "download",
-      `audit-logs-${new Date().toISOString().split("T")[0]}.csv`,
+      `audit-logs-${selectedTimeRange}-${filteredLogs.length}-events-${new Date().toISOString().split("T")[0]}.csv`,
     );
     link.style.visibility = "hidden";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    void auditLogger.log(
+      "AUDIT_LOGS_EXPORTED",
+      "audit_logs",
+      {
+        time_range: selectedTimeRange,
+        severity_filter: selectedSeverity,
+        status_filter: selectedStatus,
+        search_applied: Boolean(searchTerm.trim()),
+        exported_event_count: filteredLogs.length,
+        format: "csv",
+      },
+      {
+        severity: "high",
+        metadata: { action_category: "data_export", compliance_relevant: true },
+        actorUserId: user?.id,
+        actorUserEmail: user?.email,
+      },
+    );
   };
 
   const exportSingleLog = (log: AuditLog) => {
@@ -258,6 +308,8 @@ export default function AdminAuditTrail() {
       Status: log.status,
       "IP Address": log.ip_address,
       "User Agent": log.user_agent,
+      "Session ID": log.session_id,
+      Metadata: log.metadata,
     };
 
     const jsonContent = JSON.stringify(logData, null, 2);
@@ -275,6 +327,18 @@ export default function AdminAuditTrail() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    void auditLogger.log(
+      "AUDIT_EVENT_EXPORTED",
+      "audit_logs",
+      { event_id: log.id, format: "json" },
+      {
+        resourceId: log.id,
+        severity: "medium",
+        metadata: { action_category: "data_export", compliance_relevant: true },
+        actorUserId: user?.id,
+        actorUserEmail: user?.email,
+      },
+    );
   };
 
   return (
@@ -533,9 +597,19 @@ export default function AdminAuditTrail() {
                                   <label className="text-sm font-medium text-gray-500">
                                     Event ID
                                   </label>
-                                  <div className="font-mono text-sm">
-                                    {selectedLog.id}
+                                  <div className="flex items-center gap-2">
+                                    <div className="break-all font-mono text-sm">
+                                      {selectedLog.id}
+                                    </div>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => void copyEventId(selectedLog.id)}
+                                    >
+                                      {copiedLogId ? "Copied" : "Copy ID"}
+                                    </Button>
                                   </div>
+                                  {copyError && <p role="alert" className="mt-1 text-xs text-destructive">{copyError}</p>}
                                 </div>
                                 <div>
                                   <label className="text-sm font-medium text-gray-500">
@@ -645,6 +719,22 @@ export default function AdminAuditTrail() {
                                   >
                                     {selectedLog.user_agent}
                                   </div>
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium text-gray-500">
+                                    Session ID
+                                  </label>
+                                  <div className="break-all font-mono text-sm">
+                                    {selectedLog.session_id}
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium text-gray-500">
+                                    Metadata
+                                  </label>
+                                  <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded p-3 text-xs" style={{ backgroundColor: "#344256" }}>
+                                    {JSON.stringify(selectedLog.metadata || {}, null, 2)}
+                                  </pre>
                                 </div>
                               </div>
 

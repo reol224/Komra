@@ -2481,6 +2481,33 @@ describe('Admin Components Integration Tests', () => {
       }));
     });
 
+    it('should show metadata, session ID, and a copyable event ID in the details view', async () => {
+      mockAuditLogs.mockResolvedValue([{
+        id: 'audit-detail-event',
+        user_id: 'admin-user-1',
+        user_email: 'admin@example.com',
+        action: 'USER_ROLE_CHANGED',
+        resource_type: 'user',
+        resource_id: 'target-user',
+        details: { previous_role: 'viewer', new_role: 'analyst' },
+        ip_address: '192.0.2.10',
+        user_agent: 'Test browser',
+        session_id: 'session-detail',
+        timestamp: new Date().toISOString(),
+        severity: 'high',
+        status: 'success',
+        metadata: { security_relevant: true, source: 'admin_console' },
+      }]);
+
+      await renderWithAct(<AdminAuditTrail />);
+      await userEvent.click(screen.getAllByRole('button').find((button) => button.querySelector('svg.lucide-eye'))!);
+
+      expect(screen.getByText('audit-detail-event')).toBeInTheDocument();
+      expect(screen.getByText('session-detail')).toBeInTheDocument();
+      expect(screen.getByText(/admin_console/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /copy id/i })).toBeInTheDocument();
+    });
+
     it('should show a visible error when persisted audit events cannot be loaded', async () => {
       mockAuditLogs.mockRejectedValue(new Error('Audit database unavailable'));
 

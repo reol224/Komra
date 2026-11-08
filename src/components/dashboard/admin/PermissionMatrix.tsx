@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Shield, Save, RotateCcw, AlertTriangle } from 'lucide-react';
-import { UserRole } from '@/contexts/AuthContext';
+import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { createClient } from '@supabase/supabase-js';
 import { useToast } from '@/components/ui/use-toast';
 import { auditLogger } from '@/lib/auditLogger';
@@ -162,6 +162,7 @@ const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Record<string, boolean>> = {
 };
 
 export default function PermissionMatrix() {
+  const { user } = useAuth();
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [rolePermissions, setRolePermissions] = useState<RolePermissions>({});
   const [originalRolePermissions, setOriginalRolePermissions] = useState<RolePermissions>({});
@@ -295,7 +296,10 @@ export default function PermissionMatrix() {
       // Log only actual changes
       try {
         if (changedPermissions.length > 0) {
-          await auditLogger.logPermissionMatrixUpdate(changedPermissions);
+          await auditLogger.logPermissionMatrixUpdate(changedPermissions, {
+            userId: user?.id,
+            userEmail: user?.email,
+          });
         }
       } catch (auditError) {
         console.warn('Audit logging failed:', auditError);
