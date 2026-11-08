@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { PermissionGuard } from '@/components/auth/PermissionGuard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,8 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/use-toast';
-import { AlertTriangle, Shield, TrendingUp, Clock, Eye, ExternalLink, Users, Calendar, UserCheck, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, Shield, TrendingUp, Clock, Eye, ExternalLink, Users, Calendar, UserCheck, AlertCircle, CheckCircle2, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { DashboardDataService, DashboardVulnerability, ThreatAssignee } from '@/lib/dashboardDataService';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -57,6 +58,10 @@ export default function AdminThreatSummary() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [findingsSearch, setFindingsSearch] = useState('');
+  const [findingsSeverity, setFindingsSeverity] = useState('all');
+  const [findingsStatus, setFindingsStatus] = useState('all');
+  const [findingsPage, setFindingsPage] = useState(0);
 
   const loadThreatData = useCallback(async () => {
     try {
@@ -143,6 +148,32 @@ export default function AdminThreatSummary() {
   const newFindingsLastDay = vulnerabilities.filter((vulnerability) =>
     isWithinDays(vulnerability.discovered_date, 1)
   ).length;
+  const filteredFindings = useMemo(() => {
+    const search = findingsSearch.trim().toLocaleLowerCase();
+    return vulnerabilities.filter((vulnerability) => {
+      const matchesSearch = !search || [
+        vulnerability.cve_id,
+        vulnerability.description,
+        vulnerability.endpoint_name,
+        vulnerability.environment,
+        ...vulnerability.affected_packages,
+      ].some((value) => value.toLocaleLowerCase().includes(search));
+      const matchesSeverity = findingsSeverity === 'all' || vulnerability.severity === findingsSeverity;
+      const matchesStatus = findingsStatus === 'all' || vulnerability.status === findingsStatus;
+      return matchesSearch && matchesSeverity && matchesStatus;
+    });
+  }, [findingsSearch, findingsSeverity, findingsStatus, vulnerabilities]);
+  const findingsPageSize = 25;
+  const findingsPageCount = Math.ceil(filteredFindings.length / findingsPageSize);
+  useEffect(() => {
+    setFindingsPage((page) => Math.min(page, Math.max(0, findingsPageCount - 1)));
+  }, [findingsPageCount]);
+  const paginatedFindings = filteredFindings.slice(
+    findingsPage * findingsPageSize,
+    (findingsPage + 1) * findingsPageSize
+  );
+  const findingsStart = filteredFindings.length === 0 ? 0 : findingsPage * findingsPageSize + 1;
+  const findingsEnd = Math.min((findingsPage + 1) * findingsPageSize, filteredFindings.length);
 
   const escalationLevels = [
     { id: 'incident-response', name: 'Incident Response Team', description: 'For active security incidents' },
@@ -648,6 +679,160 @@ export default function AdminThreatSummary() {
                   </div>
                 ))}
               </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>All Vulnerability Findings ({isLoading ? '...' : vulnerabilities.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_180px]">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  aria-label="Search vulnerability findings"
+                  placeholder="Search CVE, package, endpoint..."
+                  className="pl-9"
+                  value={findingsSearch}
+                  onChange={(event) => {
+                    setFindingsSearch(event.target.value);
+                    setFindingsPage(0);
+                  }}
+                />
+              </div>
+              <Select value={findingsSeverity} onValueChange={(value) => {
+                setFindingsSeverity(value);
+                setFindingsPage(0);
+              }}>
+                <SelectTrigger aria-label="Filter findings by severity">
+                  <SelectValue placeholder="All severities" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All severities</SelectItem>
+                  <SelectItem value="critical">Critical</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={findingsStatus} onValueChange={(value) => {
+                setFindingsStatus(value);
+                setFindingsPage(0);
+              }}>
+                <SelectTrigger aria-label="Filter findings by status">
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="open">Open</SelectItem>
+                  <SelectItem value="in_progress">In progress</SelectItem>
+                  <SelectItem value="resolved">Resolved</SelectItem>
+                  <SelectItem value="false_positive">False positive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {isLoading ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">Loading vulnerability findings...</p>
+            ) : loadError ? (
+              <p className="py-8 text-center text-sm text-destructive">Vulnerability findings are unavailable.</p>
+            ) : filteredFindings.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                {vulnerabilities.length === 0
+                  ? 'No vulnerability findings have been reported.'
+                  : 'No findings match these search and filter criteria.'}
+              </p>
+            ) : (
+              <>
+                <div className="space-y-3">
+                  {paginatedFindings.map((finding) => (
+                    <details key={finding.id} className="rounded-lg border p-4">
+                      <summary className="flex cursor-pointer list-none flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div className="min-w-0">
+                          <div className="font-medium">{finding.description || finding.cve_id}</div>
+                          <div className="mt-1 text-sm text-muted-foreground">
+                            {finding.cve_id} · {finding.endpoint_name} ({finding.environment})
+                          </div>
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            Detected {new Date(finding.discovered_date).toLocaleString()}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Badge className={`${getSeverityColor(finding.severity)} capitalize`}>
+                            {finding.severity}
+                          </Badge>
+                          <Badge className={`${getStatusColor(finding.status)} capitalize`}>
+                            {finding.status.replace('_', ' ')}
+                          </Badge>
+                        </div>
+                      </summary>
+                      <div className="mt-4 space-y-3 border-t pt-3 text-sm">
+                        {finding.cvss_score !== null && (
+                          <p><span className="font-medium">CVSS score:</span> {finding.cvss_score}</p>
+                        )}
+                        <p>
+                          <span className="font-medium">Affected packages:</span>{' '}
+                          {finding.affected_packages.length > 0
+                            ? finding.affected_packages.join(', ')
+                            : 'Package details unavailable'}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <Button variant="outline" size="sm" onClick={() => handleViewCVE(finding.cve_id)}>
+                            <ExternalLink className="mr-2 h-4 w-4" />
+                            {/^CVE-\d{4}-\d{4,}$/i.test(finding.cve_id) ? 'View NVD' : 'View OSV'}
+                          </Button>
+                          {(finding.reference_urls || []).map((reference) => {
+                            const url = safeExternalUrl(reference);
+                            return url ? (
+                              <a
+                                key={url}
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex h-9 items-center rounded-md border px-3 text-sm font-medium hover:bg-accent"
+                              >
+                                Reference
+                              </a>
+                            ) : null;
+                          })}
+                        </div>
+                      </div>
+                    </details>
+                  ))}
+                </div>
+                <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {findingsStart}–{findingsEnd} of {filteredFindings.length} findings
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setFindingsPage((page) => Math.max(0, page - 1))}
+                      disabled={findingsPage === 0}
+                      aria-label="Previous findings page"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Previous
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      Page {findingsPage + 1} of {findingsPageCount}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setFindingsPage((page) => Math.min(findingsPageCount - 1, page + 1))}
+                      disabled={findingsPage >= findingsPageCount - 1}
+                      aria-label="Next findings page"
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>

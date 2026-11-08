@@ -3,6 +3,7 @@ import { render, screen, waitFor, act, cleanup, fireEvent } from '@testing-libra
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { ActiveSession } from '@/lib/sessionManagementService';
+import type { DashboardVulnerability } from '@/lib/dashboardDataService';
 
 // ============================================================================
 // TEST UTILITIES & MOCKS
@@ -157,7 +158,7 @@ vi.mock('@/components/ui/use-toast', () => ({
 }));
 
 // Mock dashboardDataService - mock as a class constructor using hoisted
-const { MockDashboardDataService, mockAgentSystemHealth } = vi.hoisted(() => {
+const { MockDashboardDataService, mockAgentSystemHealth, mockAgentVulnerabilities } = vi.hoisted(() => {
   const mockAgentSystemHealth = vi.fn(() => Promise.resolve([{
     id: 'endpoint-health-1',
     hostname: 'health-agent',
@@ -174,12 +175,14 @@ const { MockDashboardDataService, mockAgentSystemHealth } = vi.hoisted(() => {
       disk_total_bytes: 1000,
     },
   }]));
+  const mockAgentVulnerabilities = vi.fn<() => Promise<DashboardVulnerability[]>>(() => Promise.resolve([]));
   // Create a proper class mock
   class MockDashboardDataServiceClass {
     getEndpoints = vi.fn(() => Promise.resolve([]));
     getAgentSystemHealth = mockAgentSystemHealth;
     getVulnerabilities = vi.fn(() => Promise.resolve([]));
-    getAgentVulnerabilities = vi.fn(() => Promise.resolve([]));
+    getAgentVulnerabilities = mockAgentVulnerabilities;
+    getThreatAssignees = vi.fn(() => Promise.resolve([]));
     getRiskMetrics = vi.fn(() => Promise.resolve({
       criticalCount: 0,
       highCount: 0,
@@ -193,7 +196,11 @@ const { MockDashboardDataService, mockAgentSystemHealth } = vi.hoisted(() => {
     getRecentActivity = vi.fn(() => Promise.resolve([]));
   }
   
-  return { MockDashboardDataService: MockDashboardDataServiceClass, mockAgentSystemHealth };
+  return {
+    MockDashboardDataService: MockDashboardDataServiceClass,
+    mockAgentSystemHealth,
+    mockAgentVulnerabilities,
+  };
 });
 
 vi.mock('@/lib/dashboardDataService', () => ({
@@ -264,6 +271,7 @@ describe('Admin Components Integration Tests', () => {
       ],
       error: null,
     });
+    mockAgentVulnerabilities.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -3975,6 +3983,48 @@ describe('Admin Components Integration Tests', () => {
         expect(elements.length).toBeGreaterThan(0);
       });
       testLogger.pass('Threat statistics display');
+    });
+
+    it('should show searchable findings across all severities', async () => {
+      mockAgentVulnerabilities.mockResolvedValue([
+        {
+          id: 'finding-medium',
+          cve_id: 'MEDIUM-TEST-1',
+          description: 'Medium severity test finding',
+          severity: 'medium',
+          cvss_score: 5.4,
+          status: 'open',
+          endpoint_id: 'endpoint-1',
+          endpoint_name: 'test-endpoint',
+          environment: 'production',
+          discovered_date: new Date().toISOString(),
+          affected_packages: ['test-package'],
+        },
+        {
+          id: 'finding-low',
+          cve_id: 'LOW-TEST-2',
+          description: 'Low severity test finding',
+          severity: 'low',
+          cvss_score: 2.1,
+          status: 'resolved',
+          endpoint_id: 'endpoint-1',
+          endpoint_name: 'test-endpoint',
+          environment: 'production',
+          discovered_date: new Date().toISOString(),
+          affected_packages: ['another-package'],
+        },
+      ]);
+
+      await renderWithAct(<AdminThreatSummary />);
+
+      expect(screen.getByText('All Vulnerability Findings (2)')).toBeInTheDocument();
+      expect(screen.getByText(/MEDIUM-TEST-1/)).toBeInTheDocument();
+      expect(screen.getByText(/LOW-TEST-2/)).toBeInTheDocument();
+
+      await userEvent.type(screen.getByRole('textbox', { name: /search vulnerability findings/i }), 'LOW-TEST-2');
+
+      expect(screen.queryByText(/MEDIUM-TEST-1/)).not.toBeInTheDocument();
+      expect(screen.getByText(/LOW-TEST-2/)).toBeInTheDocument();
     });
 
     it('should display threat UI', async () => {
