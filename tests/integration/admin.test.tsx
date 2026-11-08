@@ -4027,11 +4027,40 @@ describe('Admin Components Integration Tests', () => {
       expect(screen.getByText(/LOW-TEST-2/)).toBeInTheDocument();
     });
 
+    it('should let users choose how many findings appear per page', async () => {
+      mockAgentVulnerabilities.mockResolvedValue(
+        Array.from({ length: 12 }, (_, index) => ({
+          id: `finding-${index + 1}`,
+          cve_id: `CVE-TEST-${index + 1}`,
+          description: `Finding ${index + 1}`,
+          severity: 'medium' as const,
+          cvss_score: 5.4,
+          status: 'open' as const,
+          endpoint_id: 'endpoint-1',
+          endpoint_name: 'test-endpoint',
+          environment: 'production',
+          discovered_date: new Date().toISOString(),
+          affected_packages: ['test-package'],
+        }))
+      );
+
+      const { container } = await renderWithAct(<AdminThreatSummary />);
+
+      expect(container.querySelectorAll('details')).toHaveLength(10);
+      expect(screen.getByText('Showing 1–10 of 12 findings')).toBeInTheDocument();
+
+      await userEvent.selectOptions(screen.getByRole('combobox', { name: /findings per page/i }), '25');
+
+      expect(container.querySelectorAll('details')).toHaveLength(12);
+      expect(screen.getByText('Showing 1–12 of 12 findings')).toBeInTheDocument();
+    });
+
     it('should label reference destinations and expand additional references', async () => {
+      const longDescription = 'A long vulnerability description that should be clamped in the findings summary but remain fully available when the finding is expanded.';
       mockAgentVulnerabilities.mockResolvedValue([{
         id: 'finding-with-references',
         cve_id: 'REF-TEST-1',
-        description: 'Finding with multiple references',
+        description: longDescription,
         severity: 'medium',
         cvss_score: 5.4,
         status: 'open',
@@ -4049,10 +4078,12 @@ describe('Admin Components Integration Tests', () => {
         ],
       }]);
 
-      await renderWithAct(<AdminThreatSummary />);
+      const { container } = await renderWithAct(<AdminThreatSummary />);
 
       expect(screen.getByRole('link', { name: /advisories\.example\.org\/first/i })).toBeInTheDocument();
       expect(screen.getAllByRole('link', { name: /advisories\.example\.org/i })).toHaveLength(3);
+      expect(container.querySelector('.line-clamp-2[title]')).toHaveAttribute('title', longDescription);
+      expect(container.querySelector('details p.whitespace-pre-wrap')).toHaveTextContent(longDescription);
       await userEvent.click(screen.getByRole('button', { name: 'Show all references (5)' }));
 
       expect(screen.getAllByRole('link', { name: /advisories\.example\.org/i })).toHaveLength(5);

@@ -72,6 +72,7 @@ export default function AdminThreatSummary() {
   const [findingsSeverity, setFindingsSeverity] = useState('all');
   const [findingsStatus, setFindingsStatus] = useState('all');
   const [findingsPage, setFindingsPage] = useState(0);
+  const [findingsPageSize, setFindingsPageSize] = useState(10);
   const [expandedReferenceFindings, setExpandedReferenceFindings] = useState<Set<string>>(
     () => new Set()
   );
@@ -176,7 +177,6 @@ export default function AdminThreatSummary() {
       return matchesSearch && matchesSeverity && matchesStatus;
     });
   }, [findingsSearch, findingsSeverity, findingsStatus, vulnerabilities]);
-  const findingsPageSize = 25;
   const findingsPageCount = Math.ceil(filteredFindings.length / findingsPageSize);
   useEffect(() => {
     setFindingsPage((page) => Math.min(page, Math.max(0, findingsPageCount - 1)));
@@ -547,7 +547,12 @@ export default function AdminThreatSummary() {
                         'text-yellow-600'
                       }`} />
                       <div>
-                        <div className="font-medium">{threat.description || threat.cve_id}</div>
+                        <div
+                          className="line-clamp-2 font-medium"
+                          title={threat.description || threat.cve_id}
+                        >
+                          {threat.description || threat.cve_id}
+                        </div>
                         <div className="text-sm text-gray-500">{threat.cve_id}</div>
                         <div className="text-sm text-gray-500">
                           {threat.endpoint_name} ({threat.environment}) • Detected{' '}
@@ -784,7 +789,12 @@ export default function AdminThreatSummary() {
                     <details key={finding.id} className="rounded-lg border p-4">
                       <summary className="flex cursor-pointer list-none flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div className="min-w-0">
-                          <div className="font-medium">{finding.description || finding.cve_id}</div>
+                          <div
+                            className="line-clamp-2 font-medium"
+                            title={finding.description || finding.cve_id}
+                          >
+                            {finding.description || finding.cve_id}
+                          </div>
                           <div className="mt-1 text-sm text-muted-foreground">
                             {finding.cve_id} · {finding.endpoint_name} ({finding.environment})
                           </div>
@@ -802,6 +812,7 @@ export default function AdminThreatSummary() {
                         </div>
                       </summary>
                       <div className="mt-4 space-y-3 border-t pt-3 text-sm">
+                        <p className="whitespace-pre-wrap">{finding.description || 'No description available.'}</p>
                         {finding.cvss_score !== null && (
                           <p><span className="font-medium">CVSS score:</span> {finding.cvss_score}</p>
                         )}
@@ -849,9 +860,30 @@ export default function AdminThreatSummary() {
                   })}
                 </div>
                 <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm text-muted-foreground">
-                    Showing {findingsStart}–{findingsEnd} of {filteredFindings.length} findings
-                  </p>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+                    <p className="text-sm text-muted-foreground">
+                      Showing {findingsStart}–{findingsEnd} of {filteredFindings.length} findings
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="findings-page-size" className="whitespace-nowrap text-sm text-muted-foreground">
+                        Per page
+                      </Label>
+                      <select
+                        id="findings-page-size"
+                        aria-label="Findings per page"
+                        value={findingsPageSize}
+                        onChange={(event) => {
+                          setFindingsPageSize(Number(event.target.value));
+                          setFindingsPage(0);
+                        }}
+                        className="h-9 w-20 rounded-md border border-input bg-background px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      >
+                        {[5, 10, 25, 50, 100].map((pageSize) => (
+                          <option key={pageSize} value={pageSize}>{pageSize}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                   <div className="flex items-center gap-2">
                     <Button
                       variant="outline"
