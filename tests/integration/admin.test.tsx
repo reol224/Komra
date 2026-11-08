@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, act, cleanup } from '@testing-library/react';
+import { render, screen, waitFor, act, cleanup, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { ActiveSession } from '@/lib/sessionManagementService';
@@ -157,26 +157,27 @@ vi.mock('@/components/ui/use-toast', () => ({
 }));
 
 // Mock dashboardDataService - mock as a class constructor using hoisted
-const { MockDashboardDataService } = vi.hoisted(() => {
+const { MockDashboardDataService, mockAgentSystemHealth } = vi.hoisted(() => {
+  const mockAgentSystemHealth = vi.fn(() => Promise.resolve([{
+    id: 'endpoint-health-1',
+    hostname: 'health-agent',
+    osType: 'Ubuntu 24.04',
+    lastScan: new Date().toISOString(),
+    runningServices: ['sshd.service', 'nginx.service'],
+    resourceMetrics: {
+      cpu_usage_percent: 28,
+      memory_usage_percent: 44,
+      memory_used_bytes: 440,
+      memory_total_bytes: 1000,
+      disk_usage_percent: 51,
+      disk_used_bytes: 510,
+      disk_total_bytes: 1000,
+    },
+  }]));
   // Create a proper class mock
   class MockDashboardDataServiceClass {
     getEndpoints = vi.fn(() => Promise.resolve([]));
-    getAgentSystemHealth = vi.fn(() => Promise.resolve([{
-      id: 'endpoint-health-1',
-      hostname: 'health-agent',
-      osType: 'Ubuntu 24.04',
-      lastScan: new Date().toISOString(),
-      runningServices: ['sshd.service', 'nginx.service'],
-      resourceMetrics: {
-        cpu_usage_percent: 28,
-        memory_usage_percent: 44,
-        memory_used_bytes: 440,
-        memory_total_bytes: 1000,
-        disk_usage_percent: 51,
-        disk_used_bytes: 510,
-        disk_total_bytes: 1000,
-      },
-    }]));
+    getAgentSystemHealth = mockAgentSystemHealth;
     getVulnerabilities = vi.fn(() => Promise.resolve([]));
     getAgentVulnerabilities = vi.fn(() => Promise.resolve([]));
     getRiskMetrics = vi.fn(() => Promise.resolve({
@@ -192,7 +193,7 @@ const { MockDashboardDataService } = vi.hoisted(() => {
     getRecentActivity = vi.fn(() => Promise.resolve([]));
   }
   
-  return { MockDashboardDataService: MockDashboardDataServiceClass };
+  return { MockDashboardDataService: MockDashboardDataServiceClass, mockAgentSystemHealth };
 });
 
 vi.mock('@/lib/dashboardDataService', () => ({
@@ -3572,6 +3573,45 @@ describe('Admin Components Integration Tests', () => {
         testLogger.pass('Service Status section');
       });
 
+      it('virtualizes and searches large service lists', async () => {
+        const services = Array.from({ length: 2000 }, (_, index) => `service-${index}`);
+        mockAgentSystemHealth.mockResolvedValueOnce([{
+          id: 'large-service-endpoint',
+          hostname: 'large-service-host',
+          osType: 'Ubuntu 24.04',
+          lastScan: new Date().toISOString(),
+          runningServices: services,
+          resourceMetrics: {
+            cpu_usage_percent: 28,
+            memory_usage_percent: 44,
+            memory_used_bytes: 440,
+            memory_total_bytes: 1000,
+            disk_usage_percent: 51,
+            disk_used_bytes: 510,
+            disk_total_bytes: 1000,
+          },
+        }]);
+        const user = userEvent.setup();
+        await renderWithAct(<AdminSystemHealth />);
+
+        const list = await screen.findByRole('list', { name: 'Reported running services' });
+        await waitFor(() => {
+          expect(screen.getByText('Showing 2,000 of 2,000 service reports')).toBeInTheDocument();
+          expect(list.querySelectorAll('[role="listitem"]').length).toBeLessThan(30);
+        });
+
+        list.scrollTop = 72 * 1995;
+        fireEvent.scroll(list);
+        await waitFor(() => {
+          expect(screen.getByText('service-1999')).toBeInTheDocument();
+          expect(screen.queryByText('service-0')).not.toBeInTheDocument();
+        });
+
+        await user.type(screen.getByRole('textbox', { name: 'Search services or endpoints' }), 'service-1999');
+        expect(screen.getByText('Showing 1 of 2,000 service reports')).toBeInTheDocument();
+        expect(screen.getByText('service-1999')).toBeInTheDocument();
+      });
+
       it('should display Web Server status', async () => {
         testLogger.test('Web Server status');
         await renderWithAct(<AdminSystemHealth />);
@@ -3715,9 +3755,8 @@ describe('Admin Components Integration Tests', () => {
         await renderWithAct(<AdminSystemHealth />);
 
         await waitFor(() => {
-          // Services should be in a list with borders
-          const serviceContainers = document.querySelectorAll('.border.rounded-lg');
-          expect(serviceContainers.length).toBeGreaterThan(0);
+          const serviceList = screen.queryByRole('list', { name: 'Reported running services' });
+          expect(serviceList).toBeInTheDocument();
         });
         testLogger.pass('Service list container');
       });

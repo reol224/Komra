@@ -1,18 +1,28 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PermissionGuard } from '@/components/auth/PermissionGuard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Activity,
   AlertTriangle,
   CheckCircle,
   Clock,
   Cpu,
+  Filter,
   HardDrive,
   MemoryStick,
+  Search,
   Server,
 } from 'lucide-react';
 import {
@@ -22,6 +32,9 @@ import {
 
 const REPORT_FRESHNESS_MS = 5 * 60 * 1000;
 const RESOURCE_ALERT_THRESHOLD = 85;
+const SERVICE_ROW_HEIGHT = 72;
+const SERVICE_LIST_HEIGHT = 360;
+const SERVICE_OVERSCAN = 5;
 const dashboardService = new DashboardDataService();
 
 function reportTime(endpoint: AgentHealthEndpoint): number | null {
@@ -56,6 +69,11 @@ export default function AdminSystemHealth() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [serviceSearch, setServiceSearch] = useState('');
+  const [serviceOsFilter, setServiceOsFilter] = useState('all');
+  const [serviceFreshnessFilter, setServiceFreshnessFilter] = useState('all');
+  const [serviceScrollTop, setServiceScrollTop] = useState(0);
+  const serviceListRef = useRef<HTMLDivElement>(null);
   const now = Date.now();
 
   const loadSystemHealth = useCallback(async () => {
@@ -98,13 +116,54 @@ export default function AdminSystemHealth() {
   const cpuUsage = average(resourceSamples.map((metrics) => metrics.cpu_usage_percent));
   const memoryUsage = average(resourceSamples.map((metrics) => metrics.memory_usage_percent));
   const diskUsage = average(resourceSamples.map((metrics) => metrics.disk_usage_percent));
-  const runningServiceReports = endpoints.flatMap((endpoint) =>
-    endpoint.runningServices.map((service) => ({
-      service,
-      endpoint,
-      isFresh: reportingEndpoints.some((current) => current.id === endpoint.id),
-    })),
+  const freshEndpointIds = useMemo(
+    () => new Set(reportingEndpoints.map((endpoint) => endpoint.id)),
+    [reportingEndpoints],
   );
+  const runningServiceReports = useMemo(
+    () => endpoints.flatMap((endpoint) =>
+      endpoint.runningServices.map((service) => ({
+        service,
+        endpoint,
+        isFresh: freshEndpointIds.has(endpoint.id),
+      })),
+    ),
+    [endpoints, freshEndpointIds],
+  );
+  const serviceOperatingSystems = useMemo(
+    () => Array.from(
+      new Set(runningServiceReports.map(({ endpoint }) => endpoint.osType).filter(Boolean)),
+    ).sort((left, right) => left.localeCompare(right)),
+    [runningServiceReports],
+  );
+  const filteredServiceReports = useMemo(
+    () => runningServiceReports.filter(({ service, endpoint, isFresh }) => {
+      const search = serviceSearch.trim().toLocaleLowerCase();
+      const matchesSearch = !search
+        || service.toLocaleLowerCase().includes(search)
+        || endpoint.hostname.toLocaleLowerCase().includes(search);
+      const matchesOs = serviceOsFilter === 'all' || endpoint.osType === serviceOsFilter;
+      const matchesFreshness = serviceFreshnessFilter === 'all'
+        || (serviceFreshnessFilter === 'fresh' && isFresh)
+        || (serviceFreshnessFilter === 'stale' && !isFresh);
+      return matchesSearch && matchesOs && matchesFreshness;
+    }),
+    [runningServiceReports, serviceFreshnessFilter, serviceOsFilter, serviceSearch],
+  );
+  const serviceWindowStart = Math.max(
+    0,
+    Math.floor(serviceScrollTop / SERVICE_ROW_HEIGHT) - SERVICE_OVERSCAN,
+  );
+  const serviceWindowEnd = Math.min(
+    filteredServiceReports.length,
+    Math.ceil((serviceScrollTop + SERVICE_LIST_HEIGHT) / SERVICE_ROW_HEIGHT) + SERVICE_OVERSCAN,
+  );
+  const visibleServiceReports = filteredServiceReports.slice(serviceWindowStart, serviceWindowEnd);
+
+  const resetServiceList = () => {
+    if (serviceListRef.current) serviceListRef.current.scrollTop = 0;
+    setServiceScrollTop(0);
+  };
   const events = endpoints.flatMap((endpoint) => {
     const timestamp = reportTime(endpoint);
     if (timestamp === null) return [];
@@ -288,34 +347,114 @@ export default function AdminSystemHealth() {
               </p>
             ) : (
               <div className="space-y-3">
-                {runningServiceReports.slice(0, 30).map(({ service, endpoint, isFresh }) => {
-                  const timestamp = reportTime(endpoint);
-                  return (
-                    <div
-                      key={`${endpoint.id}:${service}`}
-                      className="flex items-center justify-between gap-4 rounded-lg border p-3"
-                    >
-                      <div className="min-w-0">
-                        <div className="truncate font-medium">{service}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {endpoint.hostname} · {endpoint.osType}
-                        </div>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-3">
-                        <Badge variant={isFresh ? 'default' : 'outline'}>
-                          {isFresh ? 'Reported running' : 'Last report stale'}
-                        </Badge>
-                        <span className="hidden text-sm text-muted-foreground sm:inline">
-                          {formatAge(timestamp, now)}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-                {runningServiceReports.length > 30 && (
-                  <p className="text-sm text-muted-foreground">
-                    Showing 30 of {runningServiceReports.length} service/endpoint reports.
+                <div className="grid gap-3 md:grid-cols-[minmax(16rem,1fr)_12rem_12rem]">
+                  <label className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      aria-label="Search services or endpoints"
+                      placeholder="Search service or endpoint..."
+                      value={serviceSearch}
+                      onChange={(event) => {
+                        setServiceSearch(event.target.value);
+                        resetServiceList();
+                      }}
+                      className="pl-9"
+                    />
+                  </label>
+                  <Select
+                    value={serviceOsFilter}
+                    onValueChange={(value) => {
+                      setServiceOsFilter(value);
+                      resetServiceList();
+                    }}
+                  >
+                    <SelectTrigger aria-label="Filter services by operating system">
+                      <Filter className="mr-2 h-4 w-4 text-muted-foreground" />
+                      <SelectValue placeholder="All operating systems" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All operating systems</SelectItem>
+                      {serviceOperatingSystems.map((osType) => (
+                        <SelectItem key={osType} value={osType}>{osType}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={serviceFreshnessFilter}
+                    onValueChange={(value) => {
+                      setServiceFreshnessFilter(value);
+                      resetServiceList();
+                    }}
+                  >
+                    <SelectTrigger aria-label="Filter services by report freshness">
+                      <SelectValue placeholder="All report statuses" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All report statuses</SelectItem>
+                      <SelectItem value="fresh">Recent reports</SelectItem>
+                      <SelectItem value="stale">Stale reports</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <span aria-live="polite">
+                    Showing {filteredServiceReports.length.toLocaleString()} of {runningServiceReports.length.toLocaleString()} service reports
+                  </span>
+                  <span>{endpoints.length.toLocaleString()} endpoints</span>
+                </div>
+
+                {filteredServiceReports.length === 0 ? (
+                  <p className="rounded-md border py-8 text-center text-sm text-muted-foreground">
+                    No services match these filters.
                   </p>
+                ) : (
+                  <div
+                    ref={serviceListRef}
+                    role="list"
+                    aria-label="Reported running services"
+                    className="overflow-auto rounded-md border"
+                    style={{ height: SERVICE_LIST_HEIGHT }}
+                    onScroll={(event) => setServiceScrollTop(event.currentTarget.scrollTop)}
+                  >
+                    <div
+                      style={{
+                        height: filteredServiceReports.length * SERVICE_ROW_HEIGHT,
+                        position: 'relative',
+                      }}
+                    >
+                      {visibleServiceReports.map(({ service, endpoint, isFresh }, index) => {
+                        const timestamp = reportTime(endpoint);
+                        const virtualIndex = serviceWindowStart + index;
+                        return (
+                          <div
+                            key={`${endpoint.id}:${service}`}
+                            role="listitem"
+                            className="absolute left-0 right-0 flex items-center justify-between gap-4 border-b px-3 last:border-b-0"
+                            style={{
+                              height: SERVICE_ROW_HEIGHT,
+                              top: virtualIndex * SERVICE_ROW_HEIGHT,
+                            }}
+                          >
+                            <div className="min-w-0">
+                              <div className="truncate font-medium" title={service}>{service}</div>
+                              <div className="truncate text-sm text-muted-foreground" title={`${endpoint.hostname} · ${endpoint.osType}`}>
+                                {endpoint.hostname} · {endpoint.osType}
+                              </div>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-3">
+                              <Badge variant={isFresh ? 'default' : 'outline'}>
+                                {isFresh ? 'Reported running' : 'Last report stale'}
+                              </Badge>
+                              <span className="hidden w-24 text-right text-sm text-muted-foreground sm:inline">
+                                {formatAge(timestamp, now)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 )}
               </div>
             )}
