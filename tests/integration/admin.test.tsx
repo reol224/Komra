@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, act, cleanup, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, act, cleanup, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { ActiveSession } from '@/lib/sessionManagementService';
@@ -164,6 +164,7 @@ const { MockDashboardDataService, mockAgentSystemHealth, mockAgentVulnerabilitie
     hostname: 'health-agent',
     osType: 'Ubuntu 24.04',
     lastScan: new Date().toISOString(),
+    receivedAt: new Date().toISOString(),
     runningServices: ['sshd.service', 'nginx.service'],
     resourceMetrics: {
       cpu_usage_percent: 28,
@@ -3144,6 +3145,32 @@ describe('Admin Components Integration Tests', () => {
         testLogger.pass('Last updated timestamp');
       });
 
+      it('should show a missing-report warning for endpoints with invalid receipt times', async () => {
+        mockAgentSystemHealth.mockResolvedValueOnce([{
+          id: 'endpoint-without-report',
+          hostname: 'missing-report-host',
+          osType: 'Ubuntu 24.04',
+          lastScan: new Date().toISOString(),
+          receivedAt: 'invalid timestamp',
+          runningServices: [],
+          resourceMetrics: {
+            cpu_usage_percent: 28,
+            memory_usage_percent: 44,
+            memory_used_bytes: 440,
+            memory_total_bytes: 1000,
+            disk_usage_percent: 51,
+            disk_used_bytes: 510,
+            disk_total_bytes: 1000,
+          },
+        }]);
+
+        await renderWithAct(<AdminSystemHealth />);
+
+        expect(await screen.findByText('No agent report received')).toBeInTheDocument();
+        expect(screen.getByText('missing-report-host · no report received')).toBeInTheDocument();
+        expect(screen.queryByText('missing-report-host · reported No report received')).not.toBeInTheDocument();
+      });
+
       it('should render system health UI container', async () => {
         testLogger.test('System health UI rendering');
         await renderWithAct(<AdminSystemHealth />);
@@ -3570,6 +3597,7 @@ describe('Admin Components Integration Tests', () => {
           hostname: 'large-service-host',
           osType: 'Ubuntu 24.04',
           lastScan: new Date().toISOString(),
+          receivedAt: new Date().toISOString(),
           runningServices: services,
           resourceMetrics: {
             cpu_usage_percent: 28,
@@ -4053,6 +4081,69 @@ describe('Admin Components Integration Tests', () => {
 
       expect(container.querySelectorAll('details')).toHaveLength(12);
       expect(screen.getByText('Showing 1–12 of 12 findings')).toBeInTheDocument();
+    });
+
+    it('should offer actions for eligible findings across all findings, not only recent threats', async () => {
+      mockAgentVulnerabilities.mockResolvedValue([
+        ...Array.from({ length: 10 }, (_, index) => ({
+          id: `recent-finding-${index}`,
+          cve_id: `CVE-RECENT-${index}`,
+          description: `Recent finding ${index}`,
+          severity: 'high' as const,
+          cvss_score: 8.1,
+          status: 'open' as const,
+          endpoint_id: 'endpoint-1',
+          endpoint_name: 'test-endpoint',
+          environment: 'production',
+          discovered_date: new Date().toISOString(),
+          affected_packages: ['test-package'],
+        })),
+        {
+          id: 'outside-recent-threats',
+          cve_id: 'CVE-OUTSIDE-RECENT',
+          description: 'Critical finding outside recent threats',
+          severity: 'critical' as const,
+          cvss_score: 9.5,
+          status: 'in_progress' as const,
+          endpoint_id: 'endpoint-1',
+          endpoint_name: 'test-endpoint',
+          environment: 'production',
+          discovered_date: new Date().toISOString(),
+          affected_packages: ['test-package'],
+        },
+        {
+          id: 'resolved-critical',
+          cve_id: 'CVE-RESOLVED',
+          description: 'Resolved critical finding',
+          severity: 'critical' as const,
+          cvss_score: 9.5,
+          status: 'resolved' as const,
+          endpoint_id: 'endpoint-1',
+          endpoint_name: 'test-endpoint',
+          environment: 'production',
+          discovered_date: new Date().toISOString(),
+          affected_packages: ['test-package'],
+        },
+      ]);
+
+      const { container } = await renderWithAct(<AdminThreatSummary />);
+      await userEvent.selectOptions(screen.getByRole('combobox', { name: /findings per page/i }), '25');
+
+      const outsideRecentRow = Array.from(container.querySelectorAll('details'))
+        .find((row) => row.textContent?.includes('CVE-OUTSIDE-RECENT'));
+      expect(outsideRecentRow).toBeDefined();
+      await userEvent.click(outsideRecentRow!.querySelector('summary')!);
+
+      expect(within(outsideRecentRow!).getByRole('button', { name: 'View OSV' })).toBeInTheDocument();
+      expect(within(outsideRecentRow!).getByRole('button', { name: 'Assign to Team' })).toBeInTheDocument();
+      expect(within(outsideRecentRow!).getByRole('button', { name: 'Record Escalation' })).toBeInTheDocument();
+
+      const resolvedRow = Array.from(container.querySelectorAll('details'))
+        .find((row) => row.textContent?.includes('CVE-RESOLVED'));
+      expect(resolvedRow).toBeDefined();
+      await userEvent.click(resolvedRow!.querySelector('summary')!);
+      expect(within(resolvedRow!).queryByRole('button', { name: 'Assign to Team' })).not.toBeInTheDocument();
+      expect(within(resolvedRow!).queryByRole('button', { name: 'Record Escalation' })).not.toBeInTheDocument();
     });
 
     it('should label reference destinations and expand additional references', async () => {

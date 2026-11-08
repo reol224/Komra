@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
       os_version: agentData.endpoint.os_version,
       environment: agentData.endpoint.environment,
       last_scan: agentData.last_scan,
+      updated_at: new Date().toISOString(),
       status: 'healthy',
       metadata: {
         collection_source: 'agent',

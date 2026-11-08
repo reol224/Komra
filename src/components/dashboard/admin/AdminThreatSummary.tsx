@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { PermissionGuard } from '@/components/auth/PermissionGuard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -63,6 +63,7 @@ export default function AdminThreatSummary() {
   const [escalationReason, setEscalationReason] = useState('');
   const [escalationLevel, setEscalationLevel] = useState('');
   const [escalationNotes, setEscalationNotes] = useState('');
+  const escalationDialogSession = useRef(0);
   
   const [vulnerabilities, setVulnerabilities] = useState<DashboardVulnerability[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -136,9 +137,9 @@ export default function AdminThreatSummary() {
     return () => controller.abort();
   }, [selectedThreat?.cve_id]);
 
-  const activeFindings = vulnerabilities.filter(
-    (vulnerability) => vulnerability.status === 'open' || vulnerability.status === 'in_progress'
-  );
+  const isActiveFinding = (finding: DashboardVulnerability) =>
+    finding.status === 'open' || finding.status === 'in_progress';
+  const activeFindings = vulnerabilities.filter(isActiveFinding);
   const severityCounts = {
     critical: activeFindings.filter((vulnerability) => vulnerability.severity === 'critical').length,
     high: activeFindings.filter((vulnerability) => vulnerability.severity === 'high').length,
@@ -324,11 +325,17 @@ export default function AdminThreatSummary() {
   };
 
   const handleEscalateThreat = (threat: DashboardVulnerability) => {
+    escalationDialogSession.current += 1;
     setSelectedThreat(threat);
     setEscalationDialog(true);
     setEscalationReason('');
     setEscalationLevel('');
     setEscalationNotes('');
+  };
+
+  const closeEscalationDialog = () => {
+    escalationDialogSession.current += 1;
+    setEscalationDialog(false);
   };
 
   const handleConfirmEscalation = async () => {
@@ -353,14 +360,16 @@ export default function AdminThreatSummary() {
     const selectedLevel = escalationLevels.find((level) => level.id === escalationLevel);
     if (!selectedLevel) return;
 
+    const requestSession = escalationDialogSession.current;
+    const threat = selectedThreat;
     setIsEscalating(true);
     try {
       await new DashboardDataService().recordThreatEscalation({
         userId: user.id,
         userEmail: user.email,
-        vulnerabilityId: selectedThreat.id,
-        cveId: selectedThreat.cve_id,
-        endpointId: selectedThreat.endpoint_id,
+        vulnerabilityId: threat.id,
+        cveId: threat.cve_id,
+        endpointId: threat.endpoint_id,
         reason: escalationReason,
         level: selectedLevel.name,
         notes: escalationNotes,
@@ -371,17 +380,19 @@ export default function AdminThreatSummary() {
           <div className="flex items-center space-x-2">
             <AlertCircle className="h-4 w-4 text-orange-600" />
             <span>
-              {selectedThreat.cve_id} escalated to {selectedLevel.name}.
+            Escalation for {threat.cve_id} recorded for {selectedLevel.name}.
             </span>
           </div>
         ),
         duration: 4000,
       });
-      setEscalationDialog(false);
-      setEscalationReason('');
-      setEscalationLevel('');
-      setEscalationNotes('');
-      setSelectedThreat(null);
+      if (escalationDialogSession.current === requestSession) {
+        closeEscalationDialog();
+        setEscalationReason('');
+        setEscalationLevel('');
+        setEscalationNotes('');
+        setSelectedThreat(null);
+      }
     } catch (error) {
       console.error('Failed to record threat escalation:', error);
       toast({
@@ -827,6 +838,32 @@ export default function AdminThreatSummary() {
                             <ExternalLink className="mr-2 h-4 w-4" />
                             {/^CVE-\d{4}-\d{4,}$/i.test(finding.cve_id) ? 'View NVD' : 'View OSV'}
                           </Button>
+                          {isActiveFinding(finding) && (
+                            <>
+                              <PermissionGuard permission="vulnerabilities.assign">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleAssignThreat(finding)}
+                                >
+                                  <UserCheck className="mr-2 h-4 w-4" />
+                                  Assign to Team
+                                </Button>
+                              </PermissionGuard>
+                              {finding.severity === 'critical' && (
+                                <PermissionGuard permission="system.escalate_threats">
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => handleEscalateThreat(finding)}
+                                  >
+                                    <AlertCircle className="mr-2 h-4 w-4" />
+                                    Record Escalation
+                                  </Button>
+                                </PermissionGuard>
+                              )}
+                            </>
+                          )}
                           {visibleReferences.map((reference) => (
                               <a
                                 key={reference.url}
@@ -1016,7 +1053,13 @@ export default function AdminThreatSummary() {
 
         {/* Threat Escalation Dialog */}
         <PermissionGuard permission="system.escalate_threats">
-          <Dialog open={escalationDialog} onOpenChange={setEscalationDialog}>
+          <Dialog
+            open={escalationDialog}
+            onOpenChange={(open) => {
+              if (open) setEscalationDialog(true);
+              else closeEscalationDialog();
+            }}
+          >
             <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle className="flex items-center space-x-2">
@@ -1085,7 +1128,7 @@ export default function AdminThreatSummary() {
                     <div className="text-sm">
                       <div className="font-medium text-red-800">Critical Escalation</div>
                       <div className="text-red-700">
-                        This will immediately notify the selected team and trigger emergency response protocols.
+                        This records the escalation in the audit trail. It does not notify the selected team or trigger response protocols.
                       </div>
                     </div>
                   </div>
@@ -1098,9 +1141,9 @@ export default function AdminThreatSummary() {
                     className="flex-1"
                     disabled={isEscalating}
                   >
-                    {isEscalating ? 'Recording...' : <><AlertCircle className="h-4 w-4 mr-2" />Confirm Escalation</>}
+                    {isEscalating ? 'Recording...' : <><AlertCircle className="h-4 w-4 mr-2" />Record Escalation</>}
                   </Button>
-                  <Button variant="outline" onClick={() => setEscalationDialog(false)} className="flex-1">
+                  <Button variant="outline" onClick={closeEscalationDialog} className="flex-1">
                     Cancel
                   </Button>
                 </div>

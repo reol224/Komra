@@ -40,8 +40,8 @@ const SERVICE_OVERSCAN = 5;
 const dashboardService = new DashboardDataService();
 
 function reportTime(endpoint: AgentHealthEndpoint): number | null {
-  if (!endpoint.lastScan) return null;
-  const timestamp = Date.parse(endpoint.lastScan);
+  if (!endpoint.receivedAt) return null;
+  const timestamp = Date.parse(endpoint.receivedAt);
   return Number.isNaN(timestamp) ? null : timestamp;
 }
 
@@ -164,14 +164,37 @@ export default function AdminSystemHealth() {
     if (serviceListRef.current) serviceListRef.current.scrollTop = 0;
     setServiceScrollTop(0);
   };
-  const events = endpoints.flatMap((endpoint) => {
+  const missingReportEvents: Array<{
+    endpointId: string;
+    time: null;
+    level: 'warning';
+    message: string;
+    hostname: string;
+  }> = [];
+  const timestampedEvents = endpoints.flatMap((endpoint) => {
     const timestamp = reportTime(endpoint);
-    if (timestamp === null) return [];
+    if (timestamp === null) {
+      missingReportEvents.push({
+        endpointId: endpoint.id,
+        time: null,
+        level: 'warning',
+        message: 'No agent report received',
+        hostname: endpoint.hostname,
+      });
+      return [];
+    }
     const metrics = endpoint.resourceMetrics;
-    const alerts: Array<{ time: number; level: 'warning'; message: string; hostname: string }> = [];
+    const alerts: Array<{
+      endpointId: string;
+      time: number;
+      level: 'warning';
+      message: string;
+      hostname: string;
+    }> = [];
     if (metrics?.cpu_usage_percent !== null && metrics?.cpu_usage_percent !== undefined
       && metrics.cpu_usage_percent >= RESOURCE_ALERT_THRESHOLD) {
       alerts.push({
+        endpointId: endpoint.id,
         time: timestamp,
         level: 'warning',
         message: `CPU usage was ${metrics.cpu_usage_percent.toFixed(1)}%`,
@@ -181,6 +204,7 @@ export default function AdminSystemHealth() {
     if (metrics?.memory_usage_percent !== null && metrics?.memory_usage_percent !== undefined
       && metrics.memory_usage_percent >= RESOURCE_ALERT_THRESHOLD) {
       alerts.push({
+        endpointId: endpoint.id,
         time: timestamp,
         level: 'warning',
         message: `Memory usage was ${metrics.memory_usage_percent.toFixed(1)}%`,
@@ -190,6 +214,7 @@ export default function AdminSystemHealth() {
     if (metrics?.disk_usage_percent !== null && metrics?.disk_usage_percent !== undefined
       && metrics.disk_usage_percent >= RESOURCE_ALERT_THRESHOLD) {
       alerts.push({
+        endpointId: endpoint.id,
         time: timestamp,
         level: 'warning',
         message: `Disk usage was ${metrics.disk_usage_percent.toFixed(1)}%`,
@@ -198,6 +223,7 @@ export default function AdminSystemHealth() {
     }
     if (now - timestamp > REPORT_FRESHNESS_MS) {
       alerts.push({
+        endpointId: endpoint.id,
         time: timestamp,
         level: 'warning',
         message: `Agent report is stale (${formatAge(timestamp, now)})`,
@@ -206,6 +232,7 @@ export default function AdminSystemHealth() {
     }
     return alerts;
   }).sort((left, right) => right.time - left.time).slice(0, 8);
+  const events = [...timestampedEvents, ...missingReportEvents];
 
   const renderResourceMetric = (
     label: string,
@@ -488,12 +515,14 @@ export default function AdminSystemHealth() {
             ) : (
               <div className="space-y-3">
                 {events.map((event, index) => (
-                  <div key={`${event.hostname}:${event.time}:${index}`} className="flex items-start gap-3 border-l-2 border-amber-400 p-3">
+                  <div key={`${event.endpointId}:${event.time ?? 'missing'}:${index}`} className="flex items-start gap-3 border-l-2 border-amber-400 p-3">
                     <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-600" />
                     <div>
                       <p className="text-sm font-medium">{event.message}</p>
                       <p className="text-xs text-muted-foreground">
-                        {event.hostname} · reported {formatAge(event.time, now)}
+                        {event.time === null
+                          ? `${event.hostname} · no report received`
+                          : `${event.hostname} · reported ${formatAge(event.time, now)}`}
                       </p>
                     </div>
                   </div>

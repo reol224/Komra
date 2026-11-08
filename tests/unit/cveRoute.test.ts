@@ -60,4 +60,31 @@ describe('GET /api/cves/[cveId]', () => {
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });
+
+  it('returns the CVSS v4 score and severity when it is the only metric', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({
+      vulnerabilities: [{
+        cve: {
+          id: 'CVE-2025-54321',
+          metrics: {
+            cvssMetricV40: [{
+              cvssData: { baseScore: 9.4, baseSeverity: 'CRITICAL' },
+            }],
+          },
+        },
+      }],
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await GET(
+      new Request('http://localhost/api/cves/CVE-2025-54321'),
+      { params: Promise.resolve({ cveId: 'CVE-2025-54321' }) },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      cvssScore: 9.4,
+      severity: 'CRITICAL',
+    });
+  });
 });

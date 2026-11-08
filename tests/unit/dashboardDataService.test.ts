@@ -673,6 +673,7 @@ describe('DashboardDataService', () => {
             hostname: 'agent-host',
             os_type: 'Ubuntu 24.04',
             last_scan: '2026-11-07T18:00:00.000Z',
+            updated_at: '2026-11-07T18:05:00.000Z',
             metadata: {
               collection_source: 'agent',
               running_services: ['ssh.service', 'cron.service', 1],
@@ -692,6 +693,7 @@ describe('DashboardDataService', () => {
             hostname: 'old-agent',
             os_type: 'Windows Server',
             last_scan: null,
+            updated_at: null,
             metadata: {
               running_services: [],
               resource_metrics: { cpu_usage_percent: 180 },
@@ -710,6 +712,7 @@ describe('DashboardDataService', () => {
           hostname: 'agent-host',
           osType: 'Ubuntu 24.04',
           lastScan: '2026-11-07T18:00:00.000Z',
+          receivedAt: '2026-11-07T18:05:00.000Z',
           runningServices: ['ssh.service', 'cron.service'],
           resourceMetrics: {
             cpu_usage_percent: 51.2,
@@ -726,6 +729,7 @@ describe('DashboardDataService', () => {
           hostname: 'old-agent',
           osType: 'Windows Server',
           lastScan: null,
+          receivedAt: null,
           runningServices: [],
           resourceMetrics: null,
         },
@@ -749,6 +753,110 @@ describe('DashboardDataService', () => {
       await expect(service.getAgentSystemHealth()).rejects.toThrow(
         'Failed to fetch agent system health: connection failed',
       );
+    });
+  });
+
+  describe('getAssignedAgentThreats', () => {
+    it('loads the analyst assigned OSV finding with endpoint and owner details', async () => {
+      const assignment = {
+        id: 'assignment-1',
+        cve_id: 'cve-row-1',
+        endpoint_id: 'endpoint-1',
+        status: 'in_progress',
+        priority: 'critical',
+        assigned_to: 'analyst-1',
+        triaged_by: 'admin-1',
+        notes: 'Investigate affected package',
+        triaged_at: '2026-11-07T18:00:00.000Z',
+        created_at: '2026-11-07T17:00:00.000Z',
+        updated_at: '2026-11-07T18:00:00.000Z',
+      };
+      const finding = {
+        id: 'finding-1',
+        cve_id: 'OSV-2026-1234',
+        description: 'Vulnerable package finding',
+        severity: 'high',
+        cvss_score: 8.2,
+        status: 'in_progress',
+        endpoint_id: 'endpoint-1',
+        discovered_date: '2026-11-07T16:00:00.000Z',
+        source_id: 'GHSA-abcd-efgh-ijkl',
+        reference_urls: ['https://osv.dev/vulnerability/GHSA-abcd-efgh-ijkl'],
+        affected_packages: ['example-package'],
+      };
+      const queryResult = (data: unknown) => Promise.resolve({ data, error: null });
+      mocks.from.mockImplementation((table: string) => {
+        if (table === 'triage_actions') {
+          const order = vi.fn().mockResolvedValue({ data: [assignment], error: null });
+          const eq = vi.fn().mockReturnValue({ order });
+          return { select: vi.fn().mockReturnValue({ eq }) };
+        }
+        if (table === 'cves') {
+          return {
+            select: vi.fn().mockReturnValue({
+              in: vi.fn().mockImplementation((_column: string, ids: string[]) =>
+                queryResult(ids.includes('cve-row-1') ? [{ id: 'cve-row-1', cve_id: 'OSV-2026-1234' }] : []),
+              ),
+            }),
+          };
+        }
+        if (table === 'vulnerabilities') {
+          const inEndpoints = vi.fn().mockImplementation(() => queryResult([finding]));
+          const inCves = vi.fn().mockReturnValue({ in: inEndpoints });
+          const eq = vi.fn().mockReturnValue({ in: inCves });
+          return { select: vi.fn().mockReturnValue({ eq }) };
+        }
+        if (table === 'endpoints') {
+          return {
+            select: vi.fn().mockReturnValue({
+              in: vi.fn().mockReturnValue(queryResult([{
+                id: 'endpoint-1',
+                hostname: 'agent-host',
+                environment: 'production',
+              }])),
+            }),
+          };
+        }
+        if (table === 'users') {
+          return {
+            select: vi.fn().mockReturnValue({
+              in: vi.fn().mockReturnValue(queryResult([
+                { id: 'analyst-1', email: 'analyst@example.com', full_name: 'Analyst Owner' },
+                { id: 'admin-1', email: 'admin@example.com', full_name: 'Admin User' },
+              ])),
+            }),
+          };
+        }
+        return {};
+      });
+
+      const result = await service.getAssignedAgentThreats('analyst-1');
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        id: 'assignment-1',
+        status: 'in_progress',
+        priority: 'critical',
+        owner: { id: 'analyst-1', email: 'analyst@example.com', fullName: 'Analyst Owner' },
+        assignedBy: { id: 'admin-1', email: 'admin@example.com', fullName: 'Admin User' },
+        finding: {
+          id: 'finding-1',
+          cve_id: 'OSV-2026-1234',
+          source: 'osv',
+          source_id: 'GHSA-abcd-efgh-ijkl',
+          endpoint_name: 'agent-host',
+        },
+      });
+      expect(mocks.from).toHaveBeenCalledWith('triage_actions');
+    });
+
+    it('returns an empty result without related queries when the analyst has no assignments', async () => {
+      const order = vi.fn().mockResolvedValue({ data: [], error: null });
+      const eq = vi.fn().mockReturnValue({ order });
+      mocks.from.mockReturnValue({ select: vi.fn().mockReturnValue({ eq }) });
+
+      await expect(service.getAssignedAgentThreats('analyst-with-no-assignments')).resolves.toEqual([]);
+      expect(mocks.from).toHaveBeenCalledTimes(1);
     });
   });
 

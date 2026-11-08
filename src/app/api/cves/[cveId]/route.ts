@@ -11,6 +11,7 @@ interface NvdCveResponse {
       lastModified?: string;
       references?: Array<{ url: string; tags?: string[] }>;
       metrics?: {
+        cvssMetricV40?: Array<{ cvssData?: { baseScore?: number; baseSeverity?: string } }>;
         cvssMetricV31?: Array<{ cvssData?: { baseScore?: number; baseSeverity?: string } }>;
         cvssMetricV30?: Array<{ cvssData?: { baseScore?: number; baseSeverity?: string } }>;
         cvssMetricV2?: Array<{
@@ -57,6 +58,7 @@ export async function GET(
     }
 
     const metric =
+      cve.metrics?.cvssMetricV40?.[0] ??
       cve.metrics?.cvssMetricV31?.[0] ??
       cve.metrics?.cvssMetricV30?.[0] ??
       cve.metrics?.cvssMetricV2?.[0];
