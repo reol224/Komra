@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/use-toast';
 import { AlertTriangle, Shield, TrendingUp, Clock, Eye, ExternalLink, Users, Calendar, UserCheck, AlertCircle, CheckCircle2, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { DashboardDataService, DashboardVulnerability, ThreatAssignee } from '@/lib/dashboardDataService';
+import { auditLogger } from '@/lib/auditLogger';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface NvdCveDetails {
@@ -82,7 +83,8 @@ export default function AdminThreatSummary() {
     try {
       setIsLoading(true);
       setLoadError(null);
-      setVulnerabilities(await new DashboardDataService().getAgentVulnerabilities());
+      const findings = await new DashboardDataService().getAgentVulnerabilities();
+      setVulnerabilities(findings);
       setLastUpdatedAt(new Date());
     } catch (error) {
       console.error('Error loading agent vulnerability findings:', error);
@@ -285,22 +287,25 @@ export default function AdminThreatSummary() {
 
     setIsAssigning(true);
     try {
-      await new DashboardDataService().assignThreat({
+      const { auditLogged } = await new DashboardDataService().assignThreat({
         vulnerabilityId: selectedThreat.id,
         cveId: selectedThreat.cve_id,
         endpointId: selectedThreat.endpoint_id,
         assignedTo: assignedMember.id,
+        assignedBy: user.id,
+        assignedByEmail: user.email,
         priority: priority as 'critical' | 'high' | 'medium' | 'low',
         notes: assignmentNotes,
       });
       await loadThreatData();
       toast({
-        title: "Threat assigned",
+        title: auditLogged ? "Threat assigned" : "Threat assigned with audit warning",
         description: (
           <div className="flex items-center space-x-2">
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <CheckCircle2 className={`h-4 w-4 ${auditLogged ? "text-green-600" : "text-amber-600"}`} />
             <span>
               {selectedThreat.cve_id} assigned to {assignedMember.full_name || assignedMember.email}.
+              {!auditLogged && " The audit event could not be recorded; contact an administrator."}
             </span>
           </div>
         ),
@@ -313,6 +318,23 @@ export default function AdminThreatSummary() {
       setPriority('');
     } catch (error) {
       console.error('Failed to assign threat:', error);
+      void auditLogger.log(
+        'THREAT_ASSIGNMENT_ATTEMPT_FAILED',
+        'vulnerability',
+        {
+          vulnerability_id: selectedThreat.id,
+          cve_id: selectedThreat.cve_id,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+        {
+          resourceId: selectedThreat.id,
+          severity: 'high',
+          status: 'failure',
+          metadata: { action_category: 'threat_management', security_relevant: true },
+          actorUserId: user?.id,
+          actorUserEmail: user?.email,
+        },
+      );
       toast({
         title: "Assignment Failed",
         description: error instanceof Error ? error.message : "Unable to save the assignment.",
@@ -390,6 +412,24 @@ export default function AdminThreatSummary() {
       }
     } catch (error) {
       console.error('Failed to record threat escalation:', error);
+      void auditLogger.log(
+        'THREAT_ESCALATION_ATTEMPT_FAILED',
+        'vulnerability',
+        {
+          vulnerability_id: selectedThreat.id,
+          cve_id: selectedThreat.cve_id,
+          escalation_level: selectedLevel.name,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+        {
+          resourceId: selectedThreat.id,
+          severity: 'high',
+          status: 'failure',
+          metadata: { action_category: 'threat_management', security_relevant: true },
+          actorUserId: user?.id,
+          actorUserEmail: user?.email,
+        },
+      );
       toast({
         title: "Escalation Failed",
         description: error instanceof Error ? error.message : "Unable to record the escalation.",

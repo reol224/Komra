@@ -7,13 +7,13 @@ const supabase = createClient(
 
 export interface AuditLogEntry {
   id?: string;
-  user_id: string;
+  user_id: string | null;
   user_email: string;
   action: string;
   resource_type: string;
   resource_id?: string;
   details: Record<string, any>;
-  ip_address?: string;
+  ip_address?: string | null;
   user_agent?: string;
   session_id?: string;
   timestamp: string;
@@ -49,12 +49,12 @@ export class AuditLogger {
   private getClientInfo() {
     if (typeof window !== 'undefined') {
       return {
-        ip_address: 'client-side', // In production, get from server
+        ip_address: null,
         user_agent: navigator.userAgent,
       };
     }
     return {
-      ip_address: 'server-side',
+      ip_address: null,
       user_agent: 'server',
     };
   }
@@ -68,6 +68,8 @@ export class AuditLogger {
       severity?: 'low' | 'medium' | 'high' | 'critical';
       status?: 'success' | 'failure' | 'warning';
       metadata?: Record<string, any>;
+      actorUserId?: string | null;
+      actorUserEmail?: string;
     } = {}
   ): Promise<void> {
     try {
@@ -75,8 +77,8 @@ export class AuditLogger {
       const clientInfo = this.getClientInfo();
 
       const logEntry: AuditLogEntry = {
-        user_id: user?.id || 'anonymous',
-        user_email: user?.email || 'anonymous@system.local',
+        user_id: options.actorUserId ?? user?.id ?? null,
+        user_email: options.actorUserEmail || user?.email || 'anonymous@system.local',
         action,
         resource_type: resourceType,
         resource_id: options.resourceId,
@@ -96,8 +98,9 @@ export class AuditLogger {
 
       if (error) {
         console.error('Failed to log audit entry:', error);
-        // Fallback to local storage for critical logs
-        this.fallbackLog(logEntry);
+        if (logEntry.severity === 'critical') {
+          this.fallbackLog(logEntry);
+        }
       }
 
       // Also log to console in development
@@ -128,7 +131,8 @@ export class AuditLogger {
       permission: string;
       action: 'granted' | 'revoked';
       permissionDescription?: string;
-    }>
+    }>,
+    actor?: { userId?: string; userEmail?: string },
   ): Promise<void> {
     await this.log(
       'PERMISSION_MATRIX_UPDATED',
@@ -150,6 +154,8 @@ export class AuditLogger {
           change_type: 'bulk_update',
           requires_notification: true,
         },
+        actorUserId: actor?.userId,
+        actorUserEmail: actor?.userEmail,
       }
     );
   }
@@ -328,6 +334,8 @@ export class AuditLogger {
     endDate?: string;
     severity?: string;
     limit?: number;
+    offset?: number;
+    throwOnError?: boolean;
   } = {}): Promise<AuditLogEntry[]> {
     try {
       let query = supabase
@@ -354,19 +362,27 @@ export class AuditLogger {
         query = query.eq('severity', filters.severity);
       }
       if (filters.limit) {
-        query = query.limit(filters.limit);
+        query = filters.offset !== undefined
+          ? query.range(filters.offset, filters.offset + filters.limit - 1)
+          : query.limit(filters.limit);
       }
 
       const { data, error } = await query;
 
       if (error) {
         console.error('Failed to retrieve audit logs:', error);
+        if (filters.throwOnError) {
+          throw new Error(`Failed to retrieve audit logs: ${error.message}`);
+        }
         return [];
       }
 
       return data || [];
     } catch (error) {
       console.error('Error querying audit logs:', error);
+      if (filters.throwOnError) {
+        throw error;
+      }
       return [];
     }
   }
@@ -407,7 +423,9 @@ export class AuditLogger {
         };
       }
 
-      const uniqueUsers = new Set(data.map(log => log.user_id)).size;
+      const uniqueUsers = new Set(
+        data.map(log => log.user_id).filter((userId): userId is string => Boolean(userId)),
+      ).size;
       const actionCounts = data.reduce((acc, log) => {
         acc[log.action] = (acc[log.action] || 0) + 1;
         return acc;

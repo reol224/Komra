@@ -330,7 +330,7 @@ describe('AuditLogger Integration Tests', () => {
       expect(mocks.insert).toHaveBeenCalledWith([
         expect.objectContaining({
           action: 'SECURITY_FAILED_LOGIN',
-          user_id: 'anonymous',
+          user_id: null,
           user_email: 'anonymous@system.local',
           details: expect.objectContaining({
             attempted_email: 'unknown@attacker.com',
@@ -426,7 +426,7 @@ describe('AuditLogger Integration Tests', () => {
 
       // First call fails
       mocks.insert.mockResolvedValueOnce({ error: new Error('Database unavailable') });
-      await auditLogger.log('ACTION_1', 'resource', {});
+      await auditLogger.log('ACTION_1', 'resource', {}, { severity: 'critical' });
 
       // Verify fallback to localStorage
       expect(mockStorage['audit_logs_fallback']).toBeDefined();

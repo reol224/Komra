@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { SessionManagementService, ActiveSession } from '@/lib/sessionManagementService';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,6 +34,7 @@ import {
   User
 } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
+import { auditLogger } from '@/lib/auditLogger';
 
 export default function SessionManagement() {
   const { user } = useAuth();
@@ -43,7 +44,7 @@ export default function SessionManagement() {
   const [sessionToTerminate, setSessionToTerminate] = useState<ActiveSession | null>(null);
   const [userToForceLogout, setUserToForceLogout] = useState<ActiveSession | null>(null);
 
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async () => {
     try {
       setLoading(true);
       const data = await SessionManagementService.getAllActiveSessions();
@@ -58,11 +59,11 @@ export default function SessionManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    loadSessions();
-  }, []);
+    void loadSessions();
+  }, [loadSessions]);
 
   const handleTerminateSession = async (session: ActiveSession) => {
     const success = await SessionManagementService.terminateSession(
@@ -71,12 +72,37 @@ export default function SessionManagement() {
     );
 
     if (success) {
+      void auditLogger.log(
+        'SESSION_TERMINATED',
+        'authentication_session',
+        { session_id: session.id, target_user_id: session.user_id },
+        {
+          resourceId: session.id,
+          severity: 'high',
+          metadata: { action_category: 'session_management', security_relevant: true, compliance_relevant: true },
+          actorUserId: user?.id,
+          actorUserEmail: user?.email,
+        },
+      );
       toast({
         title: "Session Terminated",
         description: `Session for ${session.user_email} has been terminated.`,
       });
       loadSessions();
     } else {
+      void auditLogger.log(
+        'SESSION_TERMINATION_FAILED',
+        'authentication_session',
+        { session_id: session.id, target_user_id: session.user_id },
+        {
+          resourceId: session.id,
+          severity: 'high',
+          status: 'failure',
+          metadata: { action_category: 'session_management', security_relevant: true },
+          actorUserId: user?.id,
+          actorUserEmail: user?.email,
+        },
+      );
       toast({
         title: "Error",
         description: "Failed to terminate session.",
@@ -93,12 +119,37 @@ export default function SessionManagement() {
     );
 
     if (count > 0) {
+      void auditLogger.log(
+        'USER_SESSIONS_TERMINATED',
+        'authentication_session',
+        { target_user_id: session.user_id, terminated_count: count },
+        {
+          resourceId: session.user_id,
+          severity: 'critical',
+          metadata: { action_category: 'session_management', security_relevant: true, compliance_relevant: true },
+          actorUserId: user?.id,
+          actorUserEmail: user?.email,
+        },
+      );
       toast({
         title: "Force Logout Complete",
         description: `${count} session(s) terminated for ${session.user_email}.`,
       });
       loadSessions();
     } else {
+      void auditLogger.log(
+        'USER_SESSION_TERMINATION_FAILED',
+        'authentication_session',
+        { target_user_id: session.user_id },
+        {
+          resourceId: session.user_id,
+          severity: 'high',
+          status: 'failure',
+          metadata: { action_category: 'session_management', security_relevant: true },
+          actorUserId: user?.id,
+          actorUserEmail: user?.email,
+        },
+      );
       toast({
         title: "Error",
         description: "Failed to force logout user.",

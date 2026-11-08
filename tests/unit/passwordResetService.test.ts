@@ -11,18 +11,22 @@ vi.mock('bcryptjs', () => ({
 // Mock Supabase
 interface MockFns {
   from: ReturnType<typeof vi.fn>;
+  getUser: ReturnType<typeof vi.fn>;
 }
 
 vi.mock('@supabase/supabase-js', () => {
   const from = vi.fn();
+  const getUser = vi.fn().mockResolvedValue({ data: { user: null }, error: null });
 
   (global as any).__supabasePasswordResetMocks = {
     from,
+    getUser,
   };
 
   return {
     createClient: () => ({
       from,
+      auth: { getUser },
     }),
   };
 });

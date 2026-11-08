@@ -1,11 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
 import { validatePassword, PasswordValidationContext, PasswordValidationResult } from '@/lib/passwordValidation';
+import { auditLogger } from '@/lib/auditLogger';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
+
+function maskEmail(email: string): string {
+  const [name, domain] = email.split('@');
+  if (!name || !domain) return 'unknown';
+  return `${name.slice(0, 1)}***@${domain}`;
+}
 
 export interface PasswordResetResult {
   success: boolean;
@@ -27,6 +34,12 @@ export async function requestPasswordReset(email: string): Promise<PasswordReset
       .single();
 
     if (userError || !user) {
+      await auditLogger.log(
+        'PASSWORD_RESET_REQUESTED',
+        'authentication',
+        { account_email: maskEmail(email) },
+        { severity: 'medium', metadata: { action_category: 'authentication', security_relevant: true } },
+      );
       // Don't reveal if user exists for security
       return {
         success: true,
@@ -50,16 +63,24 @@ export async function requestPasswordReset(email: string): Promise<PasswordReset
 
     if (updateError) {
       console.error('Error storing reset token:', updateError);
+      await auditLogger.log(
+        'PASSWORD_RESET_REQUEST_FAILED',
+        'authentication',
+        { account_email: maskEmail(email), error_code: updateError.code },
+        { severity: 'high', status: 'failure', metadata: { action_category: 'authentication', security_relevant: true } },
+      );
       return {
         success: false,
         message: 'Failed to process password reset request.',
       };
     }
 
-    // In production, send email with reset link
-    // For now, log the reset token (REMOVE IN PRODUCTION)
-    console.log(`Password reset token for ${email}: ${resetToken}`);
-    console.log(`Reset link: ${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${resetToken}`);
+    await auditLogger.log(
+      'PASSWORD_RESET_REQUESTED',
+      'authentication',
+      { target_user_id: user.id, account_email: maskEmail(email) },
+      { resourceId: user.id, severity: 'medium', metadata: { action_category: 'authentication', security_relevant: true } },
+    );
 
     return {
       success: true,
@@ -114,6 +135,12 @@ export async function resetPassword(
     // Verify token
     const { valid, userId } = await verifyResetToken(token);
     if (!valid || !userId) {
+      await auditLogger.log(
+        'PASSWORD_RESET_FAILED',
+        'authentication',
+        { reason: 'invalid_or_expired_token' },
+        { severity: 'high', status: 'failure', metadata: { action_category: 'authentication', security_relevant: true } },
+      );
       return {
         success: false,
         message: 'Invalid or expired reset token.',
@@ -123,6 +150,12 @@ export async function resetPassword(
     // Validate password strength
     const validationResult = await validatePassword(newPassword, context);
     if (!validationResult.isValid) {
+      await auditLogger.log(
+        'PASSWORD_RESET_FAILED',
+        'authentication',
+        { target_user_id: userId, reason: 'password_policy_rejected' },
+        { resourceId: userId, severity: 'medium', status: 'failure', metadata: { action_category: 'authentication', security_relevant: true } },
+      );
       const errorMessages = validationResult.errors
         .filter(e => e.severity === 'error')
         .map(e => e.message)
@@ -150,12 +183,24 @@ export async function resetPassword(
 
     if (updateError) {
       console.error('Error updating password:', updateError);
+      await auditLogger.log(
+        'PASSWORD_RESET_FAILED',
+        'authentication',
+        { target_user_id: userId, error_code: updateError.code },
+        { resourceId: userId, severity: 'high', status: 'failure', metadata: { action_category: 'authentication', security_relevant: true } },
+      );
       return {
         success: false,
         message: 'Failed to reset password.',
       };
     }
 
+    await auditLogger.log(
+      'PASSWORD_RESET_COMPLETED',
+      'user',
+      { target_user_id: userId },
+      { resourceId: userId, severity: 'high', metadata: { action_category: 'authentication', security_relevant: true, compliance_relevant: true } },
+    );
     return {
       success: true,
       message: 'Password has been reset successfully.',
@@ -182,11 +227,17 @@ export async function adminResetUserPassword(
     // Verify admin has permission
     const { data: admin, error: adminError } = await supabase
       .from('users')
-      .select('role')
+      .select('role, email')
       .eq('id', adminUserId)
       .single();
 
     if (adminError || admin?.role !== 'admin') {
+      await auditLogger.log(
+        'ADMIN_PASSWORD_RESET_DENIED',
+        'user',
+        { target_user_id: userId, admin_user_id: adminUserId },
+        { resourceId: userId, severity: 'critical', status: 'failure', metadata: { action_category: 'user_administration', security_relevant: true } },
+      );
       return {
         success: false,
         message: 'Unauthorized: Admin access required.',
@@ -196,6 +247,12 @@ export async function adminResetUserPassword(
     // Validate password strength
     const validationResult = await validatePassword(newPassword, context);
     if (!validationResult.isValid) {
+      await auditLogger.log(
+        'ADMIN_PASSWORD_RESET_FAILED',
+        'user',
+        { target_user_id: userId, reason: 'password_policy_rejected' },
+        { resourceId: userId, severity: 'high', status: 'failure', metadata: { action_category: 'user_administration', security_relevant: true } },
+      );
       const errorMessages = validationResult.errors
         .filter(e => e.severity === 'error')
         .map(e => e.message)
@@ -221,20 +278,30 @@ export async function adminResetUserPassword(
 
     if (updateError) {
       console.error('Error updating password:', updateError);
+      await auditLogger.log(
+        'ADMIN_PASSWORD_RESET_FAILED',
+        'user',
+        { target_user_id: userId, error_code: updateError.code },
+        { resourceId: userId, severity: 'critical', status: 'failure', metadata: { action_category: 'user_administration', security_relevant: true } },
+      );
       return {
         success: false,
         message: 'Failed to reset password.',
       };
     }
 
-    // Log the action
-    await supabase.from('audit_logs').insert({
-      user_id: adminUserId,
-      action: 'admin_password_reset',
-      resource_type: 'user',
-      resource_id: userId,
-      details: { target_user_id: userId },
-    });
+    await auditLogger.log(
+      'ADMIN_PASSWORD_RESET',
+      'user',
+      { target_user_id: userId, admin_user_id: adminUserId },
+      {
+        resourceId: userId,
+        severity: 'critical',
+        metadata: { action_category: 'user_administration', security_relevant: true, compliance_relevant: true },
+        actorUserId: adminUserId,
+        actorUserEmail: admin.email,
+      },
+    );
 
     return {
       success: true,

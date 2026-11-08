@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { SessionManagementService } from "@/lib/sessionManagementService";
+import { auditLogger } from "@/lib/auditLogger";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -90,6 +91,29 @@ const permissions: Record<UserRole, Record<string, string[]>> = {
     system: ["read", "create", "update", "delete"],
   },
 };
+
+function logAuthenticationEvent(
+  action: string,
+  email: string,
+  status: "success" | "failure",
+  actor?: { id: string; email: string },
+) {
+  void auditLogger.log(
+    action,
+    "authentication",
+    { account_email: email },
+    {
+      severity: status === "failure" ? "high" : "low",
+      status,
+      metadata: {
+        action_category: "authentication",
+        security_relevant: true,
+      },
+      actorUserId: actor?.id,
+      actorUserEmail: actor?.email,
+    },
+  );
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -186,23 +210,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const demoUser = DEMO_USERS[email as keyof typeof DEMO_USERS];
 
     if (demoUser) {
-      const response = await fetch("/api/auth/demo-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const result = await response.json() as {
-        user?: {
-          id: string;
-          email: string;
-          full_name: string | null;
-          role: UserRole;
-          mfa_enabled: boolean;
-        };
-        error?: string;
-      };
-      if (!response.ok || !result.user) {
-        throw new Error(result.error || "Invalid login credentials");
+      // For demo users, verify password using the database function
+      const { data: isValid, error } = await supabase.rpc(
+        "verify_user_password",
+        {
+          input_user_id: demoUser.id,
+          input_password: password,
+        },
+      );
+
+      if (error) {
+        console.error("Password verification error:", error);
+        logAuthenticationEvent("USER_LOGIN_FAILED", email, "failure");
+        throw new Error("Invalid login credentials");
+      }
+
+      if (!isValid) {
+        logAuthenticationEvent("USER_LOGIN_FAILED", email, "failure");
+        throw new Error("Invalid login credentials");
+      }
+
+      // Fetch actual user data from database (including current MFA status)
+      const { data: dbUser, error: dbError } = await supabase
+        .from("users")
+        .select("id, email, full_name, role, mfa_enabled, last_activity")
+        .eq("id", demoUser.id)
+        .single();
+
+      if (dbError || !dbUser) {
+        console.error("Error fetching user data:", dbError);
+        throw new Error("Failed to load user data");
       }
       const dbUser = result.user;
 
@@ -248,6 +285,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setUser(userData);
       localStorage.setItem("demo_user", JSON.stringify(userData));
+      logAuthenticationEvent("USER_LOGIN", dbUser.email, "success", {
+        id: dbUser.id,
+        email: dbUser.email,
+      });
       return;
     }
 
@@ -259,10 +300,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     if (authError) {
       console.error("Supabase auth error:", authError);
+      logAuthenticationEvent("USER_LOGIN_FAILED", email, "failure");
       throw new Error("Invalid login credentials");
     }
 
     if (!authData.user) {
+      logAuthenticationEvent("USER_LOGIN_FAILED", email, "failure");
       throw new Error("Authentication failed");
     }
 
@@ -312,6 +355,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     // Update last activity
     await updateLastActivity();
+    logAuthenticationEvent("USER_LOGIN", dbUser.email, "success", {
+      id: dbUser.id,
+      email: dbUser.email,
+    });
   };
 
   const signOut = async () => {
@@ -346,7 +393,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Also sign out from Supabase if there's a session
     const { error } = await supabase.auth.signOut();
-    if (error) console.error("Supabase signout error:", error);
+    if (error) {
+      console.error("Supabase signout error:", error);
+      logAuthenticationEvent("USER_LOGOUT_FAILED", user?.email || "unknown", "failure", user || undefined);
+      return;
+    }
+    if (user) {
+      logAuthenticationEvent("USER_LOGOUT", user.email, "success", user);
+    }
   };
 
   const updateLastActivity = async () => {

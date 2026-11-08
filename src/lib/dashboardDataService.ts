@@ -240,12 +240,22 @@ export class DashboardDataService {
     cveId: string;
     endpointId: string;
     assignedTo: string;
+    assignedBy: string;
+    assignedByEmail: string;
     priority: 'critical' | 'high' | 'medium' | 'low';
     notes: string;
-  }): Promise<void> {
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError) {
-      throw new Error(`Unable to verify the current session: ${sessionError.message}`);
+  }): Promise<{ auditLogged: boolean }> {
+    const { data: cve, error: cveError } = await supabase
+      .from('cves')
+      .select('id')
+      .eq('cve_id', input.cveId)
+      .maybeSingle();
+
+    if (cveError) {
+      throw new Error(`Failed to find CVE record for assignment: ${cveError.message}`);
+    }
+    if (!cve) {
+      throw new Error(`CVE ${input.cveId} is missing from the CVE catalog`);
     }
 
     const response = await fetch('/api/dashboard/assign-threat', {
@@ -260,6 +270,31 @@ export class DashboardDataService {
     if (!response.ok) {
       throw new Error(result.error || 'Failed to save threat assignment.');
     }
+
+    const { error: auditError } = await supabase.from('audit_logs').insert({
+      user_id: input.assignedBy,
+      user_email: input.assignedByEmail,
+      action: 'THREAT_ASSIGNED',
+      resource_type: 'vulnerability',
+      resource_id: input.vulnerabilityId,
+      details: {
+        cve_id: input.cveId,
+        endpoint_id: input.endpointId,
+        assigned_to: input.assignedTo,
+        priority: input.priority,
+      },
+      timestamp: new Date().toISOString(),
+      severity: 'high',
+      status: 'success',
+      metadata: { action_category: 'threat_management', security_relevant: true, compliance_relevant: true },
+    });
+
+    if (auditError) {
+      console.error('Threat assignment was saved, but its audit event could not be recorded:', auditError);
+      return { auditLogged: false };
+    }
+
+    return { auditLogged: true };
   }
 
   async recordThreatEscalation(input: {
