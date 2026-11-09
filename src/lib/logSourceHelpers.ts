@@ -14,31 +14,55 @@ export interface AuditLogWithSource {
   source_type?: string;
 }
 
+const LOG_SOURCE_TYPES = new Set([
+  'application',
+  'security',
+  'network',
+  'system',
+  'windows',
+  'linux',
+  'database',
+  'web',
+]);
+
 /**
- * Maps audit action to log source type based on action category metadata.
- * Supports: security, application, system. Falls back to application.
+ * Maps an audit action to a supported source using explicit source metadata,
+ * then known action categories, and finally the existing action-name fallback.
  * @param action - The audit action name
- * @param metadata - The audit metadata record
+ * @param metadata - Audit metadata, including optional source identifiers
+ * @param sourceType - An explicit source type attached to the audit log
  * @returns The classified source type
  */
 function getSourceTypeForAction(
   action: string,
-  metadata?: Record<string, any>
+  metadata?: Record<string, any>,
+  sourceType?: string,
 ): string {
   const category = metadata?.action_category || '';
+  const explicitSource = sourceType ?? metadata?.log_source_type ?? metadata?.source_type;
+  if (typeof explicitSource === 'string' && LOG_SOURCE_TYPES.has(explicitSource)) {
+    return explicitSource;
+  }
 
   const categoryToSourceMap: Record<string, string> = {
     authentication: 'security',
     user_administration: 'security',
     permission_management: 'security',
     session_management: 'security',
+    security: 'security',
     threat_management: 'security',
     vulnerability_scanning: 'application',
     system_health: 'system',
+    system_administration: 'system',
     incident_response: 'security',
     configuration_change: 'system',
     access_control: 'security',
     compliance: 'security',
+    network: 'network',
+    windows: 'windows',
+    linux: 'linux',
+    database: 'database',
+    web: 'web',
   };
 
   if (category in categoryToSourceMap) {
@@ -56,9 +80,17 @@ function getSourceTypeForAction(
 }
 
 /**
- * Filter audit logs based on enabled log sources
+ * Filters audit logs by enabled predefined and custom source preferences.
+ * A user with no saved preferences or custom sources retains unfiltered logs.
+ * @param logs - The audit logs to filter
+ * @param userId - The application profile ID owning the preferences
+ * @returns Logs belonging to enabled source types
  */
-export async function filterAuditLogsBySourcePreferences<T extends { action: string; metadata?: any }>(
+export async function filterAuditLogsBySourcePreferences<T extends {
+  action: string;
+  metadata?: any;
+  source_type?: string;
+}>(
   logs: T[],
   userId: string
 ): Promise<T[]> {
@@ -83,20 +115,21 @@ export async function filterAuditLogsBySourcePreferences<T extends { action: str
       return logs;
     }
 
-    // If no preference rows exist, user hasn't configured anything - return all logs
-    if (!preferences || preferences.length === 0) {
+    const savedPreferences = preferences ?? [];
+    const savedCustomSources = customSources ?? [];
+    if (savedPreferences.length === 0 && savedCustomSources.length === 0) {
       return logs;
     }
 
     const enabledSources = new Set<string>();
 
     // Add enabled predefined sources
-    preferences.forEach((p) => {
+    savedPreferences.forEach((p) => {
       if (p.enabled) enabledSources.add(p.log_source_type);
     });
 
     // Add enabled custom sources
-    (customSources || []).forEach((s) => {
+    savedCustomSources.forEach((s) => {
       if (s.enabled) enabledSources.add(s.source_type);
     });
 
@@ -107,7 +140,11 @@ export async function filterAuditLogsBySourcePreferences<T extends { action: str
 
     // Filter logs based on enabled sources
     return logs.filter((log) => {
-      const sourceType = getSourceTypeForAction(log.action, log.metadata);
+      const sourceType = getSourceTypeForAction(
+        log.action,
+        log.metadata,
+        log.source_type,
+      );
       return enabledSources.has(sourceType);
     });
   } catch (error) {
@@ -122,13 +159,17 @@ export async function filterAuditLogsBySourcePreferences<T extends { action: str
  * @param logs - The audit logs to count
  * @returns Record mapping source type to log count
  */
-export async function getAuditLogCountsBySource<T extends { action: string; metadata?: any }>(
+export function getAuditLogCountsBySource<T extends {
+  action: string;
+  metadata?: any;
+  source_type?: string;
+}>(
   logs: T[]
-): Promise<Record<string, number>> {
+): Record<string, number> {
   const counts: Record<string, number> = {};
 
   logs.forEach((log) => {
-    const sourceType = getSourceTypeForAction(log.action, log.metadata);
+    const sourceType = getSourceTypeForAction(log.action, log.metadata, log.source_type);
     counts[sourceType] = (counts[sourceType] || 0) + 1;
   });
 

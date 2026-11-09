@@ -88,6 +88,7 @@ interface CustomLogSource {
   enabled: boolean;
 }
 
+/** Renders the role-specific dashboard and its administrator settings. */
 export default function DashboardLayout() {
   const { signOut, user } = useAuth();
   const [selectedTab, setSelectedTab] = useState(
@@ -128,6 +129,7 @@ export default function DashboardLayout() {
     useNotifications();
   const { triggerTestNotification } = useSecurityNotifications();
 
+  /** Sends a same-origin log-source request with the active session credentials. */
   const fetchLogSources = useCallback(async (input: RequestInfo | URL, init?: RequestInit) => {
     const headers = new Headers(init?.headers);
     const isDemoSession = window.localStorage.getItem("demo_user") !== null;
@@ -146,9 +148,9 @@ export default function DashboardLayout() {
     });
   }, []);
 
+  /** Loads persisted log-source preferences and reports retrieval failures. */
   const loadLogSources = useCallback(async () => {
     try {
-      setLogSourceError(null);
       const response = await fetchLogSources('/api/admin/log-sources');
       if (!response.ok) throw new Error('Failed to load log sources');
       const data = await response.json();
@@ -191,6 +193,7 @@ export default function DashboardLayout() {
     void loadDashboardData();
   }, [loadDashboardData]);
 
+  /** Updates a dashboard setting and requests browser permission when needed. */
   const handleSettingsChange = (key: string, value: boolean | string) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
 
@@ -211,7 +214,9 @@ export default function DashboardLayout() {
     console.log(`⚙️ Settings updated: ${key} = ${value}`);
   };
 
+  /** Persists a source toggle and restores server state if the update fails. */
   const handleLogSourceToggle = (sourceId: string, enabled: boolean) => {
+    setLogSourceError(null);
     const isCustom = customLogSources.some((s) => s.id === sourceId);
     const isPredefined = logSourcePreferences.some((p) => p.type === sourceId);
 
@@ -277,6 +282,7 @@ export default function DashboardLayout() {
     }
   };
 
+  /** Adds a custom log source and reloads the persisted source list. */
   const handleAddLogSource = async () => {
     if (newLogSource.name.trim()) {
       try {
@@ -308,7 +314,9 @@ export default function DashboardLayout() {
     }
   };
 
+  /** Removes a custom source and restores server state if removal fails. */
   const handleRemoveLogSource = async (sourceId: string) => {
+    setLogSourceError(null);
     const isCustom = customLogSources.some((s) => s.id === sourceId);
 
     if (isCustom) {
@@ -339,6 +347,7 @@ export default function DashboardLayout() {
     }
   };
 
+  /** Renders inventory totals or the appropriate loading/error state. */
   const renderInventoryOverview = () => (
     <>
       {inventoryError && (
@@ -434,6 +443,7 @@ export default function DashboardLayout() {
     </>
   );
 
+  /** Renders the administrator dashboard tabs and panels. */
   const renderAdminDashboard = () => (
     <div className="space-y-6">
       {renderInventoryOverview()}
@@ -606,6 +616,7 @@ export default function DashboardLayout() {
     </div>
   );
 
+  /** Renders the analyst dashboard tabs and panels. */
   const renderAnalystDashboard = () => (
     <div className="space-y-6">
       {renderInventoryOverview()}
@@ -638,6 +649,7 @@ export default function DashboardLayout() {
     </div>
   );
 
+  /** Renders the viewer dashboard tabs and read-only panels. */
   const renderViewerDashboard = () => (
     <div className="space-y-6">
       {renderInventoryOverview()}
@@ -665,6 +677,7 @@ export default function DashboardLayout() {
     </div>
   );
 
+  /** Renders the role-specific header control or icon. */
   const getRoleIcon = (role: string) => {
     switch (role) {
       case "admin":
@@ -866,6 +879,7 @@ export default function DashboardLayout() {
     }
   };
 
+  /** Renders the badge describing the current dashboard role. */
   const getRoleBadge = (role: string) => {
     switch (role) {
       case "admin":
