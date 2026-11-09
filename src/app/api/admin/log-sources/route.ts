@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
 const VALID_SOURCE_TYPES = [
@@ -31,39 +31,55 @@ export interface LogSourcesResponse {
   customSources: CustomLogSource[];
 }
 
-async function getUserId(): Promise<string | null> {
-  try {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session?.user) return null;
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_KEY!
+);
 
-    const { data: profile } = await supabase
+async function getUserId(request: NextRequest): Promise<string | null> {
+  try {
+    // Extract bearer token from authorization header
+    const authHeader = request.headers.get('authorization');
+    const accessToken = authHeader?.match(/^Bearer\s+(.+)$/i)?.[1];
+
+    if (!accessToken) {
+      return null;
+    }
+
+    // Get the authenticated user from the token
+    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
+    if (userError || !user?.email) {
+      return null;
+    }
+
+    // Look up the application profile by email
+    const { data: profile } = await supabaseAdmin
       .from('users')
       .select('id')
-      .eq('email', session.user.email)
+      .eq('email', user.email)
       .single();
 
     return profile?.id || null;
-  } catch {
+  } catch (error) {
+    console.error('Error getting user ID:', error);
     return null;
   }
 }
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    const userId = await getUserId();
+    const userId = await getUserId(request);
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const [{ data: preferences, error: prefError }, { data: customSources, error: customError }] =
       await Promise.all([
-        supabase
+        supabaseAdmin
           .from('user_log_source_preferences')
           .select('log_source_type, enabled')
           .eq('user_id', userId),
-        supabase
+        supabaseAdmin
           .from('user_custom_log_sources')
           .select('id, name, source_type, enabled')
           .eq('user_id', userId),
@@ -100,7 +116,7 @@ export async function GET(): Promise<NextResponse> {
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    const userId = await getUserId();
+    const userId = await getUserId(request);
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -120,7 +136,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         updated_at: new Date().toISOString(),
       }));
 
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from('user_log_source_preferences')
         .upsert(updates, { onConflict: 'user_id,log_source_type' });
 
@@ -137,7 +153,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         );
       }
 
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from('user_custom_log_sources')
         .insert({
           user_id: userId,
@@ -152,7 +168,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     if (action === 'update-source' && source?.id) {
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from('user_custom_log_sources')
         .update({
           name: source.name,
@@ -169,7 +185,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     if (action === 'remove-source' && source?.id) {
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from('user_custom_log_sources')
         .delete()
         .eq('id', source.id)
