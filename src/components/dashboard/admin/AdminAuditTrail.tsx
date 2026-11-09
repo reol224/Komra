@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +40,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { auditLogger, AuditLogEntry } from "@/lib/auditLogger";
 import { useAuth } from "@/contexts/AuthContext";
+import { filterAuditLogsBySourcePreferences, getAuditLogCountsBySource } from "@/lib/logSourceHelpers";
 
 interface AuditLog {
   id: string;
@@ -56,6 +57,7 @@ interface AuditLog {
   status: "success" | "failure" | "warning";
 }
 
+/** Converts structured audit details into a readable, compact string. */
 function formatAuditDetails(details: AuditLogEntry["details"]): string {
   if (typeof details === "string") return details;
   return Object.entries(details)
@@ -63,6 +65,7 @@ function formatAuditDetails(details: AuditLogEntry["details"]): string {
     .join(" · ");
 }
 
+/** Returns the ISO timestamp at the start of the selected audit time range. */
 function getAuditStartDate(timeRange: string): string {
   const rangeHours: Record<string, number> = {
     "1h": 1,
@@ -74,6 +77,7 @@ function getAuditStartDate(timeRange: string): string {
   return new Date(Date.now() - (rangeHours[timeRange] ?? 24) * 60 * 60 * 1000).toISOString();
 }
 
+/** Converts a persisted audit entry into the shape rendered by this panel. */
 function mapAuditLog(entry: AuditLogEntry): AuditLog {
   return {
     id: entry.id || `${entry.user_id}-${entry.timestamp}-${entry.action}`,
@@ -93,6 +97,7 @@ function mapAuditLog(entry: AuditLogEntry): AuditLog {
   };
 }
 
+/** Renders searchable, filterable, and exportable administrator audit logs. */
 export default function AdminAuditTrail() {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
@@ -111,13 +116,19 @@ export default function AdminAuditTrail() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [copiedLogId, setCopiedLogId] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
+  const [totalFetchedRows, setTotalFetchedRows] = useState(0);
+  const loadRequestVersion = useRef(0);
 
+  /** Loads the first audit-log page and discards results superseded by a newer refresh. */
   const loadAuditLogs = useCallback(async () => {
+    const requestVersion = ++loadRequestVersion.current;
     setIsLoading(true);
     setLoadError(null);
     setAuditLogs([]);
     setHasMoreLogs(false);
     setPage(0);
+    setTotalFetchedRows(0);
+    setIsLoadingMore(false);
     const startDate = getAuditStartDate(selectedTimeRange);
 
     try {
@@ -126,37 +137,78 @@ export default function AdminAuditTrail() {
         limit: 1000,
         throwOnError: true,
       });
-      setAuditLogs(entries.map(mapAuditLog));
+      if (requestVersion !== loadRequestVersion.current) return;
+      
+      const mappedLogs = entries.map(mapAuditLog);
+      
+      // Filter by user's enabled log sources
+      if (user?.id) {
+        const filtered = (await filterAuditLogsBySourcePreferences(
+          mappedLogs,
+          user.id
+        )) as AuditLog[];
+        if (requestVersion !== loadRequestVersion.current) return;
+
+        setAuditLogs(filtered);
+      } else {
+        setAuditLogs(mappedLogs);
+      }
+      
+      setTotalFetchedRows(entries.length);
       setHasMoreLogs(entries.length === 1000);
       setLastUpdatedAt(new Date());
       setPage(0);
     } catch (error) {
+      if (requestVersion !== loadRequestVersion.current) return;
       console.error("Failed to load persisted audit logs:", error);
       setLoadError(error instanceof Error ? error.message : "Unable to load audit logs.");
     } finally {
-      setIsLoading(false);
+      if (requestVersion === loadRequestVersion.current) setIsLoading(false);
     }
-  }, [selectedTimeRange]);
+  }, [selectedTimeRange, user?.id]);
 
+  /** Loads and filters the next audit-log page unless a refresh has superseded it. */
   const loadOlderLogs = async () => {
+    const requestVersion = loadRequestVersion.current;
+    const offset = totalFetchedRows;
     setIsLoadingMore(true);
     setLoadError(null);
     try {
       const entries = await auditLogger.getAuditLogs({
         startDate: getAuditStartDate(selectedTimeRange),
         limit: 1000,
-        offset: auditLogs.length,
+        offset,
         throwOnError: true,
       });
-      setAuditLogs((current) => [...current, ...entries.map(mapAuditLog)]);
+      if (requestVersion !== loadRequestVersion.current) return;
+
+      const mappedLogs = entries.map(mapAuditLog);
+      let pageLogs = mappedLogs;
+
+      if (user?.id) {
+        pageLogs = (await filterAuditLogsBySourcePreferences(
+          mappedLogs,
+          user.id
+        )) as AuditLog[];
+        if (requestVersion !== loadRequestVersion.current) return;
+      }
+
+      setAuditLogs((current) => [...current, ...pageLogs]);
+      setTotalFetchedRows((prev) => prev + entries.length);
       setHasMoreLogs(entries.length === 1000);
     } catch (error) {
+      if (requestVersion !== loadRequestVersion.current) return;
       console.error("Failed to load older audit events:", error);
       setLoadError(error instanceof Error ? error.message : "Unable to load older audit events.");
     } finally {
-      setIsLoadingMore(false);
+      if (requestVersion === loadRequestVersion.current) setIsLoadingMore(false);
     }
   };
+
+  const sourceTypeCounts = useMemo(
+    () => user?.id ? getAuditLogCountsBySource(auditLogs) : {},
+    [auditLogs, user?.id],
+  );
 
   useEffect(() => {
     void loadAuditLogs();
@@ -179,6 +231,7 @@ export default function AdminAuditTrail() {
   const pageStart = filteredLogs.length === 0 ? 0 : page * pageSize + 1;
   const pageEnd = Math.min((page + 1) * pageSize, filteredLogs.length);
 
+  /** Opens the details dialog for the selected audit event. */
   const handleViewDetails = (log: AuditLog) => {
     setSelectedLog(log);
     setCopiedLogId(false);
@@ -186,6 +239,7 @@ export default function AdminAuditTrail() {
     setIsDetailDialogOpen(true);
   };
 
+  /** Copies an event ID and records any clipboard failure for the dialog. */
   const copyEventId = async (eventId: string) => {
     try {
       await navigator.clipboard.writeText(eventId);
@@ -198,6 +252,7 @@ export default function AdminAuditTrail() {
     }
   };
 
+  /** Returns the badge classes associated with an audit severity. */
   const getSeverityColor = (severity: string) => {
     switch (severity) {
       case "critical":
@@ -213,6 +268,7 @@ export default function AdminAuditTrail() {
     }
   };
 
+  /** Returns the badge classes associated with an audit result status. */
   const getStatusColor = (status: string) => {
     switch (status) {
       case "success":
@@ -226,7 +282,9 @@ export default function AdminAuditTrail() {
     }
   };
 
+  /** Downloads the currently filtered audit events as a CSV file. */
   const exportAuditLogs = () => {
+    /** Escapes CSV values and neutralizes spreadsheet formula prefixes. */
     const csvEscape = (value: string) => {
       const safeValue = /^[=+\-@]/.test(value) ? `'${value}` : value;
       return `"${safeValue.replace(/"/g, '""')}"`;
@@ -296,6 +354,7 @@ export default function AdminAuditTrail() {
     );
   };
 
+  /** Downloads one audit event as a formatted JSON file. */
   const exportSingleLog = (log: AuditLog) => {
     const logData = {
       "Event ID": log.id,
@@ -506,11 +565,38 @@ export default function AdminAuditTrail() {
 
         {/* Audit Logs Table */}
         <Card>
-          <CardHeader>
-            <CardTitle className="h-[22px]">
-              Audit Events ({isLoading ? "…" : filteredLogs.length})
-            </CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Audit Events ({isLoading ? "…" : filteredLogs.length})
+              </CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                {lastUpdatedAt && `Last updated: ${lastUpdatedAt.toLocaleTimeString()}`}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void loadAuditLogs()}
+              disabled={isLoading}
+            >
+              <RefreshCw className="h-4 w-4 mr-1" />
+              Refresh
+            </Button>
           </CardHeader>
+
+          {/* Log Source Counts */}
+          {Object.keys(sourceTypeCounts).length > 0 && (
+            <div className="px-6 pb-4 flex gap-2 flex-wrap">
+              {Object.entries(sourceTypeCounts).map(([sourceType, count]) => (
+                <Badge key={sourceType} variant="secondary" className="capitalize">
+                  {sourceType}: {count}
+                </Badge>
+              ))}
+            </div>
+          )}
+
           <CardContent>
             <Table>
               <TableHeader>
