@@ -37,11 +37,12 @@ const RESOURCE_ALERT_THRESHOLD = 85;
 const SERVICE_ROW_HEIGHT = 72;
 const SERVICE_LIST_HEIGHT = 360;
 const SERVICE_OVERSCAN = 5;
+const MISSING_REPORT_PAGE_SIZE = 8;
 const dashboardService = new DashboardDataService();
 
 function reportTime(endpoint: AgentHealthEndpoint): number | null {
-  if (!endpoint.lastScan) return null;
-  const timestamp = Date.parse(endpoint.lastScan);
+  if (!endpoint.receivedAt) return null;
+  const timestamp = Date.parse(endpoint.receivedAt);
   return Number.isNaN(timestamp) ? null : timestamp;
 }
 
@@ -75,12 +76,15 @@ export default function AdminSystemHealth() {
   const [serviceOsFilter, setServiceOsFilter] = useState('all');
   const [serviceFreshnessFilter, setServiceFreshnessFilter] = useState('all');
   const [serviceScrollTop, setServiceScrollTop] = useState(0);
+  const [missingReportPage, setMissingReportPage] = useState(0);
   const serviceListRef = useRef<HTMLDivElement>(null);
-  const now = Date.now();
+  const [now, setNow] = useState(() => Date.now());
 
-  const loadSystemHealth = useCallback(async () => {
-    setIsLoading(true);
+  const loadSystemHealth = useCallback(async (background = false) => {
+    if (!background) setIsLoading(true);
     setLoadError(null);
+    setMissingReportPage(0);
+    setNow(Date.now());
     try {
       setEndpoints(await dashboardService.getAgentSystemHealth());
       setLastUpdatedAt(new Date());
@@ -88,12 +92,19 @@ export default function AdminSystemHealth() {
       console.error('Unable to load agent system health:', error);
       setLoadError('Unable to load system health. Check the database connection and try again.');
     } finally {
-      setIsLoading(false);
+      if (!background) setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void loadSystemHealth();
+  }, [loadSystemHealth]);
+
+  useEffect(() => {
+    const refreshInterval = window.setInterval(() => {
+      void loadSystemHealth(true);
+    }, 60_000);
+    return () => window.clearInterval(refreshInterval);
   }, [loadSystemHealth]);
 
   const reportingEndpoints = useMemo(
@@ -164,14 +175,37 @@ export default function AdminSystemHealth() {
     if (serviceListRef.current) serviceListRef.current.scrollTop = 0;
     setServiceScrollTop(0);
   };
-  const events = endpoints.flatMap((endpoint) => {
+  const missingReportEvents: Array<{
+    endpointId: string;
+    time: null;
+    level: 'warning';
+    message: string;
+    hostname: string;
+  }> = [];
+  const timestampedEvents = endpoints.flatMap((endpoint) => {
     const timestamp = reportTime(endpoint);
-    if (timestamp === null) return [];
+    if (timestamp === null) {
+      missingReportEvents.push({
+        endpointId: endpoint.id,
+        time: null,
+        level: 'warning',
+        message: 'No agent report received',
+        hostname: endpoint.hostname,
+      });
+      return [];
+    }
     const metrics = endpoint.resourceMetrics;
-    const alerts: Array<{ time: number; level: 'warning'; message: string; hostname: string }> = [];
+    const alerts: Array<{
+      endpointId: string;
+      time: number;
+      level: 'warning';
+      message: string;
+      hostname: string;
+    }> = [];
     if (metrics?.cpu_usage_percent !== null && metrics?.cpu_usage_percent !== undefined
       && metrics.cpu_usage_percent >= RESOURCE_ALERT_THRESHOLD) {
       alerts.push({
+        endpointId: endpoint.id,
         time: timestamp,
         level: 'warning',
         message: `CPU usage was ${metrics.cpu_usage_percent.toFixed(1)}%`,
@@ -181,6 +215,7 @@ export default function AdminSystemHealth() {
     if (metrics?.memory_usage_percent !== null && metrics?.memory_usage_percent !== undefined
       && metrics.memory_usage_percent >= RESOURCE_ALERT_THRESHOLD) {
       alerts.push({
+        endpointId: endpoint.id,
         time: timestamp,
         level: 'warning',
         message: `Memory usage was ${metrics.memory_usage_percent.toFixed(1)}%`,
@@ -190,6 +225,7 @@ export default function AdminSystemHealth() {
     if (metrics?.disk_usage_percent !== null && metrics?.disk_usage_percent !== undefined
       && metrics.disk_usage_percent >= RESOURCE_ALERT_THRESHOLD) {
       alerts.push({
+        endpointId: endpoint.id,
         time: timestamp,
         level: 'warning',
         message: `Disk usage was ${metrics.disk_usage_percent.toFixed(1)}%`,
@@ -198,6 +234,7 @@ export default function AdminSystemHealth() {
     }
     if (now - timestamp > REPORT_FRESHNESS_MS) {
       alerts.push({
+        endpointId: endpoint.id,
         time: timestamp,
         level: 'warning',
         message: `Agent report is stale (${formatAge(timestamp, now)})`,
@@ -206,6 +243,12 @@ export default function AdminSystemHealth() {
     }
     return alerts;
   }).sort((left, right) => right.time - left.time).slice(0, 8);
+  const missingReportStart = missingReportPage * MISSING_REPORT_PAGE_SIZE;
+  const visibleMissingReportEvents = missingReportEvents.slice(
+    missingReportStart,
+    missingReportStart + MISSING_REPORT_PAGE_SIZE,
+  );
+  const events = [...timestampedEvents, ...visibleMissingReportEvents];
 
   const renderResourceMetric = (
     label: string,
@@ -247,7 +290,10 @@ export default function AdminSystemHealth() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => void loadSystemHealth()}
+              onClick={() => {
+                resetServiceList();
+                void loadSystemHealth();
+              }}
               disabled={isLoading}
               aria-label="Refresh system health"
             >
@@ -269,7 +315,7 @@ export default function AdminSystemHealth() {
               <Server className="h-5 w-5 text-blue-600" />
               <div>
                 <div className="text-2xl font-bold">
-                  {isLoading ? '...' : `${reportingEndpoints.length}/${endpoints.length}`}
+                  {isLoading ? '...' : loadError ? 'Unavailable' : `${reportingEndpoints.length}/${endpoints.length}`}
                 </div>
                 <div className="text-sm text-muted-foreground">Agents reporting</div>
                 <div className="text-xs text-muted-foreground">Reports within 5 minutes</div>
@@ -281,11 +327,15 @@ export default function AdminSystemHealth() {
               <Clock className="h-5 w-5 text-purple-600" />
               <div>
                 <div className="text-2xl font-bold">
-                  {isLoading ? '...' : formatAge(latestReport, now)}
+                  {isLoading ? '...' : loadError ? 'Unavailable' : formatAge(latestReport, now)}
                 </div>
                 <div className="text-sm text-muted-foreground">Latest agent report</div>
                 <div className="text-xs text-muted-foreground">
-                  {latestReport === null ? 'No agent reports received' : new Date(latestReport).toLocaleString()}
+                  {loadError
+                    ? 'Report data unavailable'
+                    : latestReport === null
+                      ? 'No agent reports received'
+                      : new Date(latestReport).toLocaleString()}
                 </div>
               </div>
             </CardContent>
@@ -295,7 +345,7 @@ export default function AdminSystemHealth() {
               <Activity className="h-5 w-5 text-green-600" />
               <div>
                 <div className="text-2xl font-bold">
-                  {isLoading ? '...' : resourceSamples.length}
+                  {isLoading ? '...' : loadError ? 'Unavailable' : resourceSamples.length}
                 </div>
                 <div className="text-sm text-muted-foreground">Resource samples</div>
                 <div className="text-xs text-muted-foreground">Recent reports with telemetry</div>
@@ -307,7 +357,7 @@ export default function AdminSystemHealth() {
               <CheckCircle className="h-5 w-5 text-teal-600" />
               <div>
                 <div className="text-2xl font-bold">
-                  {isLoading ? '...' : runningServiceReports.length}
+                  {isLoading ? '...' : loadError ? 'Unavailable' : runningServiceReports.length}
                 </div>
                 <div className="text-sm text-muted-foreground">Services reported running</div>
                 <div className="text-xs text-muted-foreground">From latest stored endpoint reports</div>
@@ -326,6 +376,8 @@ export default function AdminSystemHealth() {
           <CardContent>
             {isLoading ? (
               <p className="py-4 text-sm text-muted-foreground">Loading endpoint telemetry...</p>
+            ) : loadError ? (
+              <p className="py-4 text-sm text-muted-foreground">Resource health data is unavailable.</p>
             ) : resourceSamples.length === 0 ? (
               <p className="py-4 text-sm text-muted-foreground">
                 No recent resource telemetry. Run the updated agent on an endpoint to report CPU, memory, and disk usage.
@@ -353,6 +405,8 @@ export default function AdminSystemHealth() {
           <CardContent>
             {isLoading ? (
               <p className="py-4 text-center text-sm text-muted-foreground">Loading service reports...</p>
+            ) : loadError ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">Service health data is unavailable.</p>
             ) : runningServiceReports.length === 0 ? (
               <p className="py-4 text-center text-sm text-muted-foreground">
                 No running services were included in the latest endpoint reports.
@@ -480,6 +534,8 @@ export default function AdminSystemHealth() {
           <CardContent>
             {isLoading ? (
               <p className="py-4 text-center text-sm text-muted-foreground">Loading agent alerts...</p>
+            ) : loadError ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">Agent alert data is unavailable.</p>
             ) : events.length === 0 ? (
               <div className="py-4 text-center text-sm text-muted-foreground">
                 <CheckCircle className="mx-auto mb-2 h-8 w-8 text-green-600" />
@@ -488,16 +544,46 @@ export default function AdminSystemHealth() {
             ) : (
               <div className="space-y-3">
                 {events.map((event, index) => (
-                  <div key={`${event.hostname}:${event.time}:${index}`} className="flex items-start gap-3 border-l-2 border-amber-400 p-3">
+                  <div key={`${event.endpointId}:${event.time ?? 'missing'}:${index}`} className="flex items-start gap-3 border-l-2 border-amber-400 p-3">
                     <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-600" />
                     <div>
                       <p className="text-sm font-medium">{event.message}</p>
                       <p className="text-xs text-muted-foreground">
-                        {event.hostname} · reported {formatAge(event.time, now)}
+                        {event.time === null
+                          ? `${event.hostname} · no report received`
+                          : `${event.hostname} · reported ${formatAge(event.time, now)}`}
                       </p>
                     </div>
                   </div>
                 ))}
+                {missingReportEvents.length > MISSING_REPORT_PAGE_SIZE && (
+                  <div className="flex items-center justify-between gap-3 pt-2">
+                    <span className="text-xs text-muted-foreground" aria-live="polite">
+                      Missing-report alerts {missingReportStart + 1}–{Math.min(
+                        missingReportStart + MISSING_REPORT_PAGE_SIZE,
+                        missingReportEvents.length,
+                      )} of {missingReportEvents.length}
+                    </span>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={missingReportPage === 0}
+                        onClick={() => setMissingReportPage((page) => page - 1)}
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={missingReportStart + MISSING_REPORT_PAGE_SIZE >= missingReportEvents.length}
+                        onClick={() => setMissingReportPage((page) => page + 1)}
+                      >
+                        More missing reports
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>

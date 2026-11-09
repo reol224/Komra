@@ -4,6 +4,8 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { SessionManagementService } from "@/lib/sessionManagementService";
 import { auditLogger } from "@/lib/auditLogger";
+import { ToastAction } from "@/components/ui/toast";
+import { toast } from "@/components/ui/use-toast";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,7 +29,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signOut: () => Promise<void>;
+  signOut: () => Promise<boolean>;
   hasPermission: (requiredRole: UserRole) => boolean;
   canAccess: (resource: string, action: string) => boolean;
   refreshUser: () => Promise<void>;
@@ -210,37 +212,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const demoUser = DEMO_USERS[email as keyof typeof DEMO_USERS];
 
     if (demoUser) {
-      // For demo users, verify password using the database function
-      const { data: isValid, error } = await supabase.rpc(
-        "verify_user_password",
-        {
-          input_user_id: demoUser.id,
-          input_password: password,
-        },
-      );
-
-      if (error) {
-        console.error("Password verification error:", error);
+      const response = await fetch("/api/auth/demo-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const result = await response.json() as {
+        user?: {
+          id: string;
+          email: string;
+          full_name: string | null;
+          role: UserRole;
+          mfa_enabled: boolean;
+        };
+        error?: string;
+      };
+      if (!response.ok || !result.user) {
         logAuthenticationEvent("USER_LOGIN_FAILED", email, "failure");
-        throw new Error("Invalid login credentials");
+        throw new Error(result.error || "Invalid login credentials");
       }
-
-      if (!isValid) {
-        logAuthenticationEvent("USER_LOGIN_FAILED", email, "failure");
-        throw new Error("Invalid login credentials");
-      }
-
-      // Fetch actual user data from database (including current MFA status)
-      const { data: dbUser, error: dbError } = await supabase
-        .from("users")
-        .select("id, email, full_name, role, mfa_enabled, last_activity")
-        .eq("id", demoUser.id)
-        .single();
-
-      if (dbError || !dbUser) {
-        console.error("Error fetching user data:", dbError);
-        throw new Error("Failed to load user data");
-      }
+      const dbUser = result.user;
 
       // Get client IP address
       let clientIp = "unknown";
@@ -275,7 +266,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const userData = {
         id: dbUser.id,
         email: dbUser.email,
-        full_name: dbUser.full_name,
+        full_name: dbUser.full_name ?? undefined,
         role: dbUser.role as UserRole,
         mfa_enabled: dbUser.mfa_enabled,
         session_timeout: getSessionTimeoutByRole(dbUser.role as UserRole),
@@ -342,7 +333,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const userData = {
       id: dbUser.id,
       email: dbUser.email,
-      full_name: dbUser.full_name,
+      full_name: dbUser.full_name ?? undefined,
       role: dbUser.role as UserRole,
       mfa_enabled: dbUser.mfa_enabled,
       session_timeout: getSessionTimeoutByRole(dbUser.role as UserRole),
@@ -362,6 +353,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     console.log("🔴 SignOut called, user session_id:", user?.session_id);
+
+    try {
+      const response = await fetch("/api/auth/demo-session", { method: "DELETE" });
+      if (!response.ok) {
+        const result = await response.json() as { error?: string };
+        throw new Error(result.error || "Unable to revoke demo application session.");
+      }
+    } catch (error) {
+      console.error("Unable to revoke demo application session:", error);
+      toast({
+        title: "Sign out incomplete",
+        description: "Your session may still be active. Retry sign out to revoke it.",
+        variant: "destructive",
+        action: (
+          <ToastAction altText="Retry sign out" onClick={() => void signOut()}>
+            Retry
+          </ToastAction>
+        ),
+      });
+      return false;
+    }
 
     // End the session if it exists (marks is_active = false)
     if (user?.session_id) {
@@ -385,11 +397,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) {
       console.error("Supabase signout error:", error);
       logAuthenticationEvent("USER_LOGOUT_FAILED", user?.email || "unknown", "failure", user || undefined);
-      return;
+      return true;
     }
     if (user) {
       logAuthenticationEvent("USER_LOGOUT", user.email, "success", user);
     }
+    return true;
   };
 
   const updateLastActivity = async () => {

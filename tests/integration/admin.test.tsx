@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, act, cleanup, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, act, cleanup, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { ActiveSession } from '@/lib/sessionManagementService';
-import type { DashboardVulnerability } from '@/lib/dashboardDataService';
+import type { DashboardVulnerability, ThreatAssignee } from '@/lib/dashboardDataService';
 import type { AuditLogEntry } from '@/lib/auditLogger';
 
 // ============================================================================
@@ -66,6 +66,7 @@ const { mockFrom, mockSelect, mockOrder, mockInsert, mockUpdate, mockDelete, moc
 
   return { mockFrom, mockSelect, mockOrder, mockInsert, mockUpdate, mockDelete, mockEq, mockSingle, mockChannel, mockOn, mockSubscribe, mockGte };
 });
+const mockHasPermission = vi.hoisted(() => vi.fn((_permission: string) => true));
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => ({
@@ -114,7 +115,7 @@ vi.mock('@/lib/permissionService', () => ({
 // Mock usePermissions hook
 vi.mock('@/hooks/usePermissions', () => ({
   usePermissions: vi.fn(() => ({
-    hasPermission: vi.fn(() => true),
+    hasPermission: mockHasPermission,
     hasAnyPermission: vi.fn(() => true),
     hasAllPermissions: vi.fn(() => true),
     loading: false,
@@ -164,12 +165,19 @@ vi.mock('@/components/ui/use-toast', () => ({
 }));
 
 // Mock dashboardDataService - mock as a class constructor using hoisted
-const { MockDashboardDataService, mockAgentSystemHealth, mockAgentVulnerabilities } = vi.hoisted(() => {
+const {
+  MockDashboardDataService,
+  mockAgentSystemHealth,
+  mockAgentVulnerabilities,
+  mockThreatAssignees,
+  mockAssignThreat,
+} = vi.hoisted(() => {
   const mockAgentSystemHealth = vi.fn(() => Promise.resolve([{
     id: 'endpoint-health-1',
     hostname: 'health-agent',
     osType: 'Ubuntu 24.04',
     lastScan: new Date().toISOString(),
+    receivedAt: new Date().toISOString(),
     runningServices: ['sshd.service', 'nginx.service'],
     resourceMetrics: {
       cpu_usage_percent: 28,
@@ -182,13 +190,16 @@ const { MockDashboardDataService, mockAgentSystemHealth, mockAgentVulnerabilitie
     },
   }]));
   const mockAgentVulnerabilities = vi.fn<() => Promise<DashboardVulnerability[]>>(() => Promise.resolve([]));
+  const mockThreatAssignees = vi.fn<() => Promise<ThreatAssignee[]>>(() => Promise.resolve([]));
+  const mockAssignThreat = vi.fn<() => Promise<void>>(() => Promise.resolve());
   // Create a proper class mock
   class MockDashboardDataServiceClass {
     getEndpoints = vi.fn(() => Promise.resolve([]));
     getAgentSystemHealth = mockAgentSystemHealth;
     getVulnerabilities = vi.fn(() => Promise.resolve([]));
     getAgentVulnerabilities = mockAgentVulnerabilities;
-    getThreatAssignees = vi.fn(() => Promise.resolve([]));
+    getThreatAssignees = mockThreatAssignees;
+    assignThreat = mockAssignThreat;
     getRiskMetrics = vi.fn(() => Promise.resolve({
       criticalCount: 0,
       highCount: 0,
@@ -206,6 +217,8 @@ const { MockDashboardDataService, mockAgentSystemHealth, mockAgentVulnerabilitie
     MockDashboardDataService: MockDashboardDataServiceClass,
     mockAgentSystemHealth,
     mockAgentVulnerabilities,
+    mockThreatAssignees,
+    mockAssignThreat,
   };
 });
 
@@ -253,6 +266,14 @@ const renderWithAct = async (component: React.ReactElement) => {
 describe('Admin Components Integration Tests', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockHasPermission.mockImplementation(() => true);
+    mockThreatAssignees.mockResolvedValue([{
+      id: 'analyst-1',
+      email: 'analyst@example.com',
+      full_name: 'Analyst Owner',
+      role: 'analyst',
+    }]);
+    mockAssignThreat.mockResolvedValue(undefined);
     // Reset mock implementations
     mockOrder.mockResolvedValue({
       data: [
@@ -1150,20 +1171,24 @@ describe('Admin Components Integration Tests', () => {
         testLogger.pass('Initial session load');
       });
 
-      it('does not automatically refresh sessions after mount', async () => {
-        testLogger.test('No automatic session polling');
+      it('automatically refreshes sessions after mount', async () => {
+        testLogger.test('Automatic session refresh');
         await renderWithAct(<SessionManagement />);
 
         await waitFor(() => {
           expect(mockGetAllActiveSessions).toHaveBeenCalledTimes(1);
+          expect(screen.getByText('Test Admin')).toBeInTheDocument();
         });
 
+        mockGetAllActiveSessions.mockImplementationOnce(() => new Promise<ActiveSession[]>(() => {}));
         await act(async () => {
-          vi.advanceTimersByTime(90000);
+          vi.advanceTimersByTime(60000);
         });
 
-        expect(mockGetAllActiveSessions).toHaveBeenCalledTimes(1);
-        testLogger.pass('No automatic session polling');
+        expect(mockGetAllActiveSessions).toHaveBeenCalledTimes(2);
+        expect(screen.getByText('Test Admin')).toBeInTheDocument();
+        expect(screen.queryByText('Loading sessions...')).not.toBeInTheDocument();
+        testLogger.pass('Automatic session refresh');
       });
 
       it('should call refresh when Refresh button is clicked', async () => {
@@ -3233,6 +3258,47 @@ describe('Admin Components Integration Tests', () => {
         testLogger.pass('Last updated timestamp');
       });
 
+      it('should show a missing-report warning for endpoints with invalid receipt times', async () => {
+        mockAgentSystemHealth.mockResolvedValueOnce([{
+          id: 'endpoint-without-report',
+          hostname: 'missing-report-host',
+          osType: 'Ubuntu 24.04',
+          lastScan: new Date().toISOString(),
+          receivedAt: 'invalid timestamp',
+          runningServices: [],
+          resourceMetrics: {
+            cpu_usage_percent: 28,
+            memory_usage_percent: 44,
+            memory_used_bytes: 440,
+            memory_total_bytes: 1000,
+            disk_usage_percent: 51,
+            disk_used_bytes: 510,
+            disk_total_bytes: 1000,
+          },
+        }]);
+
+        await renderWithAct(<AdminSystemHealth />);
+
+        expect(await screen.findByText('No agent report received')).toBeInTheDocument();
+        expect(screen.getByText('missing-report-host · no report received')).toBeInTheDocument();
+      });
+
+      it('shows health data as unavailable after a load failure', async () => {
+        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        mockAgentSystemHealth.mockRejectedValueOnce(new Error('database unavailable'));
+
+        await renderWithAct(<AdminSystemHealth />);
+
+        await waitFor(() => {
+          expect(screen.getAllByText('Unavailable').length).toBeGreaterThan(0);
+        });
+        expect(screen.getByText('Resource health data is unavailable.')).toBeInTheDocument();
+        expect(screen.getByText('Agent alert data is unavailable.')).toBeInTheDocument();
+        expect(screen.queryByText('No resource threshold alerts or stale agent reports.')).not.toBeInTheDocument();
+        consoleErrorSpy.mockRestore();
+        expect(screen.queryByText('missing-report-host · reported No report received')).not.toBeInTheDocument();
+      });
+
       it('should render system health UI container', async () => {
         testLogger.test('System health UI rendering');
         await renderWithAct(<AdminSystemHealth />);
@@ -3373,6 +3439,46 @@ describe('Admin Components Integration Tests', () => {
           expect(mockAgentSystemHealth).toHaveBeenCalledTimes(callsBeforeRefresh + 1);
         });
         testLogger.pass('Manual system health refresh');
+      });
+
+      it('resets the virtualized service list scroll position before refreshing', async () => {
+        const refreshedEndpoint = {
+          id: 'scroll-test-endpoint',
+          hostname: 'scroll-test-host',
+          osType: 'Ubuntu 24.04',
+          lastScan: new Date().toISOString(),
+          receivedAt: new Date().toISOString(),
+          runningServices: ['sshd.service', ...Array.from({ length: 59 }, (_, index) => `service-${index}`)],
+          resourceMetrics: {
+            cpu_usage_percent: 0,
+            memory_usage_percent: 0,
+            memory_used_bytes: 0,
+            memory_total_bytes: 1,
+            disk_usage_percent: 0,
+            disk_used_bytes: 0,
+            disk_total_bytes: 1,
+          },
+        };
+        mockAgentSystemHealth
+          .mockResolvedValueOnce([refreshedEndpoint])
+          .mockResolvedValueOnce([refreshedEndpoint]);
+        await renderWithAct(<AdminSystemHealth />);
+
+        const serviceList = await screen.findByRole('list', { name: 'Reported running services' });
+        Object.defineProperty(serviceList, 'scrollTop', { configurable: true, writable: true, value: 500 });
+        fireEvent.scroll(serviceList);
+        expect(serviceList.scrollTop).toBe(500);
+
+        const refreshButton = screen.getByRole('button', { name: /refresh system health/i });
+        await waitFor(() => expect(refreshButton).toBeEnabled());
+        const callsBeforeRefresh = mockAgentSystemHealth.mock.calls.length;
+        await userEvent.click(refreshButton);
+        await waitFor(() => {
+          expect(mockAgentSystemHealth).toHaveBeenCalledTimes(callsBeforeRefresh + 1);
+        });
+        const refreshedServiceList = await screen.findByRole('list', { name: 'Reported running services' });
+        expect(refreshedServiceList.scrollTop).toBe(0);
+        expect(within(refreshedServiceList).getByText('sshd.service')).toBeInTheDocument();
       });
     });
 
@@ -3659,6 +3765,7 @@ describe('Admin Components Integration Tests', () => {
           hostname: 'large-service-host',
           osType: 'Ubuntu 24.04',
           lastScan: new Date().toISOString(),
+          receivedAt: new Date().toISOString(),
           runningServices: services,
           resourceMetrics: {
             cpu_usage_percent: 28,
@@ -4074,6 +4181,121 @@ describe('Admin Components Integration Tests', () => {
       testLogger.pass('Threat statistics display');
     });
 
+    it('hides recent-threat actions when the user lacks their permissions', async () => {
+      mockHasPermission.mockImplementation((permission) => permission === 'system.threat_summary');
+      mockAgentVulnerabilities.mockResolvedValue([{
+        id: 'recent-critical-finding',
+        cve_id: 'CVE-RECENT-CRITICAL',
+        description: 'Recent critical finding',
+        severity: 'critical',
+        cvss_score: 9.5,
+        status: 'open',
+        endpoint_id: 'endpoint-1',
+        endpoint_name: 'test-endpoint',
+        environment: 'production',
+        discovered_date: new Date().toISOString(),
+        affected_packages: ['test-package'],
+      }]);
+
+      await renderWithAct(<AdminThreatSummary />);
+      await userEvent.click(screen.getByRole('button', {
+        name: 'View details for CVE-RECENT-CRITICAL',
+      }));
+
+      expect(await screen.findByText('Affected Endpoint')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Assign to Team' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Record Escalation' })).not.toBeInTheDocument();
+    });
+
+    it('keeps a newer assignment draft when an older request completes', async () => {
+      const OriginalResizeObserver = global.ResizeObserver;
+      const originalScrollIntoView = Element.prototype.scrollIntoView;
+      global.ResizeObserver = class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      };
+      Element.prototype.scrollIntoView = () => undefined;
+      for (const [method, implementation] of [
+        ['hasPointerCapture', () => false],
+        ['setPointerCapture', () => undefined],
+        ['releasePointerCapture', () => undefined],
+      ] as const) {
+        if (!(method in Element.prototype)) {
+          Object.defineProperty(Element.prototype, method, {
+            configurable: true,
+            value: implementation,
+          });
+        }
+      }
+
+      const findings: DashboardVulnerability[] = [
+        {
+          id: 'first-assignment-finding',
+          cve_id: 'CVE-FIRST-ASSIGNMENT',
+          description: 'First assignment finding',
+          severity: 'high',
+          cvss_score: 8.1,
+          status: 'open',
+          endpoint_id: 'endpoint-1',
+          endpoint_name: 'test-endpoint',
+          environment: 'production',
+          discovered_date: new Date().toISOString(),
+          affected_packages: ['test-package'],
+        },
+        {
+          id: 'second-assignment-finding',
+          cve_id: 'CVE-SECOND-ASSIGNMENT',
+          description: 'Second assignment finding',
+          severity: 'high',
+          cvss_score: 8.1,
+          status: 'open',
+          endpoint_id: 'endpoint-1',
+          endpoint_name: 'test-endpoint',
+          environment: 'production',
+          discovered_date: new Date().toISOString(),
+          affected_packages: ['test-package'],
+        },
+      ];
+      mockAgentVulnerabilities.mockResolvedValue(findings);
+      let finishAssignment: (() => void) | undefined;
+      mockAssignThreat.mockImplementationOnce(() => new Promise<void>((resolve) => {
+        finishAssignment = () => resolve(undefined);
+      }));
+
+      const { container } = await renderWithAct(<AdminThreatSummary />);
+      const findingRows = Array.from(container.querySelectorAll('details'));
+      await userEvent.click(findingRows[0].querySelector('summary')!);
+      fireEvent.click(findingRows[1].querySelector('summary')!);
+      const firstAssignButton = within(findingRows[0]).getByRole('button', { name: 'Assign to Team' });
+      const secondAssignButton = within(findingRows[1]).getByRole('button', { name: 'Assign to Team' });
+      await userEvent.click(firstAssignButton);
+
+      const dialog = await screen.findByRole('dialog');
+      const selects = within(dialog).getAllByRole('combobox');
+      await userEvent.click(selects[0]);
+      await userEvent.click(screen.getByRole('option', { name: /Analyst Owner/ }));
+      await userEvent.click(selects[1]);
+      await userEvent.click(screen.getByRole('option', { name: /High - Address/ }));
+      await userEvent.type(within(dialog).getByLabelText('Assignment Notes (Optional)'), 'First draft');
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Confirm Assignment' }));
+      await waitFor(() => expect(mockAssignThreat).toHaveBeenCalledTimes(1));
+
+      fireEvent.click(secondAssignButton);
+      const newAssignmentDialog = screen.getByRole('dialog');
+      expect(within(newAssignmentDialog).getByText(/CVE-SECOND-ASSIGNMENT/)).toBeInTheDocument();
+      const notes = within(newAssignmentDialog).getByLabelText('Assignment Notes (Optional)');
+      await userEvent.type(notes, 'Second draft');
+
+      await act(async () => finishAssignment?.());
+
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(within(screen.getByRole('dialog')).getByText(/CVE-SECOND-ASSIGNMENT/)).toBeInTheDocument();
+      expect(notes).toHaveValue('Second draft');
+      global.ResizeObserver = OriginalResizeObserver;
+      Element.prototype.scrollIntoView = originalScrollIntoView;
+    });
+
     it('should show searchable findings across all severities', async () => {
       mockAgentVulnerabilities.mockResolvedValue([
         {
@@ -4142,6 +4364,69 @@ describe('Admin Components Integration Tests', () => {
 
       expect(container.querySelectorAll('details')).toHaveLength(12);
       expect(screen.getByText('Showing 1–12 of 12 findings')).toBeInTheDocument();
+    });
+
+    it('should offer actions for eligible findings across all findings, not only recent threats', async () => {
+      mockAgentVulnerabilities.mockResolvedValue([
+        ...Array.from({ length: 10 }, (_, index) => ({
+          id: `recent-finding-${index}`,
+          cve_id: `CVE-RECENT-${index}`,
+          description: `Recent finding ${index}`,
+          severity: 'high' as const,
+          cvss_score: 8.1,
+          status: 'open' as const,
+          endpoint_id: 'endpoint-1',
+          endpoint_name: 'test-endpoint',
+          environment: 'production',
+          discovered_date: new Date().toISOString(),
+          affected_packages: ['test-package'],
+        })),
+        {
+          id: 'outside-recent-threats',
+          cve_id: 'CVE-OUTSIDE-RECENT',
+          description: 'Critical finding outside recent threats',
+          severity: 'critical' as const,
+          cvss_score: 9.5,
+          status: 'in_progress' as const,
+          endpoint_id: 'endpoint-1',
+          endpoint_name: 'test-endpoint',
+          environment: 'production',
+          discovered_date: new Date().toISOString(),
+          affected_packages: ['test-package'],
+        },
+        {
+          id: 'resolved-critical',
+          cve_id: 'CVE-RESOLVED',
+          description: 'Resolved critical finding',
+          severity: 'critical' as const,
+          cvss_score: 9.5,
+          status: 'resolved' as const,
+          endpoint_id: 'endpoint-1',
+          endpoint_name: 'test-endpoint',
+          environment: 'production',
+          discovered_date: new Date().toISOString(),
+          affected_packages: ['test-package'],
+        },
+      ]);
+
+      const { container } = await renderWithAct(<AdminThreatSummary />);
+      await userEvent.selectOptions(screen.getByRole('combobox', { name: /findings per page/i }), '25');
+
+      const outsideRecentRow = Array.from(container.querySelectorAll('details'))
+        .find((row) => row.textContent?.includes('CVE-OUTSIDE-RECENT'));
+      expect(outsideRecentRow).toBeDefined();
+      await userEvent.click(outsideRecentRow!.querySelector('summary')!);
+
+      expect(within(outsideRecentRow!).getByRole('button', { name: 'View OSV' })).toBeInTheDocument();
+      expect(within(outsideRecentRow!).getByRole('button', { name: 'Assign to Team' })).toBeInTheDocument();
+      expect(within(outsideRecentRow!).getByRole('button', { name: 'Record Escalation' })).toBeInTheDocument();
+
+      const resolvedRow = Array.from(container.querySelectorAll('details'))
+        .find((row) => row.textContent?.includes('CVE-RESOLVED'));
+      expect(resolvedRow).toBeDefined();
+      await userEvent.click(resolvedRow!.querySelector('summary')!);
+      expect(within(resolvedRow!).queryByRole('button', { name: 'Assign to Team' })).not.toBeInTheDocument();
+      expect(within(resolvedRow!).queryByRole('button', { name: 'Record Escalation' })).not.toBeInTheDocument();
     });
 
     it('should label reference destinations and expand additional references', async () => {

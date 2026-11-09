@@ -47,7 +47,7 @@ import {
 } from "@/lib/dashboardDataService";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { useSecurityNotifications } from "@/hooks/useSecurityNotifications";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, UserRole } from "@/contexts/AuthContext";
 
 // Import role-specific components
 import AdminUserManagement from "./admin/AdminUserManagement";
@@ -63,9 +63,23 @@ import ViewerSystemStatus from "./viewer/ViewerSystemStatus";
 import ViewerAlerts from "./viewer/ViewerAlerts";
 import ViewerCompliance from "./viewer/ViewerCompliance";
 
+const ROLE_TABS: Record<UserRole, string[]> = {
+  admin: ["overview", "users", "system", "audit", "notifications"],
+  analyst: ["threats", "incidents", "investigation", "reports"],
+  viewer: ["status", "alerts", "compliance"],
+};
+
+const DEFAULT_ROLE_TAB: Record<UserRole, string> = {
+  admin: "overview",
+  analyst: "threats",
+  viewer: "status",
+};
+
 export default function DashboardLayout() {
   const { signOut, user } = useAuth();
-  const [selectedTab, setSelectedTab] = useState("overview");
+  const [selectedTab, setSelectedTab] = useState(
+    () => user?.role ? DEFAULT_ROLE_TAB[user.role] : DEFAULT_ROLE_TAB.admin,
+  );
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [inventoryStats, setInventoryStats] =
     useState<AgentInventoryStats | null>(null);
@@ -97,6 +111,15 @@ export default function DashboardLayout() {
   const { permission, isSubscribed, requestPermission, subscribe } =
     useNotifications();
   const { triggerTestNotification } = useSecurityNotifications();
+
+  useEffect(() => {
+    if (!user?.role) return;
+    setSelectedTab((currentTab) =>
+      ROLE_TABS[user.role].includes(currentTab)
+        ? currentTab
+        : DEFAULT_ROLE_TAB[user.role],
+    );
+  }, [user?.role]);
 
   const loadDashboardData = useCallback(async () => {
     try {
@@ -206,7 +229,7 @@ export default function DashboardLayout() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Packages Scanned
+              Packages Reported
             </CardTitle>
             <Database className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -709,8 +732,7 @@ export default function DashboardLayout() {
               variant="outline"
               size="sm"
               onClick={async () => {
-                await signOut();
-                window.location.href = "/";
+                if (await signOut()) window.location.href = "/";
               }}
               className="flex items-center gap-2"
             >

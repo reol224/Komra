@@ -5,6 +5,32 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+const PAGE_SIZE = 1000;
+
+async function fetchAllPages<T>(
+  fetchPage: (start: number, end: number) => PromiseLike<{
+    data: T[] | null;
+    count?: number | null;
+    error: { message: string } | null;
+  }>,
+): Promise<T[]> {
+  const rows: T[] = [];
+  let totalCount: number | null = null;
+  let start = 0;
+
+  for (;;) {
+    const { data, count, error } = await fetchPage(start, start + PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+
+    if (typeof count === 'number') totalCount = count;
+    const page = data ?? [];
+    rows.push(...page);
+    if (totalCount !== null ? rows.length >= totalCount : page.length < PAGE_SIZE) return rows;
+    if (page.length === 0) return rows;
+    start += page.length;
+  }
+}
+
 export interface DashboardEndpoint {
   id: string;
   name: string;
@@ -79,6 +105,7 @@ export interface AgentHealthEndpoint {
   hostname: string;
   osType: string;
   lastScan: string | null;
+  receivedAt: string | null;
   runningServices: string[];
   resourceMetrics: AgentResourceMetrics | null;
 }
@@ -117,26 +144,56 @@ export interface ThreatAssignee {
   role: 'admin' | 'analyst';
 }
 
+export interface AgentThreatAssignment {
+  id: string;
+  status: 'open' | 'in_progress' | 'resolved' | 'false_positive';
+  priority: 'critical' | 'high' | 'medium' | 'low';
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+  assignedAt: string | null;
+  owner: {
+    id: string;
+    email: string;
+    fullName: string | null;
+  };
+  assignedBy: {
+    id: string;
+    email: string;
+    fullName: string | null;
+  } | null;
+  finding: DashboardVulnerability;
+}
+
 export class DashboardDataService {
 
   async getAgentSystemHealth(): Promise<AgentHealthEndpoint[]> {
-    const { data: endpoints, error } = await supabase
-      .from('endpoints')
-      .select('id, hostname, os_type, last_scan, metadata')
-      .filter('metadata->>collection_source', 'eq', 'agent')
-      .order('last_scan', { ascending: false });
-
-    if (error) {
-      throw new Error(`Failed to fetch agent system health: ${error.message}`);
+    let endpoints;
+    try {
+      endpoints = await fetchAllPages((start, end) => supabase
+        .from('endpoints')
+        .select('id, hostname, os_type, last_scan, updated_at, metadata', { count: 'exact' })
+        .filter('metadata->>collection_source', 'eq', 'agent')
+        .order('id', { ascending: true })
+        .range(start, end));
+    } catch (error) {
+      throw new Error(`Failed to fetch agent system health: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 
-    return (endpoints ?? []).map((endpoint) => {
+    return endpoints
+      .sort((left, right) => {
+        const leftTimestamp = left.last_scan ? Date.parse(left.last_scan) : Number.NEGATIVE_INFINITY;
+        const rightTimestamp = right.last_scan ? Date.parse(right.last_scan) : Number.NEGATIVE_INFINITY;
+        return rightTimestamp - leftTimestamp || left.id.localeCompare(right.id);
+      })
+      .map((endpoint) => {
       const metadata = asRecord(endpoint.metadata);
       return {
         id: endpoint.id,
         hostname: endpoint.hostname,
         osType: endpoint.os_type,
         lastScan: endpoint.last_scan,
+        receivedAt: endpoint.updated_at,
         runningServices: Array.isArray(metadata.running_services)
           ? metadata.running_services.filter(
               (service): service is string => typeof service === 'string' && service.length > 0,
@@ -161,16 +218,46 @@ export class DashboardDataService {
     return data || [];
   }
 
+  async getAssignedAgentThreats(assigneeId?: string): Promise<AgentThreatAssignment[]> {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+      throw new Error(`Unable to verify the current session: ${sessionError.message}`);
+    }
+
+    const query = assigneeId
+      ? `?assigneeId=${encodeURIComponent(assigneeId)}`
+      : '';
+    const response = await fetch(`/api/dashboard/assigned-agent-threats${query}`, {
+      headers: session
+        ? { Authorization: `Bearer ${session.access_token}` }
+        : undefined,
+    });
+    const result = await response.json() as AgentThreatAssignment[] | { error?: string };
+    if (!response.ok) {
+      throw new Error(
+        !Array.isArray(result) && result.error
+          ? result.error
+          : 'Unable to load assigned findings.',
+      );
+    }
+    if (!Array.isArray(result)) {
+      throw new Error('The assigned findings response was invalid.');
+    }
+    return result;
+  }
+
   async assignThreat(input: {
     vulnerabilityId: string;
     cveId: string;
     endpointId: string;
     assignedTo: string;
-    assignedBy: string;
-    assignedByEmail: string;
     priority: 'critical' | 'high' | 'medium' | 'low';
     notes: string;
-  }): Promise<{ auditLogged: boolean }> {
+  }): Promise<void> {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+      throw new Error(`Unable to verify the current session: ${sessionError.message}`);
+    }
     const { data: cve, error: cveError } = await supabase
       .from('cves')
       .select('id')
@@ -184,106 +271,63 @@ export class DashboardDataService {
       throw new Error(`CVE ${input.cveId} is missing from the CVE catalog`);
     }
 
-    const { error: triageError } = await supabase
-      .from('triage_actions')
-      .upsert(
-        {
-          cve_id: cve.id,
-          endpoint_id: input.endpointId,
-          status: 'in_progress',
-          priority: input.priority,
-          assigned_to: input.assignedTo,
-          notes: input.notes,
-          triaged_by: input.assignedBy,
-          triaged_at: new Date().toISOString(),
-        },
-        { onConflict: 'cve_id,endpoint_id' },
-      );
-
-    if (triageError) {
-      throw new Error(`Failed to save threat assignment: ${triageError.message}`);
-    }
-
-    const { error: vulnerabilityError } = await supabase
-      .from('vulnerabilities')
-      .update({ status: 'in_progress' })
-      .eq('id', input.vulnerabilityId);
-
-    if (vulnerabilityError) {
-      throw new Error(`Assignment saved, but finding status update failed: ${vulnerabilityError.message}`);
-    }
-
-    const { error: auditError } = await supabase.from('audit_logs').insert({
-      user_id: input.assignedBy,
-      user_email: input.assignedByEmail,
-      action: 'THREAT_ASSIGNED',
-      resource_type: 'vulnerability',
-      resource_id: input.vulnerabilityId,
-      details: {
-        cve_id: input.cveId,
-        endpoint_id: input.endpointId,
-        assigned_to: input.assignedTo,
-        priority: input.priority,
+    const response = await fetch('/api/dashboard/assign-threat', {
+      method: 'POST',
+      headers: {
+        ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        'Content-Type': 'application/json',
       },
-      timestamp: new Date().toISOString(),
-      severity: 'high',
-      status: 'success',
-      metadata: { action_category: 'threat_management', security_relevant: true, compliance_relevant: true },
+      body: JSON.stringify(input),
     });
-
-    if (auditError) {
-      console.error('Threat assignment was saved, but its audit event could not be recorded:', auditError);
-      return { auditLogged: false };
+    const result = await response.json() as { error?: string };
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to save threat assignment.');
     }
 
-    return { auditLogged: true };
   }
 
   async recordThreatEscalation(input: {
-    userId: string;
-    userEmail: string;
     vulnerabilityId: string;
-    cveId: string;
-    endpointId: string;
     reason: string;
     level: string;
     notes: string;
   }): Promise<void> {
-    const { error } = await supabase.from('audit_logs').insert({
-      user_id: input.userId,
-      user_email: input.userEmail,
-      action: 'THREAT_ESCALATED',
-      resource_type: 'vulnerability',
-      resource_id: input.vulnerabilityId,
-      details: {
-        cve_id: input.cveId,
-        endpoint_id: input.endpointId,
-        reason: input.reason,
-        escalation_level: input.level,
-        notes: input.notes,
-      },
-      timestamp: new Date().toISOString(),
-      severity: 'high',
-      status: 'success',
-      metadata: { action_category: 'threat_management', security_relevant: true },
-    });
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+      throw new Error(`Unable to verify the current session: ${sessionError.message}`);
+    }
+    if (!session) {
+      throw new Error('A verified sign-in session is required to escalate a threat.');
+    }
 
-    if (error) {
-      throw new Error(`Failed to record threat escalation: ${error.message}`);
+    const response = await fetch('/api/audit/threat-escalations', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(input),
+    });
+    const result = await response.json() as { error?: string };
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to record threat escalation.');
     }
   }
 
   async getAgentInventoryStats(): Promise<AgentInventoryStats> {
-    const { data: endpoints, error } = await supabase
-      .from('endpoints')
-      .select('last_scan, metadata')
-      .filter('metadata->>collection_source', 'eq', 'agent');
-
-    if (error) {
-      throw new Error(`Failed to fetch agent inventory: ${error.message}`);
+    let endpoints;
+    try {
+      endpoints = await fetchAllPages((start, end) => supabase
+        .from('endpoints')
+        .select('id, last_scan, metadata', { count: 'exact' })
+        .filter('metadata->>collection_source', 'eq', 'agent')
+        .order('id', { ascending: true })
+        .range(start, end));
+    } catch (error) {
+      throw new Error(`Failed to fetch agent inventory: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 
-    const inventory = endpoints || [];
+    const inventory = endpoints;
     const latestCollection = inventory.reduce<string | null>((latest, endpoint) => {
       const scan = endpoint.last_scan;
       if (!scan || Number.isNaN(Date.parse(scan))) return latest;
@@ -308,7 +352,7 @@ export class DashboardDataService {
   
   async getEndpoints(): Promise<DashboardEndpoint[]> {
     try {
-      const { data: endpoints, error } = await supabase
+      const endpoints = await fetchAllPages((start, end) => supabase
         .from('endpoints')
         .select(`
           id,
@@ -332,12 +376,9 @@ export class DashboardDataService {
             id,
             severity
           )
-        `);
-
-      if (error) {
-        console.error('Error fetching endpoints:', error);
-        return [];
-      }
+        `, { count: 'exact' })
+        .order('id', { ascending: true })
+        .range(start, end));
 
       return endpoints.map(endpoint => {
         const totalPackages = endpoint.endpoint_packages?.length || 0;
@@ -437,7 +478,7 @@ export class DashboardDataService {
 
   async getVulnerabilities(): Promise<DashboardVulnerability[]> {
     try {
-      const { data: vulnerabilities, error } = await supabase
+      const vulnerabilities = await fetchAllPages((start, end) => supabase
         .from('vulnerabilities')
         .select(`
           id,
@@ -452,13 +493,10 @@ export class DashboardDataService {
             hostname,
             environment
           )
-        `)
-        .order('discovered_date', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching vulnerabilities:', error);
-        return [];
-      }
+        `, { count: 'exact' })
+        .order('discovered_date', { ascending: false })
+        .order('id', { ascending: true })
+        .range(start, end));
 
       return vulnerabilities.map(vuln => {
         const endpoint = Array.isArray(vuln.endpoints) ? vuln.endpoints[0] : vuln.endpoints;
@@ -484,9 +522,11 @@ export class DashboardDataService {
   }
 
   async getAgentVulnerabilities(): Promise<DashboardVulnerability[]> {
-    const { data: vulnerabilities, error } = await supabase
-      .from('vulnerabilities')
-      .select(`
+    let vulnerabilities;
+    try {
+      vulnerabilities = await fetchAllPages((start, end) => supabase
+        .from('vulnerabilities')
+        .select(`
         id,
         cve_id,
         description,
@@ -503,15 +543,17 @@ export class DashboardDataService {
           environment,
           metadata
         )
-      `)
+      `, { count: 'exact' })
       .eq('source', 'osv')
-      .order('discovered_date', { ascending: false });
-
-    if (error) {
-      throw new Error(`Failed to fetch agent vulnerability findings: ${error.message}`);
+      .filter('endpoints.metadata->>collection_source', 'eq', 'agent')
+      .order('discovered_date', { ascending: false })
+      .order('id', { ascending: true })
+      .range(start, end));
+    } catch (error) {
+      throw new Error(`Failed to fetch agent vulnerability findings: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 
-    return (vulnerabilities || [])
+    return vulnerabilities
       .map((vuln) => {
         const endpoint = Array.isArray(vuln.endpoints)
           ? vuln.endpoints[0]
@@ -535,7 +577,6 @@ export class DashboardDataService {
           collection_source: endpoint?.metadata?.collection_source,
         };
       })
-      .filter((vulnerability) => vulnerability.collection_source === 'agent')
       .map(({ collection_source: _collectionSource, ...vulnerability }) => vulnerability);
   }
 

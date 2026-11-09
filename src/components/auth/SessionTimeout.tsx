@@ -27,7 +27,11 @@ export function SessionTimeout() {
 
   const handleLogout = useCallback(async () => {
     try {
-      await signOut();
+      const didSignOut = await signOut();
+      if (!didSignOut) {
+        setIsIdle(false);
+        setShowWarning(true);
+      }
     } catch (error) {
       console.error('Error during logout:', error);
     }

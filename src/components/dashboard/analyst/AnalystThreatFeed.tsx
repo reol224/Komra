@@ -1,336 +1,248 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, Clock, ExternalLink, RefreshCw, TrendingUp } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertTriangle, Clock, TrendingUp, Filter, RefreshCw, Eye, ExternalLink } from 'lucide-react';
+import { AgentThreatAssignment, DashboardDataService } from '@/lib/dashboardDataService';
 
-interface ThreatFeedItem {
-  id: string;
-  cve: string;
-  title: string;
-  severity: 'critical' | 'high' | 'medium' | 'low';
-  cvss: number;
-  publishedDate: string;
-  lastModified: string;
-  affectedSystems: number;
-  description: string;
-  source: string;
-  status: 'new' | 'investigating' | 'confirmed' | 'mitigated';
-  tags: string[];
-}
+const dashboardService = new DashboardDataService();
 
 export default function AnalystThreatFeed() {
-  const [refreshing, setRefreshing] = useState(false);
-  const [selectedSeverity, setSelectedSeverity] = useState<string>('all');
-  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const { user } = useAuth();
+  const [assignments, setAssignments] = useState<AgentThreatAssignment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [selectedSeverity, setSelectedSeverity] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
 
-  const threatFeed: ThreatFeedItem[] = [
-    {
-      id: '1',
-      cve: 'CVE-2024-1234',
-      title: 'Remote Code Execution in Apache Struts 2.5.x',
-      severity: 'critical',
-      cvss: 9.8,
-      publishedDate: '2024-03-22T10:00:00Z',
-      lastModified: '2024-03-22T14:30:00Z',
-      affectedSystems: 15,
-      description: 'A critical vulnerability allows remote attackers to execute arbitrary code via crafted OGNL expressions.',
-      source: 'NVD',
-      status: 'new',
-      tags: ['rce', 'apache', 'struts', 'web-application']
-    },
-    {
-      id: '2',
-      cve: 'CVE-2024-5678',
-      title: 'SQL Injection in Custom CRM Application',
-      severity: 'high',
-      cvss: 8.1,
-      publishedDate: '2024-03-22T08:15:00Z',
-      lastModified: '2024-03-22T13:45:00Z',
-      affectedSystems: 8,
-      description: 'SQL injection vulnerability in user authentication module allows data extraction.',
-      source: 'Internal Security Team',
-      status: 'investigating',
-      tags: ['sql-injection', 'crm', 'authentication', 'database']
-    },
-    {
-      id: '3',
-      cve: 'CVE-2024-9012',
-      title: 'Privilege Escalation in Windows Service Manager',
-      severity: 'high',
-      cvss: 7.8,
-      publishedDate: '2024-03-21T16:30:00Z',
-      lastModified: '2024-03-22T12:15:00Z',
-      affectedSystems: 23,
-      description: 'Local privilege escalation vulnerability in Windows service management component.',
-      source: 'Microsoft Security Response Center',
-      status: 'confirmed',
-      tags: ['privilege-escalation', 'windows', 'service', 'local']
-    },
-    {
-      id: '4',
-      cve: 'CVE-2024-3456',
-      title: 'Cross-Site Scripting in Web Portal',
-      severity: 'medium',
-      cvss: 6.1,
-      publishedDate: '2024-03-21T14:20:00Z',
-      lastModified: '2024-03-22T11:30:00Z',
-      affectedSystems: 5,
-      description: 'Stored XSS vulnerability in user profile management section.',
-      source: 'Bug Bounty Program',
-      status: 'mitigated',
-      tags: ['xss', 'web-portal', 'stored', 'user-input']
-    },
-    {
-      id: '5',
-      cve: 'CVE-2024-7890',
-      title: 'Buffer Overflow in Network Driver',
-      severity: 'high',
-      cvss: 8.4,
-      publishedDate: '2024-03-21T12:00:00Z',
-      lastModified: '2024-03-21T18:45:00Z',
-      affectedSystems: 12,
-      description: 'Buffer overflow in network driver allows kernel-level code execution.',
-      source: 'Vendor Advisory',
-      status: 'new',
-      tags: ['buffer-overflow', 'network', 'driver', 'kernel']
+  const loadAssignments = useCallback(async () => {
+    if (!user?.id) {
+      setAssignments([]);
+      setIsLoading(false);
+      return;
     }
-  ];
 
-  const filteredThreats = threatFeed.filter(threat => {
-    const matchesSearch = threat.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         threat.cve.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         threat.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         threat.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesSeverity = selectedSeverity === 'all' || threat.severity === selectedSeverity;
-    const matchesStatus = selectedStatus === 'all' || threat.status === selectedStatus;
-    return matchesSearch && matchesSeverity && matchesStatus;
-  });
-
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'critical': return 'destructive';
-      case 'high': return 'destructive';
-      case 'medium': return 'secondary';
-      case 'low': return 'outline';
-      default: return 'outline';
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      setAssignments(await dashboardService.getAssignedAgentThreats());
+    } catch (error) {
+      console.error('Unable to load assigned analyst threats:', error);
+      setLoadError(error instanceof Error ? error.message : 'Unable to load assigned threats.');
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
     }
+  }, [user?.id]);
+
+  useEffect(() => {
+    void loadAssignments();
+  }, [loadAssignments]);
+
+  const filteredAssignments = useMemo(() => {
+    const search = searchTerm.trim().toLocaleLowerCase();
+    return assignments.filter(({ finding, owner, notes, status }) => {
+      const matchesSearch = !search || [
+        finding.cve_id,
+        finding.description,
+        finding.endpoint_name,
+        finding.affected_packages.join(' '),
+        owner.fullName || '',
+        owner.email,
+        notes || '',
+      ].some((value) => value.toLocaleLowerCase().includes(search));
+      const matchesSeverity = selectedSeverity === 'all' || finding.severity === selectedSeverity;
+      const matchesStatus = selectedStatus === 'all' || status === selectedStatus;
+      return matchesSearch && matchesSeverity && matchesStatus;
+    });
+  }, [assignments, searchTerm, selectedSeverity, selectedStatus]);
+
+  const openOsvRecord = (sourceId: string | null | undefined, cveId: string) => {
+    const vulnerabilityId = sourceId || cveId;
+    window.open(
+      `https://osv.dev/vulnerability/${encodeURIComponent(vulnerabilityId)}`,
+      '_blank',
+      'noopener,noreferrer',
+    );
   };
 
-  const getStatusColor = (status: string) => {
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    void loadAssignments();
+  };
+
+  const statusLabel = (status: AgentThreatAssignment['status']) => status.replace('_', ' ');
+  const statusColor = (status: AgentThreatAssignment['status']) => {
     switch (status) {
-      case 'new': return 'destructive';
-      case 'investigating': return 'secondary';
-      case 'confirmed': return 'default';
-      case 'mitigated': return 'default';
-      default: return 'outline';
+      case 'open': return 'destructive';
+      case 'in_progress': return 'secondary';
+      case 'resolved': return 'default';
+      case 'false_positive': return 'outline';
     }
-  };
-
-  const getCvssColor = (cvss: number) => {
-    if (cvss >= 9.0) return 'text-red-600';
-    if (cvss >= 7.0) return 'text-orange-600';
-    if (cvss >= 4.0) return 'text-yellow-600';
-    return 'text-green-600';
-  };
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setRefreshing(false);
-  };
-
-  const handleInvestigate = (threatId: string) => {
-    console.log('Starting investigation for threat:', threatId);
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <AlertTriangle className="h-5 w-5" />
-          <h3 className="text-lg font-semibold">Real-time Threat Feed</h3>
+          <h3 className="text-lg font-semibold">Assigned OSV Threats</h3>
         </div>
-        <Button 
-          onClick={handleRefresh} 
-          disabled={refreshing}
-          className="flex items-center space-x-2"
-        >
-          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+        <Button onClick={handleRefresh} disabled={isLoading} className="flex items-center space-x-2">
+          <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           <span>Refresh Feed</span>
         </Button>
       </div>
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <AlertTriangle className="h-5 w-5 text-red-600" />
-              <div>
-                <div className="text-2xl font-bold text-red-600">
-                  {threatFeed.filter(t => t.status === 'new').length}
-                </div>
-                <div className="text-sm text-gray-500">New Threats</div>
+          <CardContent className="flex items-center gap-2 pt-6">
+            <AlertTriangle className="h-5 w-5 text-red-600" />
+            <div>
+              <div className="text-2xl font-bold text-red-600">
+                {isLoading ? '...' : loadError ? 'Unavailable' : assignments.filter(({ status }) => status === 'open').length}
               </div>
+              <div className="text-sm text-muted-foreground">Open Assignments</div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <Clock className="h-5 w-5 text-yellow-600" />
-              <div>
-                <div className="text-2xl font-bold text-yellow-600">
-                  {threatFeed.filter(t => t.status === 'investigating').length}
-                </div>
-                <div className="text-sm text-gray-500">Under Investigation</div>
+          <CardContent className="flex items-center gap-2 pt-6">
+            <Clock className="h-5 w-5 text-yellow-600" />
+            <div>
+              <div className="text-2xl font-bold text-yellow-600">
+                {isLoading ? '...' : loadError ? 'Unavailable' : assignments.filter(({ status }) => status === 'in_progress').length}
               </div>
+              <div className="text-sm text-muted-foreground">Under Investigation</div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <TrendingUp className="h-5 w-5 text-blue-600" />
-              <div>
-                <div className="text-2xl font-bold">
-                  {threatFeed.filter(t => t.severity === 'critical' || t.severity === 'high').length}
-                </div>
-                <div className="text-sm text-gray-500">High Priority</div>
+          <CardContent className="flex items-center gap-2 pt-6">
+            <TrendingUp className="h-5 w-5 text-blue-600" />
+            <div>
+              <div className="text-2xl font-bold">
+                {isLoading ? '...' : loadError ? 'Unavailable' : assignments.filter(({ finding }) =>
+                  finding.severity === 'critical' || finding.severity === 'high'
+                ).length}
               </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <AlertTriangle className="h-5 w-5 text-green-600" />
-              <div>
-                <div className="text-2xl font-bold">
-                  {threatFeed.reduce((sum, t) => sum + t.affectedSystems, 0)}
-                </div>
-                <div className="text-sm text-gray-500">Affected Systems</div>
-              </div>
+              <div className="text-sm text-muted-foreground">High Priority Assignments</div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filters */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="relative">
-              <Input
-                placeholder="Search threats, CVEs, tags..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            <Select value={selectedSeverity} onValueChange={setSelectedSeverity}>
-              <SelectTrigger>
-                <SelectValue placeholder="All Severities" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Severities</SelectItem>
-                <SelectItem value="critical">Critical</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-              <SelectTrigger>
-                <SelectValue placeholder="All Statuses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="new">New</SelectItem>
-                <SelectItem value="investigating">Investigating</SelectItem>
-                <SelectItem value="confirmed">Confirmed</SelectItem>
-                <SelectItem value="mitigated">Mitigated</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <CardContent className="grid grid-cols-1 gap-4 pt-6 md:grid-cols-3">
+          <Input
+            aria-label="Search assigned threats"
+            placeholder="Search findings, endpoints, packages, or owners..."
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+          />
+          <Select value={selectedSeverity} onValueChange={setSelectedSeverity}>
+            <SelectTrigger aria-label="Filter by severity">
+              <SelectValue placeholder="All severities" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All severities</SelectItem>
+              <SelectItem value="critical">Critical</SelectItem>
+              <SelectItem value="high">High</SelectItem>
+              <SelectItem value="medium">Medium</SelectItem>
+              <SelectItem value="low">Low</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+            <SelectTrigger aria-label="Filter by assignment status">
+              <SelectValue placeholder="All statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="open">Open</SelectItem>
+              <SelectItem value="in_progress">In progress</SelectItem>
+              <SelectItem value="resolved">Resolved</SelectItem>
+              <SelectItem value="false_positive">False positive</SelectItem>
+            </SelectContent>
+          </Select>
         </CardContent>
       </Card>
 
-      {/* Threat Feed */}
-      <div className="space-y-4">
-        {filteredThreats.map((threat) => (
-          <Card key={threat.id} className="hover:shadow-md transition-shadow">
-            <CardContent className="pt-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3 mb-2">
-                    <Badge variant={getSeverityColor(threat.severity)} className="capitalize">
-                      {threat.severity}
-                    </Badge>
-                    <Badge variant={getStatusColor(threat.status)} className="capitalize">
-                      {threat.status}
-                    </Badge>
-                    <span className={`text-sm font-bold ${getCvssColor(threat.cvss)}`}>
-                      CVSS {threat.cvss}
-                    </span>
-                  </div>
-                  
-                  <h4 className="text-lg font-semibold mb-2">{threat.title}</h4>
-                  <p className="text-sm text-gray-600 mb-3">{threat.description}</p>
-                  
-                  <div className="flex items-center space-x-4 text-sm text-gray-500 mb-3">
-                    <span><strong>CVE:</strong> {threat.cve}</span>
-                    <span><strong>Affected Systems:</strong> {threat.affectedSystems}</span>
-                    <span><strong>Source:</strong> {threat.source}</span>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2 mb-3">
-                    {threat.tags.map((tag, index) => (
-                      <Badge key={index} variant="outline" className="text-xs">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                  
-                  <div className="text-xs text-gray-400">
-                    Published: {new Date(threat.publishedDate).toLocaleString()} • 
-                    Last Modified: {new Date(threat.lastModified).toLocaleString()}
-                  </div>
-                </div>
-                
-                <div className="flex flex-col space-y-2 ml-4">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => handleInvestigate(threat.id)}
-                  >
-                    <Eye className="h-4 w-4 mr-2" />
-                    Investigate
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Details
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {filteredThreats.length === 0 && (
+      {isLoading ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">Loading assigned threats...</p>
+      ) : loadError ? (
+        <p role="alert" className="py-8 text-center text-sm text-destructive">{loadError}</p>
+      ) : filteredAssignments.length === 0 ? (
         <Card>
-          <CardContent className="pt-6 text-center">
-            <p className="text-gray-500">No threats match your current filters.</p>
+          <CardContent className="pt-6 text-center text-muted-foreground">
+            {assignments.length === 0
+              ? 'No OSV findings are assigned to you.'
+              : 'No assigned findings match your filters.'}
           </CardContent>
         </Card>
+      ) : (
+        <div className="space-y-4">
+          {filteredAssignments.map((assignment) => {
+            const { finding } = assignment;
+            const ownerName = assignment.owner.fullName || assignment.owner.email;
+            return (
+              <Card key={assignment.id} className="hover:shadow-md transition-shadow">
+                <CardContent className="pt-6">
+                  <div className="flex flex-col justify-between gap-4 sm:flex-row">
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                        <Badge variant={finding.severity === 'critical' || finding.severity === 'high' ? 'destructive' : 'secondary'} className="capitalize">
+                          {finding.severity}
+                        </Badge>
+                        <Badge variant={statusColor(assignment.status)} className="capitalize">
+                          {statusLabel(assignment.status)}
+                        </Badge>
+                        <Badge variant="outline" className="capitalize">
+                          {assignment.priority} priority
+                        </Badge>
+                        {finding.cvss_score !== null && <span className="text-sm font-bold">CVSS {finding.cvss_score}</span>}
+                      </div>
+                      <h4 className="text-lg font-semibold">{finding.cve_id}</h4>
+                      <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
+                        {finding.description || 'No description available.'}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                        <span>Endpoint: {finding.endpoint_name} ({finding.environment})</span>
+                        <span>Owner: {ownerName}</span>
+                        <span>Assigned: {assignment.assignedAt
+                          ? new Date(assignment.assignedAt).toLocaleString()
+                          : new Date(assignment.createdAt).toLocaleString()}</span>
+                      </div>
+                      {finding.affected_packages.length > 0 && (
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          Affected packages: {finding.affected_packages.join(', ')}
+                        </p>
+                      )}
+                      {assignment.notes && (
+                        <p className="mt-2 text-sm"><span className="font-medium">Assignment notes:</span> {assignment.notes}</p>
+                      )}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => openOsvRecord(finding.source_id, finding.cve_id)}
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Open OSV
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
       )}
     </div>
   );
