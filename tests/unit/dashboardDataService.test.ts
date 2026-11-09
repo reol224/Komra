@@ -587,10 +587,8 @@ describe('DashboardDataService', () => {
           maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'cve-row-1' }, error: null }),
         };
         const cveSelect = { eq: vi.fn().mockReturnValue(cveQuery) };
-        const insert = vi.fn().mockResolvedValue({ error: null });
         mocks.from.mockImplementation((table: string) => {
           if (table === 'cves') return { select: vi.fn().mockReturnValue(cveSelect) };
-          if (table === 'audit_logs') return { insert };
           throw new Error(`Unexpected table: ${table}`);
         });
         const input = {
@@ -598,13 +596,11 @@ describe('DashboardDataService', () => {
           cveId: 'CVE-2025-0001',
           endpointId: 'endpoint-1',
           assignedTo: 'analyst-1',
-          assignedBy: 'admin-1',
-          assignedByEmail: 'admin@example.com',
           priority: 'high',
           notes: '',
         } as const;
 
-        await expect(service.assignThreat(input)).resolves.toEqual({ auditLogged: true });
+        await expect(service.assignThreat(input)).resolves.toBeUndefined();
 
         expect(mockFetch).toHaveBeenCalledWith('/api/dashboard/assign-threat', {
           method: 'POST',
@@ -618,6 +614,7 @@ describe('DashboardDataService', () => {
             notes: input.notes,
           }),
         });
+        expect(mocks.from).toHaveBeenCalledTimes(1);
       });
     });
 

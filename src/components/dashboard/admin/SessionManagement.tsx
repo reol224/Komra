@@ -44,9 +44,9 @@ export default function SessionManagement() {
   const [sessionToTerminate, setSessionToTerminate] = useState<ActiveSession | null>(null);
   const [userToForceLogout, setUserToForceLogout] = useState<ActiveSession | null>(null);
 
-  const loadSessions = useCallback(async () => {
+  const loadSessions = useCallback(async (background = false) => {
     try {
-      setLoading(true);
+      if (!background) setLoading(true);
       const data = await SessionManagementService.getAllActiveSessions();
       setSessions(data);
       
@@ -54,17 +54,19 @@ export default function SessionManagement() {
       setStats(statsData);
     } catch (error) {
       console.error('Error loading sessions:', error);
-      setSessions([]);
-      setStats({ activeCount: 0, totalCount: 0, last24Hours: 0 });
+      if (!background) {
+        setSessions([]);
+        setStats({ activeCount: 0, totalCount: 0, last24Hours: 0 });
+      }
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void loadSessions();
     const refreshInterval = window.setInterval(() => {
-      void loadSessions();
+      void loadSessions(true);
     }, 60_000);
     return () => window.clearInterval(refreshInterval);
   }, [loadSessions]);
@@ -251,7 +253,7 @@ export default function SessionManagement() {
               </CardDescription>
             </div>
             <Button
-              onClick={loadSessions}
+              onClick={() => void loadSessions()}
               variant="outline"
               size="sm"
               className="border-slate-600 text-slate-300 hover:bg-slate-700"

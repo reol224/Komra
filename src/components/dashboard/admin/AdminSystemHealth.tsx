@@ -80,8 +80,8 @@ export default function AdminSystemHealth() {
   const serviceListRef = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(() => Date.now());
 
-  const loadSystemHealth = useCallback(async () => {
-    setIsLoading(true);
+  const loadSystemHealth = useCallback(async (background = false) => {
+    if (!background) setIsLoading(true);
     setLoadError(null);
     setMissingReportPage(0);
     setNow(Date.now());
@@ -92,7 +92,7 @@ export default function AdminSystemHealth() {
       console.error('Unable to load agent system health:', error);
       setLoadError('Unable to load system health. Check the database connection and try again.');
     } finally {
-      setIsLoading(false);
+      if (!background) setIsLoading(false);
     }
   }, []);
 
@@ -102,7 +102,7 @@ export default function AdminSystemHealth() {
 
   useEffect(() => {
     const refreshInterval = window.setInterval(() => {
-      void loadSystemHealth();
+      void loadSystemHealth(true);
     }, 60_000);
     return () => window.clearInterval(refreshInterval);
   }, [loadSystemHealth]);

@@ -503,6 +503,7 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'The assigned finding could not be updated.';
   END IF;
+
 END;
 $$;
 
@@ -606,6 +607,7 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'The assigned finding could not be updated.';
   END IF;
+
 END;
 $$;
 

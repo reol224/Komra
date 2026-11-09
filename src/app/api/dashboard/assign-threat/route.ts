@@ -16,6 +16,12 @@ function responseForDatabaseError(error: { code?: string; message: string }) {
   if (error.code === '42501') {
     return NextResponse.json({ error: 'You are not authorized to assign this finding.' }, { status: 403 });
   }
+  if (error.code === '40001') {
+    return NextResponse.json(
+      { error: 'The finding changed before it could be assigned. Refresh and retry.' },
+      { status: 409 },
+    );
+  }
   console.error('Unable to assign finding:', error);
   return NextResponse.json({ error: 'Unable to assign this finding.' }, { status: 500 });
 }

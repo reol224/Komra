@@ -2,7 +2,7 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
 BEGIN;
 
-SELECT extensions.plan(15);
+SELECT extensions.plan(19);
 
 INSERT INTO public.users (id, email, full_name, role)
 VALUES
@@ -179,6 +179,16 @@ SELECT extensions.lives_ok(
   'Authorized Auth assignment succeeds for an OSV finding on an agent endpoint'
 );
 
+SELECT extensions.is(
+  (SELECT count(*)::integer FROM public.audit_logs
+   WHERE action = 'THREAT_ASSIGNED'
+     AND user_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+     AND user_email = 'security-analyst@komra.test'
+     AND resource_id = '44444444-aaaa-4444-8444-444444444444'),
+  1,
+  'Auth assignment writes an audit record attributed to the resolved application profile'
+);
+
 SELECT set_config('request.jwt.claim.role', 'service_role', TRUE);
 
 SELECT extensions.lives_ok(
@@ -194,7 +204,50 @@ SELECT extensions.lives_ok(
   'Authorized app-session assignment succeeds for an OSV agent finding'
 );
 
+SELECT extensions.is(
+  (SELECT count(*)::integer FROM public.audit_logs
+   WHERE action = 'THREAT_ASSIGNED'
+     AND user_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+     AND user_email = 'security-analyst@komra.test'
+     AND resource_id = '44444444-aaaa-4444-8444-444444444444'),
+  2,
+  'App-session assignment writes an audit record attributed to its verified session'
+);
+
 SELECT set_config('request.jwt.claim.role', 'authenticated', TRUE);
+
+UPDATE public.vulnerabilities
+SET status = 'resolved'
+WHERE id = '44444444-aaaa-4444-8444-444444444444';
+
+SELECT extensions.throws_ok(
+  $$SELECT public.assign_agent_threat(
+    '44444444-aaaa-4444-8444-444444444444',
+    'CVE-2099-11111',
+    'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    'high',
+    'test'
+  )$$,
+  '40001',
+  'The selected finding is no longer active.',
+  'Auth assignment rejects findings resolved before confirmation'
+);
+
+SELECT extensions.throws_ok(
+  $$SELECT public.assign_agent_threat_with_app_session(
+    repeat('a', 64),
+    '44444444-aaaa-4444-8444-444444444444',
+    'CVE-2099-11111',
+    'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    'high',
+    'test'
+  )$$,
+  '40001',
+  'The selected finding is no longer active.',
+  'App-session assignment rejects findings resolved before confirmation'
+);
 
 UPDATE public.triage_actions
 SET status = 'resolved'

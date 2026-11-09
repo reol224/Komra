@@ -17,26 +17,27 @@ import AdminSystemHealth from '@/components/dashboard/admin/AdminSystemHealth';
 
 describe('AdminSystemHealth', () => {
   const startTime = new Date('2026-11-09T12:00:00.000Z').getTime();
+  const endpoint = {
+    id: 'endpoint-1',
+    hostname: 'agent-1',
+    osType: 'Ubuntu 24.04',
+    lastScan: '2026-11-09T11:56:00.000Z',
+    receivedAt: '2026-11-09T11:56:00.000Z',
+    runningServices: [],
+    resourceMetrics: {
+      cpu_usage_percent: 90,
+      memory_usage_percent: null,
+      memory_used_bytes: null,
+      memory_total_bytes: null,
+      disk_usage_percent: null,
+      disk_used_bytes: null,
+      disk_total_bytes: null,
+    },
+  };
 
   beforeEach(() => {
     vi.useFakeTimers({ now: startTime });
-    mockLoadHealth.mockResolvedValue([{
-      id: 'endpoint-1',
-      hostname: 'agent-1',
-      osType: 'Ubuntu 24.04',
-      lastScan: '2026-11-09T11:56:00.000Z',
-      receivedAt: '2026-11-09T11:56:00.000Z',
-      runningServices: [],
-      resourceMetrics: {
-        cpu_usage_percent: 90,
-        memory_usage_percent: null,
-        memory_used_bytes: null,
-        memory_total_bytes: null,
-        disk_usage_percent: null,
-        disk_used_bytes: null,
-        disk_total_bytes: null,
-      },
-    }]);
+    mockLoadHealth.mockResolvedValue([endpoint]);
   });
 
   afterEach(() => {
@@ -57,13 +58,20 @@ describe('AdminSystemHealth', () => {
     const refreshTimer = intervalSpy.mock.calls.find(([, delay]) => delay === 60_000);
     expect(refreshTimer).toBeDefined();
     vi.setSystemTime(startTime + 6 * 60_000);
+    let finishRefresh: ((value: Awaited<ReturnType<typeof mockLoadHealth>>) => void) | undefined;
+    mockLoadHealth.mockImplementationOnce(() => new Promise((resolve) => {
+      finishRefresh = resolve;
+    }));
     await act(async () => {
       (refreshTimer?.[0] as () => void)();
-      await Promise.resolve();
-      await Promise.resolve();
     });
 
     expect(mockLoadHealth).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    expect(screen.getByText(/Last updated:/)).toBeInTheDocument();
+    await act(async () => {
+      finishRefresh?.([endpoint]);
+    });
     expect(screen.getByText(/No recent resource telemetry/)).toBeInTheDocument();
     expect(screen.getByText('Agent report is stale (10 minutes ago)')).toBeInTheDocument();
     intervalSpy.mockRestore();

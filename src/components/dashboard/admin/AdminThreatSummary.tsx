@@ -65,6 +65,8 @@ export default function AdminThreatSummary() {
   const [escalationReason, setEscalationReason] = useState('');
   const [escalationLevel, setEscalationLevel] = useState('');
   const [escalationNotes, setEscalationNotes] = useState('');
+  const assignmentDialogSession = useRef(0);
+  const assignmentRequestId = useRef(0);
   const escalationDialogSession = useRef(0);
   
   const [vulnerabilities, setVulnerabilities] = useState<DashboardVulnerability[]>([]);
@@ -253,6 +255,7 @@ export default function AdminThreatSummary() {
   };
 
   const handleAssignThreat = (threat: DashboardVulnerability) => {
+    assignmentDialogSession.current += 1;
     setSelectedThreat(threat);
     setAssignmentDialog(true);
     setSelectedTeamMember('');
@@ -260,11 +263,25 @@ export default function AdminThreatSummary() {
     setPriority('');
   };
 
+  const closeAssignmentDialog = () => {
+    assignmentDialogSession.current += 1;
+    setAssignmentDialog(false);
+  };
+
   const handleConfirmAssignment = async () => {
     if (!selectedThreat || !user || !selectedTeamMember || !priority) {
       toast({
         title: "Missing Information",
         description: "Select a team member and priority, and make sure you are signed in.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!isActiveFinding(selectedThreat)) {
+      toast({
+        title: "Finding no longer active",
+        description: "Refresh the findings and select an active finding before assigning it.",
         variant: "destructive",
       });
       return;
@@ -289,49 +306,51 @@ export default function AdminThreatSummary() {
       return;
     }
 
+    const threat = selectedThreat;
+    const requestSession = assignmentDialogSession.current;
+    const requestId = ++assignmentRequestId.current;
     setIsAssigning(true);
     try {
-      const { auditLogged } = await new DashboardDataService().assignThreat({
-        vulnerabilityId: selectedThreat.id,
-        cveId: selectedThreat.cve_id,
-        endpointId: selectedThreat.endpoint_id,
+      await new DashboardDataService().assignThreat({
+        vulnerabilityId: threat.id,
+        cveId: threat.cve_id,
+        endpointId: threat.endpoint_id,
         assignedTo: assignedMember.id,
-        assignedBy: user.id,
-        assignedByEmail: user.email,
         priority: priority as 'critical' | 'high' | 'medium' | 'low',
         notes: assignmentNotes,
       });
       await loadThreatData();
       toast({
-        title: auditLogged ? "Threat assigned" : "Threat assigned with audit warning",
+        title: "Threat assigned",
         description: (
           <div className="flex items-center space-x-2">
-            <CheckCircle2 className={`h-4 w-4 ${auditLogged ? "text-green-600" : "text-amber-600"}`} />
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
             <span>
-              {selectedThreat.cve_id} assigned to {assignedMember.full_name || assignedMember.email}.
-              {!auditLogged && " The audit event could not be recorded; contact an administrator."}
+              {threat.cve_id} assigned to {assignedMember.full_name || assignedMember.email}.
             </span>
           </div>
         ),
         duration: 4000,
       });
-      setAssignmentDialog(false);
-      setSelectedThreat(null);
-      setSelectedTeamMember('');
-      setAssignmentNotes('');
-      setPriority('');
+      if (assignmentDialogSession.current === requestSession) {
+        closeAssignmentDialog();
+        setSelectedThreat(null);
+        setSelectedTeamMember('');
+        setAssignmentNotes('');
+        setPriority('');
+      }
     } catch (error) {
       console.error('Failed to assign threat:', error);
       void auditLogger.log(
         'THREAT_ASSIGNMENT_ATTEMPT_FAILED',
         'vulnerability',
         {
-          vulnerability_id: selectedThreat.id,
-          cve_id: selectedThreat.cve_id,
+          vulnerability_id: threat.id,
+          cve_id: threat.cve_id,
           error: error instanceof Error ? error.message : 'Unknown error',
         },
         {
-          resourceId: selectedThreat.id,
+          resourceId: threat.id,
           severity: 'high',
           status: 'failure',
           metadata: { action_category: 'threat_management', security_relevant: true },
@@ -345,7 +364,7 @@ export default function AdminThreatSummary() {
         variant: "destructive",
       });
     } finally {
-      setIsAssigning(false);
+      if (assignmentRequestId.current === requestId) setIsAssigning(false);
     }
   };
 
@@ -622,6 +641,7 @@ export default function AdminThreatSummary() {
                           <Button 
                             variant="outline" 
                             size="sm"
+                            aria-label={`View details for ${threat.cve_id}`}
                             onClick={() => handleViewThreatDetails(threat)}
                           >
                             <Eye className="h-4 w-4" />
@@ -722,22 +742,30 @@ export default function AdminThreatSummary() {
                             </div>
                             
                             <div className="flex space-x-2 pt-4">
-                              <Button
-                                onClick={() => handleAssignThreat(threat)}
-                                className="flex-1"
-                              >
-                                <UserCheck className="h-4 w-4 mr-2" />
-                                Assign to Team
-                              </Button>
-                              {threat.severity === 'critical' && (
-                                <Button
-                                  variant="destructive"
-                                  onClick={() => handleEscalateThreat(threat)}
-                                  className="flex-1"
-                                >
-                                  <AlertCircle className="h-4 w-4 mr-2" />
-                                  Escalate
-                                </Button>
+                              {isActiveFinding(threat) && (
+                                <>
+                                  <PermissionGuard permission="vulnerabilities.assign">
+                                    <Button
+                                      onClick={() => handleAssignThreat(threat)}
+                                      className="flex-1"
+                                    >
+                                      <UserCheck className="h-4 w-4 mr-2" />
+                                      Assign to Team
+                                    </Button>
+                                  </PermissionGuard>
+                                  {threat.severity === 'critical' && (
+                                    <PermissionGuard permission="system.escalate_threats">
+                                      <Button
+                                        variant="destructive"
+                                        onClick={() => handleEscalateThreat(threat)}
+                                        className="flex-1"
+                                      >
+                                        <AlertCircle className="h-4 w-4 mr-2" />
+                                        Record Escalation
+                                      </Button>
+                                    </PermissionGuard>
+                                  )}
+                                </>
                               )}
                               <Button 
                                 variant="outline" 
@@ -993,7 +1021,13 @@ export default function AdminThreatSummary() {
 
         {/* Team Assignment Dialog */}
         <PermissionGuard permission="vulnerabilities.assign">
-          <Dialog open={assignmentDialog} onOpenChange={setAssignmentDialog}>
+          <Dialog
+            open={assignmentDialog}
+            onOpenChange={(open) => {
+              if (open) setAssignmentDialog(true);
+              else closeAssignmentDialog();
+            }}
+          >
             <DialogContent className="max-w-md">
               <DialogHeader>
                 <DialogTitle className="flex items-center space-x-2">
@@ -1078,7 +1112,7 @@ export default function AdminThreatSummary() {
                   </Button>
                   <Button 
                     variant="outline" 
-                    onClick={() => setAssignmentDialog(false)} 
+                    onClick={closeAssignmentDialog}
                     className="flex-1"
                     disabled={isAssigning}
                   >

@@ -3,7 +3,7 @@ import { render, screen, waitFor, act, cleanup, fireEvent, within } from '@testi
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { ActiveSession } from '@/lib/sessionManagementService';
-import type { DashboardVulnerability } from '@/lib/dashboardDataService';
+import type { DashboardVulnerability, ThreatAssignee } from '@/lib/dashboardDataService';
 import type { AuditLogEntry } from '@/lib/auditLogger';
 
 // ============================================================================
@@ -66,6 +66,7 @@ const { mockFrom, mockSelect, mockOrder, mockInsert, mockUpdate, mockDelete, moc
 
   return { mockFrom, mockSelect, mockOrder, mockInsert, mockUpdate, mockDelete, mockEq, mockSingle, mockChannel, mockOn, mockSubscribe, mockGte };
 });
+const mockHasPermission = vi.hoisted(() => vi.fn((_permission: string) => true));
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => ({
@@ -114,7 +115,7 @@ vi.mock('@/lib/permissionService', () => ({
 // Mock usePermissions hook
 vi.mock('@/hooks/usePermissions', () => ({
   usePermissions: vi.fn(() => ({
-    hasPermission: vi.fn(() => true),
+    hasPermission: mockHasPermission,
     hasAnyPermission: vi.fn(() => true),
     hasAllPermissions: vi.fn(() => true),
     loading: false,
@@ -164,7 +165,13 @@ vi.mock('@/components/ui/use-toast', () => ({
 }));
 
 // Mock dashboardDataService - mock as a class constructor using hoisted
-const { MockDashboardDataService, mockAgentSystemHealth, mockAgentVulnerabilities } = vi.hoisted(() => {
+const {
+  MockDashboardDataService,
+  mockAgentSystemHealth,
+  mockAgentVulnerabilities,
+  mockThreatAssignees,
+  mockAssignThreat,
+} = vi.hoisted(() => {
   const mockAgentSystemHealth = vi.fn(() => Promise.resolve([{
     id: 'endpoint-health-1',
     hostname: 'health-agent',
@@ -183,13 +190,16 @@ const { MockDashboardDataService, mockAgentSystemHealth, mockAgentVulnerabilitie
     },
   }]));
   const mockAgentVulnerabilities = vi.fn<() => Promise<DashboardVulnerability[]>>(() => Promise.resolve([]));
+  const mockThreatAssignees = vi.fn<() => Promise<ThreatAssignee[]>>(() => Promise.resolve([]));
+  const mockAssignThreat = vi.fn<() => Promise<void>>(() => Promise.resolve());
   // Create a proper class mock
   class MockDashboardDataServiceClass {
     getEndpoints = vi.fn(() => Promise.resolve([]));
     getAgentSystemHealth = mockAgentSystemHealth;
     getVulnerabilities = vi.fn(() => Promise.resolve([]));
     getAgentVulnerabilities = mockAgentVulnerabilities;
-    getThreatAssignees = vi.fn(() => Promise.resolve([]));
+    getThreatAssignees = mockThreatAssignees;
+    assignThreat = mockAssignThreat;
     getRiskMetrics = vi.fn(() => Promise.resolve({
       criticalCount: 0,
       highCount: 0,
@@ -207,6 +217,8 @@ const { MockDashboardDataService, mockAgentSystemHealth, mockAgentVulnerabilitie
     MockDashboardDataService: MockDashboardDataServiceClass,
     mockAgentSystemHealth,
     mockAgentVulnerabilities,
+    mockThreatAssignees,
+    mockAssignThreat,
   };
 });
 
@@ -254,6 +266,14 @@ const renderWithAct = async (component: React.ReactElement) => {
 describe('Admin Components Integration Tests', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockHasPermission.mockImplementation(() => true);
+    mockThreatAssignees.mockResolvedValue([{
+      id: 'analyst-1',
+      email: 'analyst@example.com',
+      full_name: 'Analyst Owner',
+      role: 'analyst',
+    }]);
+    mockAssignThreat.mockResolvedValue(undefined);
     // Reset mock implementations
     mockOrder.mockResolvedValue({
       data: [
@@ -1157,13 +1177,17 @@ describe('Admin Components Integration Tests', () => {
 
         await waitFor(() => {
           expect(mockGetAllActiveSessions).toHaveBeenCalledTimes(1);
+          expect(screen.getByText('Test Admin')).toBeInTheDocument();
         });
 
+        mockGetAllActiveSessions.mockImplementationOnce(() => new Promise<ActiveSession[]>(() => {}));
         await act(async () => {
           vi.advanceTimersByTime(60000);
         });
 
         expect(mockGetAllActiveSessions).toHaveBeenCalledTimes(2);
+        expect(screen.getByText('Test Admin')).toBeInTheDocument();
+        expect(screen.queryByText('Loading sessions...')).not.toBeInTheDocument();
         testLogger.pass('Automatic session refresh');
       });
 
@@ -4155,6 +4179,121 @@ describe('Admin Components Integration Tests', () => {
         expect(elements.length).toBeGreaterThan(0);
       });
       testLogger.pass('Threat statistics display');
+    });
+
+    it('hides recent-threat actions when the user lacks their permissions', async () => {
+      mockHasPermission.mockImplementation((permission) => permission === 'system.threat_summary');
+      mockAgentVulnerabilities.mockResolvedValue([{
+        id: 'recent-critical-finding',
+        cve_id: 'CVE-RECENT-CRITICAL',
+        description: 'Recent critical finding',
+        severity: 'critical',
+        cvss_score: 9.5,
+        status: 'open',
+        endpoint_id: 'endpoint-1',
+        endpoint_name: 'test-endpoint',
+        environment: 'production',
+        discovered_date: new Date().toISOString(),
+        affected_packages: ['test-package'],
+      }]);
+
+      await renderWithAct(<AdminThreatSummary />);
+      await userEvent.click(screen.getByRole('button', {
+        name: 'View details for CVE-RECENT-CRITICAL',
+      }));
+
+      expect(await screen.findByText('Affected Endpoint')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Assign to Team' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Record Escalation' })).not.toBeInTheDocument();
+    });
+
+    it('keeps a newer assignment draft when an older request completes', async () => {
+      const OriginalResizeObserver = global.ResizeObserver;
+      const originalScrollIntoView = Element.prototype.scrollIntoView;
+      global.ResizeObserver = class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      };
+      Element.prototype.scrollIntoView = () => undefined;
+      for (const [method, implementation] of [
+        ['hasPointerCapture', () => false],
+        ['setPointerCapture', () => undefined],
+        ['releasePointerCapture', () => undefined],
+      ] as const) {
+        if (!(method in Element.prototype)) {
+          Object.defineProperty(Element.prototype, method, {
+            configurable: true,
+            value: implementation,
+          });
+        }
+      }
+
+      const findings: DashboardVulnerability[] = [
+        {
+          id: 'first-assignment-finding',
+          cve_id: 'CVE-FIRST-ASSIGNMENT',
+          description: 'First assignment finding',
+          severity: 'high',
+          cvss_score: 8.1,
+          status: 'open',
+          endpoint_id: 'endpoint-1',
+          endpoint_name: 'test-endpoint',
+          environment: 'production',
+          discovered_date: new Date().toISOString(),
+          affected_packages: ['test-package'],
+        },
+        {
+          id: 'second-assignment-finding',
+          cve_id: 'CVE-SECOND-ASSIGNMENT',
+          description: 'Second assignment finding',
+          severity: 'high',
+          cvss_score: 8.1,
+          status: 'open',
+          endpoint_id: 'endpoint-1',
+          endpoint_name: 'test-endpoint',
+          environment: 'production',
+          discovered_date: new Date().toISOString(),
+          affected_packages: ['test-package'],
+        },
+      ];
+      mockAgentVulnerabilities.mockResolvedValue(findings);
+      let finishAssignment: (() => void) | undefined;
+      mockAssignThreat.mockImplementationOnce(() => new Promise<void>((resolve) => {
+        finishAssignment = () => resolve(undefined);
+      }));
+
+      const { container } = await renderWithAct(<AdminThreatSummary />);
+      const findingRows = Array.from(container.querySelectorAll('details'));
+      await userEvent.click(findingRows[0].querySelector('summary')!);
+      fireEvent.click(findingRows[1].querySelector('summary')!);
+      const firstAssignButton = within(findingRows[0]).getByRole('button', { name: 'Assign to Team' });
+      const secondAssignButton = within(findingRows[1]).getByRole('button', { name: 'Assign to Team' });
+      await userEvent.click(firstAssignButton);
+
+      const dialog = await screen.findByRole('dialog');
+      const selects = within(dialog).getAllByRole('combobox');
+      await userEvent.click(selects[0]);
+      await userEvent.click(screen.getByRole('option', { name: /Analyst Owner/ }));
+      await userEvent.click(selects[1]);
+      await userEvent.click(screen.getByRole('option', { name: /High - Address/ }));
+      await userEvent.type(within(dialog).getByLabelText('Assignment Notes (Optional)'), 'First draft');
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Confirm Assignment' }));
+      await waitFor(() => expect(mockAssignThreat).toHaveBeenCalledTimes(1));
+
+      fireEvent.click(secondAssignButton);
+      const newAssignmentDialog = screen.getByRole('dialog');
+      expect(within(newAssignmentDialog).getByText(/CVE-SECOND-ASSIGNMENT/)).toBeInTheDocument();
+      const notes = within(newAssignmentDialog).getByLabelText('Assignment Notes (Optional)');
+      await userEvent.type(notes, 'Second draft');
+
+      await act(async () => finishAssignment?.());
+
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(within(screen.getByRole('dialog')).getByText(/CVE-SECOND-ASSIGNMENT/)).toBeInTheDocument();
+      expect(notes).toHaveValue('Second draft');
+      global.ResizeObserver = OriginalResizeObserver;
+      Element.prototype.scrollIntoView = originalScrollIntoView;
     });
 
     it('should show searchable findings across all severities', async () => {
