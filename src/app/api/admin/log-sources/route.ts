@@ -91,11 +91,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       );
     }
 
+    // Create a map of stored preferences for quick lookup
+    const prefMap = new Map(
+      (preferences || []).map((p) => [p.log_source_type as SourceType, p.enabled])
+    );
+
+    // Return all valid source types with their enabled status from database, or default to true
+    const allPreferences = VALID_SOURCE_TYPES.map((type) => ({
+      type,
+      enabled: prefMap.has(type) ? prefMap.get(type)! : true,
+    }));
+
     const response: LogSourcesResponse = {
-      preferences: (preferences || []).map((p) => ({
-        type: p.log_source_type as SourceType,
-        enabled: p.enabled,
-      })),
+      preferences: allPreferences,
       customSources: (customSources || []).map((c) => ({
         id: c.id,
         name: c.name,
@@ -121,15 +129,70 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { action, preferences, source } = body as {
-      action: 'update-preference' | 'add-source' | 'update-source' | 'remove-source';
-      preferences?: Array<{ type: SourceType; enabled: boolean }>;
-      source?: { id?: string; name: string; type: SourceType; enabled: boolean };
-    };
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch (error) {
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      );
+    }
 
-    if (action === 'update-preference' && preferences) {
-      const updates = preferences.map((pref) => ({
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json(
+        { error: 'Request body must be an object' },
+        { status: 400 }
+      );
+    }
+
+    const { action, preferences, source } = body as Record<string, unknown>;
+
+    // Validate action
+    const validActions = [
+      'update-preference',
+      'add-source',
+      'update-source',
+      'remove-source',
+    ];
+    if (!validActions.includes(String(action))) {
+      return NextResponse.json(
+        { error: 'Invalid action' },
+        { status: 400 }
+      );
+    }
+
+    if (action === 'update-preference') {
+      if (!Array.isArray(preferences)) {
+        return NextResponse.json(
+          { error: 'preferences must be an array' },
+          { status: 400 }
+        );
+      }
+
+      // Validate each preference
+      for (const pref of preferences) {
+        if (!pref || typeof pref !== 'object') {
+          return NextResponse.json(
+            { error: 'Each preference must be an object' },
+            { status: 400 }
+          );
+        }
+        if (!VALID_SOURCE_TYPES.includes((pref as any).type)) {
+          return NextResponse.json(
+            { error: `Invalid source type: ${(pref as any).type}` },
+            { status: 400 }
+          );
+        }
+        if (typeof (pref as any).enabled !== 'boolean') {
+          return NextResponse.json(
+            { error: 'enabled must be a boolean' },
+            { status: 400 }
+          );
+        }
+      }
+
+      const updates = (preferences as Array<{ type: SourceType; enabled: boolean }>).map((pref) => ({
         user_id: userId,
         log_source_type: pref.type,
         enabled: pref.enabled,
@@ -145,55 +208,100 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: true });
     }
 
-    if (action === 'add-source' && source) {
-      if (!VALID_SOURCE_TYPES.includes(source.type)) {
+    if (action === 'add-source' || action === 'update-source' || action === 'remove-source') {
+      if (!source || typeof source !== 'object') {
         return NextResponse.json(
-          { error: 'Invalid source type' },
+          { error: 'source must be an object' },
           { status: 400 }
         );
       }
 
-      const { error } = await supabaseAdmin
-        .from('user_custom_log_sources')
-        .insert({
-          user_id: userId,
-          name: source.name,
-          source_type: source.type,
-          enabled: source.enabled,
-        });
+      const sourceObj = source as Record<string, unknown>;
 
-      if (error) throw error;
+      // Common validation for add and update
+      if (action === 'add-source' || action === 'update-source') {
+        const sourceTypeStr = String(sourceObj.type);
+        if (!VALID_SOURCE_TYPES.includes(sourceTypeStr as SourceType)) {
+          return NextResponse.json(
+            { error: `Invalid source type: ${sourceTypeStr}` },
+            { status: 400 }
+          );
+        }
+        if (typeof sourceObj.name !== 'string' || sourceObj.name.trim().length === 0) {
+          return NextResponse.json(
+            { error: 'source name must be a non-empty string' },
+            { status: 400 }
+          );
+        }
+        if (typeof sourceObj.enabled !== 'boolean') {
+          return NextResponse.json(
+            { error: 'enabled must be a boolean' },
+            { status: 400 }
+          );
+        }
+      }
 
-      return NextResponse.json({ success: true });
-    }
+      if (action === 'add-source') {
+        const sourceType = String(sourceObj.type) as SourceType;
 
-    if (action === 'update-source' && source?.id) {
-      const { error } = await supabaseAdmin
-        .from('user_custom_log_sources')
-        .update({
-          name: source.name,
-          source_type: source.type,
-          enabled: source.enabled,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', source.id)
-        .eq('user_id', userId);
+        const { error } = await supabaseAdmin
+          .from('user_custom_log_sources')
+          .insert({
+            user_id: userId,
+            name: String(sourceObj.name),
+            source_type: sourceType,
+            enabled: Boolean(sourceObj.enabled),
+          });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      return NextResponse.json({ success: true });
-    }
+        return NextResponse.json({ success: true });
+      }
 
-    if (action === 'remove-source' && source?.id) {
-      const { error } = await supabaseAdmin
-        .from('user_custom_log_sources')
-        .delete()
-        .eq('id', source.id)
-        .eq('user_id', userId);
+      if (action === 'update-source') {
+        if (typeof sourceObj.id !== 'string' || sourceObj.id.length === 0) {
+          return NextResponse.json(
+            { error: 'source id must be a non-empty string' },
+            { status: 400 }
+          );
+        }
 
-      if (error) throw error;
+        const sourceType = String(sourceObj.type) as SourceType;
 
-      return NextResponse.json({ success: true });
+        const { error } = await supabaseAdmin
+          .from('user_custom_log_sources')
+          .update({
+            name: String(sourceObj.name),
+            source_type: sourceType,
+            enabled: Boolean(sourceObj.enabled),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', sourceObj.id)
+          .eq('user_id', userId);
+
+        if (error) throw error;
+
+        return NextResponse.json({ success: true });
+      }
+
+      if (action === 'remove-source') {
+        if (typeof sourceObj.id !== 'string' || sourceObj.id.length === 0) {
+          return NextResponse.json(
+            { error: 'source id must be a non-empty string' },
+            { status: 400 }
+          );
+        }
+
+        const { error } = await supabaseAdmin
+          .from('user_custom_log_sources')
+          .delete()
+          .eq('id', sourceObj.id)
+          .eq('user_id', userId);
+
+        if (error) throw error;
+
+        return NextResponse.json({ success: true });
+      }
     }
 
     return NextResponse.json(

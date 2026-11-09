@@ -15,7 +15,11 @@ export interface AuditLogWithSource {
 }
 
 /**
- * Map audit action categories to log source types
+ * Maps audit action to log source type based on action category metadata.
+ * Supports: security, application, system. Falls back to application.
+ * @param action - The audit action name
+ * @param metadata - The audit metadata record
+ * @returns The classified source type
  */
 function getSourceTypeForAction(
   action: string,
@@ -52,27 +56,40 @@ function getSourceTypeForAction(
 /**
  * Filter audit logs based on enabled log sources
  */
-export async function filterAuditLogsBySourcePreferences(
-  logs: AuditLogWithSource[],
+export async function filterAuditLogsBySourcePreferences<T extends { action: string; metadata?: any }>(
+  logs: T[],
   userId: string
-): Promise<AuditLogWithSource[]> {
+): Promise<T[]> {
   try {
     // Fetch user's log source preferences
-    const [{ data: preferences }, { data: customSources }] = await Promise.all([
-      supabase
-        .from('user_log_source_preferences')
-        .select('log_source_type, enabled')
-        .eq('user_id', userId),
-      supabase
-        .from('user_custom_log_sources')
-        .select('source_type, enabled')
-        .eq('user_id', userId),
-    ]);
+    const [{ data: preferences, error: prefError }, { data: customSources, error: customError }] =
+      await Promise.all([
+        supabase
+          .from('user_log_source_preferences')
+          .select('log_source_type, enabled')
+          .eq('user_id', userId),
+        supabase
+          .from('user_custom_log_sources')
+          .select('source_type, enabled')
+          .eq('user_id', userId),
+      ]);
+
+    // Handle query errors
+    if (prefError || customError) {
+      console.error('Error fetching preferences:', prefError || customError);
+      // On error, return all logs (don't break the UI)
+      return logs;
+    }
+
+    // If no preference rows exist, user hasn't configured anything - return all logs
+    if (!preferences || preferences.length === 0) {
+      return logs;
+    }
 
     const enabledSources = new Set<string>();
 
     // Add enabled predefined sources
-    (preferences || []).forEach((p) => {
+    preferences.forEach((p) => {
       if (p.enabled) enabledSources.add(p.log_source_type);
     });
 
@@ -81,7 +98,7 @@ export async function filterAuditLogsBySourcePreferences(
       if (s.enabled) enabledSources.add(s.source_type);
     });
 
-    // If no sources are enabled, return empty (admin hasn't configured any)
+    // If no sources are enabled (all explicitly disabled), return empty
     if (enabledSources.size === 0) {
       return [];
     }
@@ -99,10 +116,12 @@ export async function filterAuditLogsBySourcePreferences(
 }
 
 /**
- * Get aggregated counts of audit logs by source type
+ * Aggregates audit logs by source type and returns count per type.
+ * @param logs - The audit logs to count
+ * @returns Record mapping source type to log count
  */
-export async function getAuditLogCountsBySource(
-  logs: AuditLogWithSource[]
+export async function getAuditLogCountsBySource<T extends { action: string; metadata?: any }>(
+  logs: T[]
 ): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
 

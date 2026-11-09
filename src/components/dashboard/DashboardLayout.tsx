@@ -114,6 +114,7 @@ export default function DashboardLayout() {
   });
   const [logSourcePreferences, setLogSourcePreferences] = useState<LogSourcePreference[]>([]);
   const [customLogSources, setCustomLogSources] = useState<CustomLogSource[]>([]);
+  const [logSourceError, setLogSourceError] = useState<string | null>(null);
 
   const [newLogSource, setNewLogSource] = useState({
     name: "",
@@ -128,13 +129,16 @@ export default function DashboardLayout() {
 
   const loadLogSources = useCallback(async () => {
     try {
+      setLogSourceError(null);
       const response = await fetch('/api/admin/log-sources');
       if (!response.ok) throw new Error('Failed to load log sources');
       const data = await response.json();
       setLogSourcePreferences(data.preferences || []);
       setCustomLogSources(data.customSources || []);
     } catch (error) {
-      console.error('Error loading log sources:', error);
+      const message = error instanceof Error ? error.message : 'Error loading log sources';
+      console.error(message, error);
+      setLogSourceError(message);
     }
   }, []);
 
@@ -193,65 +197,95 @@ export default function DashboardLayout() {
     const isPredefined = logSourcePreferences.some((p) => p.type === sourceId);
 
     if (isCustom) {
+      const source = customLogSources.find((s) => s.id === sourceId);
+      if (source) {
+        void (async () => {
+          try {
+            const response = await fetch('/api/admin/log-sources', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'update-source',
+                source: { ...source, enabled },
+              }),
+            });
+            if (!response.ok) {
+              throw new Error('Failed to update log source');
+            }
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'Error updating log source';
+            setLogSourceError(message);
+            // Reload from server to restore correct state
+            void loadLogSources();
+          }
+        })();
+      }
+      // Optimistic update
       setCustomLogSources((prev) =>
         prev.map((source) =>
           source.id === sourceId ? { ...source, enabled } : source
         )
       );
+    } else if (isPredefined) {
       void (async () => {
-        const source = customLogSources.find((s) => s.id === sourceId);
-        if (source) {
-          await fetch('/api/admin/log-sources', {
+        try {
+          const response = await fetch('/api/admin/log-sources', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              action: 'update-source',
-              source: { ...source, enabled },
+              action: 'update-preference',
+              preferences: logSourcePreferences.map((p) =>
+                p.type === sourceId ? { ...p, enabled } : p
+              ),
             }),
           });
+          if (!response.ok) {
+            throw new Error('Failed to update log preference');
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Error updating log preference';
+          setLogSourceError(message);
+          // Reload from server to restore correct state
+          void loadLogSources();
         }
       })();
-    } else if (isPredefined) {
+      // Optimistic update
       setLogSourcePreferences((prev) =>
         prev.map((pref) =>
           pref.type === sourceId ? { ...pref, enabled } : pref
         )
       );
-      void (async () => {
-        await fetch('/api/admin/log-sources', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'update-preference',
-            preferences: logSourcePreferences.map((p) =>
-              p.type === sourceId ? { ...p, enabled } : p
-            ),
-          }),
-        });
-      })();
     }
   };
 
   const handleAddLogSource = async () => {
     if (newLogSource.name.trim()) {
-      const source: CustomLogSource = {
-        id: Date.now().toString(),
-        name: newLogSource.name.trim(),
-        type: newLogSource.type,
-        enabled: true,
-      };
+      try {
+        setLogSourceError(null);
+        const response = await fetch('/api/admin/log-sources', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'add-source',
+            source: {
+              name: newLogSource.name.trim(),
+              type: newLogSource.type,
+              enabled: true,
+            },
+          }),
+        });
 
-      await fetch('/api/admin/log-sources', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'add-source',
-          source,
-        }),
-      });
+        if (!response.ok) {
+          throw new Error('Failed to add log source');
+        }
 
-      setCustomLogSources((prev) => [...prev, source]);
-      setNewLogSource({ name: "", type: "application" });
+        setNewLogSource({ name: "", type: "application" });
+        // Reload from server to get the persisted source with ID
+        void loadLogSources();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Error adding log source';
+        setLogSourceError(message);
+      }
     }
   };
 
@@ -259,18 +293,30 @@ export default function DashboardLayout() {
     const isCustom = customLogSources.some((s) => s.id === sourceId);
 
     if (isCustom) {
+      // Optimistic update
       setCustomLogSources((prev) =>
         prev.filter((source) => source.id !== sourceId)
       );
 
-      await fetch('/api/admin/log-sources', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'remove-source',
-          source: { id: sourceId },
-        }),
-      });
+      try {
+        const response = await fetch('/api/admin/log-sources', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'remove-source',
+            source: { id: sourceId },
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to remove log source');
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Error removing log source';
+        setLogSourceError(message);
+        // Reload from server to restore correct state
+        void loadLogSources();
+      }
     }
   };
 
@@ -647,6 +693,12 @@ export default function DashboardLayout() {
                     Configure which log sources to monitor for security events
                   </p>
 
+                  {logSourceError && (
+                    <div className="p-3 bg-destructive/10 text-destructive text-sm rounded border border-destructive/30">
+                      {logSourceError}
+                    </div>
+                  )}
+
                   {/* Existing Log Sources */}
                   <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3">
                     {logSourcePreferences.map((pref) => (
@@ -710,12 +762,13 @@ export default function DashboardLayout() {
                       <Input
                         placeholder="Log source name..."
                         value={newLogSource.name}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          setLogSourceError(null);
                           setNewLogSource((prev) => ({
                             ...prev,
                             name: e.target.value,
-                          }))
-                        }
+                          }));
+                        }}
                         className="flex-1"
                       />
                       <Select

@@ -113,6 +113,7 @@ export default function AdminAuditTrail() {
   const [copiedLogId, setCopiedLogId] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
   const [sourceTypeCounts, setSourceTypeCounts] = useState<Record<string, number>>({});
+  const [totalFetchedRows, setTotalFetchedRows] = useState(0);
 
   const loadAuditLogs = useCallback(async () => {
     setIsLoading(true);
@@ -120,6 +121,8 @@ export default function AdminAuditTrail() {
     setAuditLogs([]);
     setHasMoreLogs(false);
     setPage(0);
+    setTotalFetchedRows(0);
+    setSourceTypeCounts({});
     const startDate = getAuditStartDate(selectedTimeRange);
 
     try {
@@ -133,22 +136,21 @@ export default function AdminAuditTrail() {
       
       // Filter by user's enabled log sources
       if (user?.id) {
-        const filtered = await filterAuditLogsBySourcePreferences(
-          mappedLogs as any,
+        const filtered = (await filterAuditLogsBySourcePreferences(
+          mappedLogs,
           user.id
-        );
+        )) as AuditLog[];
 
         // Get counts by source type
-        const counts = await getAuditLogCountsBySource(
-          filtered as any
-        );
+        const counts = await getAuditLogCountsBySource(filtered);
         setSourceTypeCounts(counts);
 
-        setAuditLogs(filtered as any);
+        setAuditLogs(filtered);
       } else {
         setAuditLogs(mappedLogs);
       }
       
+      setTotalFetchedRows(entries.length);
       setHasMoreLogs(entries.length === 1000);
       setLastUpdatedAt(new Date());
       setPage(0);
@@ -167,10 +169,23 @@ export default function AdminAuditTrail() {
       const entries = await auditLogger.getAuditLogs({
         startDate: getAuditStartDate(selectedTimeRange),
         limit: 1000,
-        offset: auditLogs.length,
+        offset: totalFetchedRows,
         throwOnError: true,
       });
-      setAuditLogs((current) => [...current, ...entries.map(mapAuditLog)]);
+
+      const mappedLogs = entries.map(mapAuditLog);
+
+      if (user?.id) {
+        const filtered = (await filterAuditLogsBySourcePreferences(
+          mappedLogs,
+          user.id
+        )) as AuditLog[];
+        setAuditLogs((current) => [...current, ...filtered]);
+      } else {
+        setAuditLogs((current) => [...current, ...mappedLogs]);
+      }
+
+      setTotalFetchedRows((prev) => prev + entries.length);
       setHasMoreLogs(entries.length === 1000);
     } catch (error) {
       console.error("Failed to load older audit events:", error);
