@@ -45,6 +45,7 @@ import {
   AgentInventoryStats,
   DashboardDataService,
 } from "@/lib/dashboardDataService";
+import { supabase } from "@/lib/supabase";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { useSecurityNotifications } from "@/hooks/useSecurityNotifications";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
@@ -127,10 +128,28 @@ export default function DashboardLayout() {
     useNotifications();
   const { triggerTestNotification } = useSecurityNotifications();
 
+  const fetchLogSources = useCallback(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = new Headers(init?.headers);
+    const isDemoSession = window.localStorage.getItem("demo_user") !== null;
+    if (!isDemoSession) {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      if (session?.access_token) {
+        headers.set("Authorization", `Bearer ${session.access_token}`);
+      }
+    }
+
+    return fetch(input, {
+      ...init,
+      headers,
+      credentials: "same-origin",
+    });
+  }, []);
+
   const loadLogSources = useCallback(async () => {
     try {
       setLogSourceError(null);
-      const response = await fetch('/api/admin/log-sources');
+      const response = await fetchLogSources('/api/admin/log-sources');
       if (!response.ok) throw new Error('Failed to load log sources');
       const data = await response.json();
       setLogSourcePreferences(data.preferences || []);
@@ -140,7 +159,7 @@ export default function DashboardLayout() {
       console.error(message, error);
       setLogSourceError(message);
     }
-  }, []);
+  }, [fetchLogSources]);
 
   useEffect(() => {
     void loadLogSources();
@@ -201,7 +220,7 @@ export default function DashboardLayout() {
       if (source) {
         void (async () => {
           try {
-            const response = await fetch('/api/admin/log-sources', {
+            const response = await fetchLogSources('/api/admin/log-sources', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -229,7 +248,7 @@ export default function DashboardLayout() {
     } else if (isPredefined) {
       void (async () => {
         try {
-          const response = await fetch('/api/admin/log-sources', {
+          const response = await fetchLogSources('/api/admin/log-sources', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -262,7 +281,7 @@ export default function DashboardLayout() {
     if (newLogSource.name.trim()) {
       try {
         setLogSourceError(null);
-        const response = await fetch('/api/admin/log-sources', {
+        const response = await fetchLogSources('/api/admin/log-sources', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -299,7 +318,7 @@ export default function DashboardLayout() {
       );
 
       try {
-        const response = await fetch('/api/admin/log-sources', {
+        const response = await fetchLogSources('/api/admin/log-sources', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -708,6 +727,7 @@ export default function DashboardLayout() {
                       >
                         <div className="flex items-center gap-3">
                           <Switch
+                            aria-label={`${pref.type} Logs`}
                             checked={pref.enabled}
                             onCheckedChange={(checked) =>
                               handleLogSourceToggle(pref.type, checked)
@@ -729,6 +749,7 @@ export default function DashboardLayout() {
                       >
                         <div className="flex items-center gap-3">
                           <Switch
+                            aria-label={source.name}
                             checked={source.enabled}
                             onCheckedChange={(checked) =>
                               handleLogSourceToggle(source.id, checked)

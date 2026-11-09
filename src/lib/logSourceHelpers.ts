@@ -30,6 +30,8 @@ function getSourceTypeForAction(
   const categoryToSourceMap: Record<string, string> = {
     authentication: 'security',
     user_administration: 'security',
+    permission_management: 'security',
+    session_management: 'security',
     threat_management: 'security',
     vulnerability_scanning: 'application',
     system_health: 'system',

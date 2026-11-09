@@ -180,9 +180,12 @@ export default function AdminAuditTrail() {
           mappedLogs,
           user.id
         )) as AuditLog[];
-        setAuditLogs((current) => [...current, ...filtered]);
+        const combinedLogs = [...auditLogs, ...filtered];
+        setAuditLogs(combinedLogs);
+        setSourceTypeCounts(await getAuditLogCountsBySource(combinedLogs));
       } else {
         setAuditLogs((current) => [...current, ...mappedLogs]);
+        setSourceTypeCounts({});
       }
 
       setTotalFetchedRows((prev) => prev + entries.length);
