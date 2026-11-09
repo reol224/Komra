@@ -245,6 +245,12 @@ export class DashboardDataService {
     priority: 'critical' | 'high' | 'medium' | 'low';
     notes: string;
   }): Promise<{ auditLogged: boolean }> {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+      throw new Error(`Unable to verify the current session: ${sessionError.message}`);
+    }
+    const { assignedBy, assignedByEmail, ...assignment } = input;
+
     const { data: cve, error: cveError } = await supabase
       .from('cves')
       .select('id')
@@ -264,7 +270,7 @@ export class DashboardDataService {
         ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(input),
+      body: JSON.stringify(assignment),
     });
     const result = await response.json() as { error?: string };
     if (!response.ok) {
@@ -272,8 +278,8 @@ export class DashboardDataService {
     }
 
     const { error: auditError } = await supabase.from('audit_logs').insert({
-      user_id: input.assignedBy,
-      user_email: input.assignedByEmail,
+      user_id: assignedBy,
+      user_email: assignedByEmail,
       action: 'THREAT_ASSIGNED',
       resource_type: 'vulnerability',
       resource_id: input.vulnerabilityId,

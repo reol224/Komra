@@ -583,21 +583,40 @@ describe('DashboardDataService', () => {
     describe('assignThreat', () => {
       it('uses the server-authorized assignment endpoint without sending a caller-supplied actor', async () => {
         mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({ success: true }) });
+        const cveQuery = {
+          maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'cve-row-1' }, error: null }),
+        };
+        const cveSelect = { eq: vi.fn().mockReturnValue(cveQuery) };
+        const insert = vi.fn().mockResolvedValue({ error: null });
+        mocks.from.mockImplementation((table: string) => {
+          if (table === 'cves') return { select: vi.fn().mockReturnValue(cveSelect) };
+          if (table === 'audit_logs') return { insert };
+          throw new Error(`Unexpected table: ${table}`);
+        });
         const input = {
           vulnerabilityId: 'finding-missing',
           cveId: 'CVE-2025-0001',
           endpointId: 'endpoint-1',
           assignedTo: 'analyst-1',
+          assignedBy: 'admin-1',
+          assignedByEmail: 'admin@example.com',
           priority: 'high',
           notes: '',
         } as const;
 
-        await expect(service.assignThreat(input)).resolves.toBeUndefined();
+        await expect(service.assignThreat(input)).resolves.toEqual({ auditLogged: true });
 
         expect(mockFetch).toHaveBeenCalledWith('/api/dashboard/assign-threat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(input),
+          body: JSON.stringify({
+            vulnerabilityId: input.vulnerabilityId,
+            cveId: input.cveId,
+            endpointId: input.endpointId,
+            assignedTo: input.assignedTo,
+            priority: input.priority,
+            notes: input.notes,
+          }),
         });
       });
     });

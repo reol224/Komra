@@ -210,36 +210,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const demoUser = DEMO_USERS[email as keyof typeof DEMO_USERS];
 
     if (demoUser) {
-      // For demo users, verify password using the database function
-      const { data: isValid, error } = await supabase.rpc(
-        "verify_user_password",
-        {
-          input_user_id: demoUser.id,
-          input_password: password,
-        },
-      );
-
-      if (error) {
-        console.error("Password verification error:", error);
+      const response = await fetch("/api/auth/demo-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const result = await response.json() as {
+        user?: {
+          id: string;
+          email: string;
+          full_name: string | null;
+          role: UserRole;
+          mfa_enabled: boolean;
+        };
+        error?: string;
+      };
+      if (!response.ok || !result.user) {
         logAuthenticationEvent("USER_LOGIN_FAILED", email, "failure");
-        throw new Error("Invalid login credentials");
-      }
-
-      if (!isValid) {
-        logAuthenticationEvent("USER_LOGIN_FAILED", email, "failure");
-        throw new Error("Invalid login credentials");
-      }
-
-      // Fetch actual user data from database (including current MFA status)
-      const { data: dbUser, error: dbError } = await supabase
-        .from("users")
-        .select("id, email, full_name, role, mfa_enabled, last_activity")
-        .eq("id", demoUser.id)
-        .single();
-
-      if (dbError || !dbUser) {
-        console.error("Error fetching user data:", dbError);
-        throw new Error("Failed to load user data");
+        throw new Error(result.error || "Invalid login credentials");
       }
       const dbUser = result.user;
 
@@ -343,7 +331,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const userData = {
       id: dbUser.id,
       email: dbUser.email,
-      full_name: dbUser.full_name,
+      full_name: dbUser.full_name ?? undefined,
       role: dbUser.role as UserRole,
       mfa_enabled: dbUser.mfa_enabled,
       session_timeout: getSessionTimeoutByRole(dbUser.role as UserRole),

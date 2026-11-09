@@ -76,11 +76,12 @@ export default function AdminSystemHealth() {
   const [serviceFreshnessFilter, setServiceFreshnessFilter] = useState('all');
   const [serviceScrollTop, setServiceScrollTop] = useState(0);
   const serviceListRef = useRef<HTMLDivElement>(null);
-  const now = Date.now();
+  const [now, setNow] = useState(() => Date.now());
 
   const loadSystemHealth = useCallback(async () => {
     setIsLoading(true);
     setLoadError(null);
+    setNow(Date.now());
     try {
       setEndpoints(await dashboardService.getAgentSystemHealth());
       setLastUpdatedAt(new Date());
@@ -94,6 +95,13 @@ export default function AdminSystemHealth() {
 
   useEffect(() => {
     void loadSystemHealth();
+  }, [loadSystemHealth]);
+
+  useEffect(() => {
+    const refreshInterval = window.setInterval(() => {
+      void loadSystemHealth();
+    }, 60_000);
+    return () => window.clearInterval(refreshInterval);
   }, [loadSystemHealth]);
 
   const reportingEndpoints = useMemo(

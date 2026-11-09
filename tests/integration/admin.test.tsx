@@ -1151,8 +1151,8 @@ describe('Admin Components Integration Tests', () => {
         testLogger.pass('Initial session load');
       });
 
-      it('does not automatically refresh sessions after mount', async () => {
-        testLogger.test('No automatic session polling');
+      it('automatically refreshes sessions after mount', async () => {
+        testLogger.test('Automatic session refresh');
         await renderWithAct(<SessionManagement />);
 
         await waitFor(() => {
@@ -1160,11 +1160,11 @@ describe('Admin Components Integration Tests', () => {
         });
 
         await act(async () => {
-          vi.advanceTimersByTime(90000);
+          vi.advanceTimersByTime(60000);
         });
 
-        expect(mockGetAllActiveSessions).toHaveBeenCalledTimes(1);
-        testLogger.pass('No automatic session polling');
+        expect(mockGetAllActiveSessions).toHaveBeenCalledTimes(2);
+        testLogger.pass('Automatic session refresh');
       });
 
       it('should call refresh when Refresh button is clicked', async () => {

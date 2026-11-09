@@ -15,6 +15,7 @@ import { AlertTriangle, Shield, TrendingUp, Clock, Eye, ExternalLink, Users, Cal
 import { DashboardDataService, DashboardVulnerability, ThreatAssignee } from '@/lib/dashboardDataService';
 import { auditLogger } from '@/lib/auditLogger';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 
 interface NvdCveDetails {
   id: string;
@@ -119,22 +120,25 @@ export default function AdminThreatSummary() {
 
     const controller = new AbortController();
     setIsLoadingNvd(true);
-    fetch(`/api/cves/${encodeURIComponent(cveId)}`, { signal: controller.signal })
-      .then(async (response) => {
+    void (async () => {
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) throw new Error(`Unable to verify sign-in session: ${sessionError.message}`);
+        const response = await fetch(`/api/cves/${encodeURIComponent(cveId)}`, {
+          signal: controller.signal,
+          headers: session ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+        });
         const result = await response.json();
-        if (!response.ok) {
-          throw new Error(result.error || 'Unable to load NVD details.');
-        }
+        if (!response.ok) throw new Error(result.error || 'Unable to load NVD details.');
         setNvdDetails(result as NvdCveDetails);
-      })
-      .catch((error: unknown) => {
+      } catch (error: unknown) {
         if (controller.signal.aborted) return;
         console.error('Unable to load NVD CVE details:', error);
         setNvdError(error instanceof Error ? error.message : 'Unable to load NVD details.');
-      })
-      .finally(() => {
+      } finally {
         if (!controller.signal.aborted) setIsLoadingNvd(false);
-      });
+      }
+    })();
 
     return () => controller.abort();
   }, [selectedThreat?.cve_id]);

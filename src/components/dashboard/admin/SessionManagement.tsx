@@ -63,6 +63,10 @@ export default function SessionManagement() {
 
   useEffect(() => {
     void loadSessions();
+    const refreshInterval = window.setInterval(() => {
+      void loadSessions();
+    }, 60_000);
+    return () => window.clearInterval(refreshInterval);
   }, [loadSessions]);
 
   const handleTerminateSession = async (session: ActiveSession) => {
