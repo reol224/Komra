@@ -40,6 +40,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { auditLogger, AuditLogEntry } from "@/lib/auditLogger";
 import { useAuth } from "@/contexts/AuthContext";
+import { filterAuditLogsBySourcePreferences, getAuditLogCountsBySource } from "@/lib/logSourceHelpers";
 
 interface AuditLog {
   id: string;
@@ -111,6 +112,7 @@ export default function AdminAuditTrail() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [copiedLogId, setCopiedLogId] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
+  const [sourceTypeCounts, setSourceTypeCounts] = useState<Record<string, number>>({});
 
   const loadAuditLogs = useCallback(async () => {
     setIsLoading(true);
@@ -126,7 +128,27 @@ export default function AdminAuditTrail() {
         limit: 1000,
         throwOnError: true,
       });
-      setAuditLogs(entries.map(mapAuditLog));
+      
+      const mappedLogs = entries.map(mapAuditLog);
+      
+      // Filter by user's enabled log sources
+      if (user?.id) {
+        const filtered = await filterAuditLogsBySourcePreferences(
+          mappedLogs as any,
+          user.id
+        );
+
+        // Get counts by source type
+        const counts = await getAuditLogCountsBySource(
+          filtered as any
+        );
+        setSourceTypeCounts(counts);
+
+        setAuditLogs(filtered as any);
+      } else {
+        setAuditLogs(mappedLogs);
+      }
+      
       setHasMoreLogs(entries.length === 1000);
       setLastUpdatedAt(new Date());
       setPage(0);
@@ -136,7 +158,7 @@ export default function AdminAuditTrail() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedTimeRange]);
+  }, [selectedTimeRange, user?.id]);
 
   const loadOlderLogs = async () => {
     setIsLoadingMore(true);
@@ -506,11 +528,38 @@ export default function AdminAuditTrail() {
 
         {/* Audit Logs Table */}
         <Card>
-          <CardHeader>
-            <CardTitle className="h-[22px]">
-              Audit Events ({isLoading ? "…" : filteredLogs.length})
-            </CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Audit Events ({isLoading ? "…" : filteredLogs.length})
+              </CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                {lastUpdatedAt && `Last updated: ${lastUpdatedAt.toLocaleTimeString()}`}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void loadAuditLogs()}
+              disabled={isLoading}
+            >
+              <RefreshCw className="h-4 w-4 mr-1" />
+              Refresh
+            </Button>
           </CardHeader>
+
+          {/* Log Source Counts */}
+          {Object.keys(sourceTypeCounts).length > 0 && (
+            <div className="px-6 pb-4 flex gap-2 flex-wrap">
+              {Object.entries(sourceTypeCounts).map(([sourceType, count]) => (
+                <Badge key={sourceType} variant="secondary" className="capitalize">
+                  {sourceType}: {count}
+                </Badge>
+              ))}
+            </div>
+          )}
+
           <CardContent>
             <Table>
               <TableHeader>

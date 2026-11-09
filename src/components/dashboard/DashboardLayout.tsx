@@ -75,6 +75,18 @@ const DEFAULT_ROLE_TAB: Record<UserRole, string> = {
   viewer: "status",
 };
 
+interface LogSourcePreference {
+  type: string;
+  enabled: boolean;
+}
+
+interface CustomLogSource {
+  id: string;
+  name: string;
+  type: string;
+  enabled: boolean;
+}
+
 export default function DashboardLayout() {
   const { signOut, user } = useAuth();
   const [selectedTab, setSelectedTab] = useState(
@@ -100,6 +112,8 @@ export default function DashboardLayout() {
       { id: "5", name: "Security Logs", enabled: true, type: "security" },
     ],
   });
+  const [logSourcePreferences, setLogSourcePreferences] = useState<LogSourcePreference[]>([]);
+  const [customLogSources, setCustomLogSources] = useState<CustomLogSource[]>([]);
 
   const [newLogSource, setNewLogSource] = useState({
     name: "",
@@ -111,6 +125,22 @@ export default function DashboardLayout() {
   const { permission, isSubscribed, requestPermission, subscribe } =
     useNotifications();
   const { triggerTestNotification } = useSecurityNotifications();
+
+  const loadLogSources = useCallback(async () => {
+    try {
+      const response = await fetch('/api/admin/log-sources');
+      if (!response.ok) throw new Error('Failed to load log sources');
+      const data = await response.json();
+      setLogSourcePreferences(data.preferences || []);
+      setCustomLogSources(data.customSources || []);
+    } catch (error) {
+      console.error('Error loading log sources:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadLogSources();
+  }, [loadLogSources]);
 
   useEffect(() => {
     if (!user?.role) return;
@@ -159,42 +189,89 @@ export default function DashboardLayout() {
   };
 
   const handleLogSourceToggle = (sourceId: string, enabled: boolean) => {
-    setSettings((prev) => ({
-      ...prev,
-      logSources: prev.logSources.map((source) =>
-        source.id === sourceId ? { ...source, enabled } : source,
-      ),
-    }));
-    console.log(
-      `📋 Log source ${sourceId} ${enabled ? "enabled" : "disabled"}`,
-    );
+    const isCustom = customLogSources.some((s) => s.id === sourceId);
+    const isPredefined = logSourcePreferences.some((p) => p.type === sourceId);
+
+    if (isCustom) {
+      setCustomLogSources((prev) =>
+        prev.map((source) =>
+          source.id === sourceId ? { ...source, enabled } : source
+        )
+      );
+      void (async () => {
+        const source = customLogSources.find((s) => s.id === sourceId);
+        if (source) {
+          await fetch('/api/admin/log-sources', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'update-source',
+              source: { ...source, enabled },
+            }),
+          });
+        }
+      })();
+    } else if (isPredefined) {
+      setLogSourcePreferences((prev) =>
+        prev.map((pref) =>
+          pref.type === sourceId ? { ...pref, enabled } : pref
+        )
+      );
+      void (async () => {
+        await fetch('/api/admin/log-sources', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'update-preference',
+            preferences: logSourcePreferences.map((p) =>
+              p.type === sourceId ? { ...p, enabled } : p
+            ),
+          }),
+        });
+      })();
+    }
   };
 
-  const handleAddLogSource = () => {
+  const handleAddLogSource = async () => {
     if (newLogSource.name.trim()) {
-      const newSource = {
+      const source: CustomLogSource = {
         id: Date.now().toString(),
         name: newLogSource.name.trim(),
         type: newLogSource.type,
         enabled: true,
       };
 
-      setSettings((prev) => ({
-        ...prev,
-        logSources: [...prev.logSources, newSource],
-      }));
+      await fetch('/api/admin/log-sources', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add-source',
+          source,
+        }),
+      });
 
+      setCustomLogSources((prev) => [...prev, source]);
       setNewLogSource({ name: "", type: "application" });
-      console.log(`📋 Added new log source: ${newSource.name}`);
     }
   };
 
-  const handleRemoveLogSource = (sourceId: string) => {
-    setSettings((prev) => ({
-      ...prev,
-      logSources: prev.logSources.filter((source) => source.id !== sourceId),
-    }));
-    console.log(`📋 Removed log source: ${sourceId}`);
+  const handleRemoveLogSource = async (sourceId: string) => {
+    const isCustom = customLogSources.some((s) => s.id === sourceId);
+
+    if (isCustom) {
+      setCustomLogSources((prev) =>
+        prev.filter((source) => source.id !== sourceId)
+      );
+
+      await fetch('/api/admin/log-sources', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'remove-source',
+          source: { id: sourceId },
+        }),
+      });
+    }
   };
 
   const renderInventoryOverview = () => (
@@ -572,7 +649,28 @@ export default function DashboardLayout() {
 
                   {/* Existing Log Sources */}
                   <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3">
-                    {settings.logSources.map((source) => (
+                    {logSourcePreferences.map((pref) => (
+                      <div
+                        key={`pref-${pref.type}`}
+                        className="flex items-center justify-between p-2 border rounded"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Switch
+                            checked={pref.enabled}
+                            onCheckedChange={(checked) =>
+                              handleLogSourceToggle(pref.type, checked)
+                            }
+                          />
+                          <div>
+                            <p className="font-medium text-sm capitalize">{pref.type} Logs</p>
+                            <p className="text-xs text-muted-foreground">
+                              {pref.type} logs
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {customLogSources.map((source) => (
                       <div
                         key={source.id}
                         className="flex items-center justify-between p-2 border rounded"
@@ -594,7 +692,7 @@ export default function DashboardLayout() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleRemoveLogSource(source.id)}
+                          onClick={() => void handleRemoveLogSource(source.id)}
                           className="text-red-500 hover:text-red-700 hover:bg-red-50"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -643,7 +741,7 @@ export default function DashboardLayout() {
                         </SelectContent>
                       </Select>
                       <Button
-                        onClick={handleAddLogSource}
+                        onClick={() => void handleAddLogSource()}
                         disabled={!newLogSource.name.trim()}
                         size="sm"
                       >
@@ -654,8 +752,11 @@ export default function DashboardLayout() {
 
                   {/* Log Sources Summary */}
                   <div className="text-xs text-muted-foreground p-2 bg-muted/30 rounded">
-                    {settings.logSources.filter((s) => s.enabled).length} of{" "}
-                    {settings.logSources.length} log sources active
+                    {[
+                      ...logSourcePreferences.filter((p) => p.enabled),
+                      ...customLogSources.filter((s) => s.enabled),
+                    ].length} of{" "}
+                    {logSourcePreferences.length + customLogSources.length} log sources active
                   </div>
                 </div>
 
@@ -675,7 +776,7 @@ export default function DashboardLayout() {
                     onClick={() => setIsSettingsOpen(false)}
                     className="flex-1"
                   >
-                    Save Settings
+                    Close
                   </Button>
                 </div>
               </div>
