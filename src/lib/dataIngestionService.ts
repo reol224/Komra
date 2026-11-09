@@ -42,50 +42,35 @@ export class DataIngestionService {
   }
 
   private async storeSystemData(machineData: MachineData): Promise<void> {
-    const { data: existingEndpoint, error: existingEndpointError } = await supabase
-      .from('endpoints')
-      .select('metadata')
-      .eq('hostname', machineData.endpoint.hostname)
-      .maybeSingle();
-
-    if (existingEndpointError) {
-      throw new Error(`Failed to retrieve existing endpoint metadata: ${existingEndpointError.message}`);
-    }
-
-    const existingMetadata = existingEndpoint?.metadata;
-    // Insert or update endpoint
-    const endpointData = {
-      hostname: machineData.endpoint.hostname,
-      ip_address: machineData.endpoint.ip_address,
-      os_type: machineData.endpoint.os_type,
-      os_version: machineData.endpoint.os_version,
-      environment: machineData.endpoint.environment,
-      last_scan: machineData.last_scan,
-      status: 'healthy',
-      metadata: {
-        ...(existingMetadata?.collection_source
-          ? { collection_source: existingMetadata.collection_source }
-          : {}),
-        architecture: machineData.endpoint.architecture,
-        cpu_info: machineData.endpoint.cpu_info,
-        memory_total: machineData.endpoint.memory_total,
-        resource_metrics: machineData.endpoint.resource_metrics,
-        disk_usage: machineData.endpoint.disk_usage,
-        network_interfaces: machineData.endpoint.network_interfaces,
-        running_services: machineData.endpoint.running_services
-      }
-    };
-
-    const { data: endpoint, error: endpointError } = await supabase
-      .from('endpoints')
-      .upsert(endpointData, {
-        onConflict: 'hostname'
-      })
-      .select()
-      .single();
+    const { data: endpointRows, error: endpointError } = await supabase.rpc(
+      'upsert_local_endpoint',
+      {
+        p_hostname: machineData.endpoint.hostname,
+        p_ip_address: machineData.endpoint.ip_address,
+        p_os_type: machineData.endpoint.os_type,
+        p_os_version: machineData.endpoint.os_version,
+        p_environment: machineData.endpoint.environment,
+        p_last_scan: machineData.last_scan,
+        p_status: 'healthy',
+        p_metadata: {
+          architecture: machineData.endpoint.architecture,
+          cpu_info: machineData.endpoint.cpu_info,
+          memory_total: machineData.endpoint.memory_total,
+          resource_metrics: machineData.endpoint.resource_metrics,
+          disk_usage: machineData.endpoint.disk_usage,
+          network_interfaces: machineData.endpoint.network_interfaces,
+          running_services: machineData.endpoint.running_services,
+        },
+      },
+    );
 
     if (endpointError) {
       throw new Error(`Failed to store endpoint data: ${endpointError.message}`);
+    }
+
+    const endpoint = Array.isArray(endpointRows) ? endpointRows[0] : endpointRows;
+    if (!endpoint) {
+      throw new Error('Failed to store endpoint data: database returned no endpoint');
     }
 
     console.log(`📝 Stored endpoint: ${endpoint.hostname}`);

@@ -4,6 +4,8 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { SessionManagementService } from "@/lib/sessionManagementService";
 import { auditLogger } from "@/lib/auditLogger";
+import { ToastAction } from "@/components/ui/toast";
+import { toast } from "@/components/ui/use-toast";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,7 +29,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signOut: () => Promise<void>;
+  signOut: () => Promise<boolean>;
   hasPermission: (requiredRole: UserRole) => boolean;
   canAccess: (resource: string, action: string) => boolean;
   refreshUser: () => Promise<void>;
@@ -352,6 +354,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     console.log("🔴 SignOut called, user session_id:", user?.session_id);
 
+    try {
+      const response = await fetch("/api/auth/demo-session", { method: "DELETE" });
+      if (!response.ok) {
+        const result = await response.json() as { error?: string };
+        throw new Error(result.error || "Unable to revoke demo application session.");
+      }
+    } catch (error) {
+      console.error("Unable to revoke demo application session:", error);
+      toast({
+        title: "Sign out incomplete",
+        description: "Your session may still be active. Retry sign out to revoke it.",
+        variant: "destructive",
+        action: (
+          <ToastAction altText="Retry sign out" onClick={() => void signOut()}>
+            Retry
+          </ToastAction>
+        ),
+      });
+      return false;
+    }
+
     // End the session if it exists (marks is_active = false)
     if (user?.session_id) {
       try {
@@ -365,16 +388,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    try {
-      const response = await fetch("/api/auth/demo-session", { method: "DELETE" });
-      if (!response.ok) {
-        const result = await response.json() as { error?: string };
-        throw new Error(result.error || "Unable to revoke demo application session.");
-      }
-    } catch (error) {
-      console.error("Unable to revoke demo application session:", error);
-    }
-
     // Clear demo user
     localStorage.removeItem("demo_user");
     setUser(null);
@@ -384,11 +397,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) {
       console.error("Supabase signout error:", error);
       logAuthenticationEvent("USER_LOGOUT_FAILED", user?.email || "unknown", "failure", user || undefined);
-      return;
+      return true;
     }
     if (user) {
       logAuthenticationEvent("USER_LOGOUT", user.email, "success", user);
     }
+    return true;
   };
 
   const updateLastActivity = async () => {

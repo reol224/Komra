@@ -732,8 +732,7 @@ export default function DashboardLayout() {
               variant="outline"
               size="sm"
               onClick={async () => {
-                await signOut();
-                window.location.href = "/";
+                if (await signOut()) window.location.href = "/";
               }}
               className="flex items-center gap-2"
             >

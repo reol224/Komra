@@ -107,7 +107,7 @@ export default function AnalystThreatFeed() {
             <AlertTriangle className="h-5 w-5 text-red-600" />
             <div>
               <div className="text-2xl font-bold text-red-600">
-                {assignments.filter(({ status }) => status === 'open').length}
+                {isLoading ? '...' : loadError ? 'Unavailable' : assignments.filter(({ status }) => status === 'open').length}
               </div>
               <div className="text-sm text-muted-foreground">Open Assignments</div>
             </div>
@@ -118,7 +118,7 @@ export default function AnalystThreatFeed() {
             <Clock className="h-5 w-5 text-yellow-600" />
             <div>
               <div className="text-2xl font-bold text-yellow-600">
-                {assignments.filter(({ status }) => status === 'in_progress').length}
+                {isLoading ? '...' : loadError ? 'Unavailable' : assignments.filter(({ status }) => status === 'in_progress').length}
               </div>
               <div className="text-sm text-muted-foreground">Under Investigation</div>
             </div>
@@ -129,7 +129,7 @@ export default function AnalystThreatFeed() {
             <TrendingUp className="h-5 w-5 text-blue-600" />
             <div>
               <div className="text-2xl font-bold">
-                {assignments.filter(({ finding }) =>
+                {isLoading ? '...' : loadError ? 'Unavailable' : assignments.filter(({ finding }) =>
                   finding.severity === 'critical' || finding.severity === 'high'
                 ).length}
               </div>

@@ -95,7 +95,7 @@ describe('demo session API', () => {
     expect(insert).not.toHaveBeenCalled();
   });
 
-  it('clears the browser cookie even if database revocation fails', async () => {
+  it('preserves the browser cookie when revocation fails so the caller can retry', async () => {
     sessionUpdate.is.mockResolvedValueOnce({ error: { message: 'database unavailable' } });
     const request = new NextRequest('http://localhost/api/auth/demo-session', {
       method: 'DELETE',
@@ -105,7 +105,11 @@ describe('demo session API', () => {
     const response = await DELETE(request);
 
     expect(response.status).toBe(500);
-    expect(response.headers.get('set-cookie')).toContain('komra_demo_session=');
-    expect(response.headers.get('set-cookie')).toContain('Max-Age=0');
+    expect(response.headers.get('set-cookie')).toBeNull();
+
+    const retryResponse = await DELETE(request);
+    expect(retryResponse.status).toBe(204);
+    expect(retryResponse.headers.get('set-cookie')).toContain('komra_demo_session=');
+    expect(retryResponse.headers.get('set-cookie')).toContain('Max-Age=0');
   });
 });

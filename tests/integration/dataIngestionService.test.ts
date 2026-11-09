@@ -20,18 +20,22 @@ vi.mock('@/lib/vulnerabilityDetection', () => ({
 // Mock Supabase functions
 interface MockFns {
   from: ReturnType<typeof vi.fn>;
+  rpc: ReturnType<typeof vi.fn>;
 }
 
 vi.mock('@supabase/supabase-js', () => {
   const from = vi.fn();
+  const rpc = vi.fn();
 
   (global as any).__supabaseDataIngestionIntegrationMocks = {
     from,
+    rpc,
   };
 
   return {
     createClient: () => ({
       from,
+      rpc,
     }),
   };
 });
@@ -105,6 +109,12 @@ describe('DataIngestionService Integration Tests', () => {
   beforeEach(() => {
     mocks = getMocks();
     vi.clearAllMocks();
+    mocks.rpc.mockImplementation((_functionName: string, params: { p_hostname: string }) =>
+      Promise.resolve({
+        data: [{ id: `endpoint-${params.p_hostname}`, hostname: params.p_hostname }],
+        error: null,
+      }),
+    );
     service = new DataIngestionService();
   });
 
@@ -136,24 +146,12 @@ describe('DataIngestionService Integration Tests', () => {
 
       mockCollectSystemData.mockResolvedValue(machineData);
 
-      let endpointUpsertCalled = false;
       let packagesUpsertCount = 0;
       let endpointPackagesUpsertCount = 0;
 
       mocks.from.mockImplementation((table: string) => {
         if (table === 'endpoints') {
           return endpointTable({
-            upsert: () => {
-              endpointUpsertCalled = true;
-              return {
-                select: () => ({
-                  single: () => Promise.resolve({
-                    data: { id: 'endpoint-prod-1', hostname: 'prod-web-server-01' },
-                    error: null,
-                  }),
-                }),
-              };
-            },
           });
         }
         if (table === 'packages') {
@@ -188,7 +186,16 @@ describe('DataIngestionService Integration Tests', () => {
       expect(result.data?.endpoint.hostname).toBe('prod-web-server-01');
       expect(result.data?.endpoint.environment).toBe('production');
       expect(result.data?.packages).toHaveLength(5);
-      expect(endpointUpsertCalled).toBe(true);
+      expect(mocks.rpc).toHaveBeenCalledWith(
+        'upsert_local_endpoint',
+        expect.objectContaining({
+          p_hostname: 'prod-web-server-01',
+          p_metadata: expect.objectContaining({
+            architecture: machineData.endpoint.architecture,
+            running_services: machineData.endpoint.running_services,
+          }),
+        }),
+      );
       expect(packagesUpsertCount).toBe(5);
       expect(endpointPackagesUpsertCount).toBe(5);
 
@@ -379,20 +386,9 @@ describe('DataIngestionService Integration Tests', () => {
       const machineData = createMachineData();
       mockCollectSystemData.mockResolvedValue(machineData);
 
-      mocks.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-          }),
-        }),
-        upsert: () => ({
-          select: () => ({
-            single: () => Promise.resolve({
-              data: null,
-              error: { message: 'Connection refused: Database server unreachable' },
-            }),
-          }),
-        }),
+      mocks.rpc.mockResolvedValue({
+        data: null,
+        error: { message: 'Connection refused: Database server unreachable' },
       });
 
       const result = await service.collectAndStoreSystemData();
@@ -731,23 +727,7 @@ describe('DataIngestionService Integration Tests', () => {
 
       mockCollectSystemData.mockResolvedValue(machineData);
 
-      let storedEndpointData: any = null;
       mocks.from.mockImplementation((table: string) => {
-        if (table === 'endpoints') {
-          return endpointTable({
-            upsert: (data: any) => {
-              storedEndpointData = data;
-              return {
-                select: () => ({
-                  single: () => Promise.resolve({
-                    data: { id: 'endpoint-1', hostname: 'test-server-01' },
-                    error: null,
-                  }),
-                }),
-              };
-            },
-          });
-        }
         if (table === 'packages') {
           return {
             upsert: () => ({
@@ -770,11 +750,18 @@ describe('DataIngestionService Integration Tests', () => {
 
       await service.collectAndStoreSystemData();
 
-      expect(storedEndpointData).toBeDefined();
-      expect(storedEndpointData.metadata.cpu_info).toBe('Intel Xeon E5-2680 v4 @ 2.40GHz');
-      expect(storedEndpointData.metadata.memory_total).toBe(64000000000);
-      expect(storedEndpointData.metadata.disk_usage).toBeDefined();
-      expect(storedEndpointData.metadata.network_interfaces).toHaveLength(2);
+      expect(mocks.rpc).toHaveBeenCalledWith(
+        'upsert_local_endpoint',
+        expect.objectContaining({
+          p_hostname: machineData.endpoint.hostname,
+          p_metadata: expect.objectContaining({
+            cpu_info: 'Intel Xeon E5-2680 v4 @ 2.40GHz',
+            memory_total: 64000000000,
+            disk_usage: machineData.endpoint.disk_usage,
+            network_interfaces: machineData.endpoint.network_interfaces,
+          }),
+        }),
+      );
 
       consoleSpy.mockRestore();
     });

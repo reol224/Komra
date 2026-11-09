@@ -37,6 +37,7 @@ const RESOURCE_ALERT_THRESHOLD = 85;
 const SERVICE_ROW_HEIGHT = 72;
 const SERVICE_LIST_HEIGHT = 360;
 const SERVICE_OVERSCAN = 5;
+const MISSING_REPORT_PAGE_SIZE = 8;
 const dashboardService = new DashboardDataService();
 
 function reportTime(endpoint: AgentHealthEndpoint): number | null {
@@ -75,12 +76,14 @@ export default function AdminSystemHealth() {
   const [serviceOsFilter, setServiceOsFilter] = useState('all');
   const [serviceFreshnessFilter, setServiceFreshnessFilter] = useState('all');
   const [serviceScrollTop, setServiceScrollTop] = useState(0);
+  const [missingReportPage, setMissingReportPage] = useState(0);
   const serviceListRef = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(() => Date.now());
 
   const loadSystemHealth = useCallback(async () => {
     setIsLoading(true);
     setLoadError(null);
+    setMissingReportPage(0);
     setNow(Date.now());
     try {
       setEndpoints(await dashboardService.getAgentSystemHealth());
@@ -240,7 +243,12 @@ export default function AdminSystemHealth() {
     }
     return alerts;
   }).sort((left, right) => right.time - left.time).slice(0, 8);
-  const events = [...timestampedEvents, ...missingReportEvents];
+  const missingReportStart = missingReportPage * MISSING_REPORT_PAGE_SIZE;
+  const visibleMissingReportEvents = missingReportEvents.slice(
+    missingReportStart,
+    missingReportStart + MISSING_REPORT_PAGE_SIZE,
+  );
+  const events = [...timestampedEvents, ...visibleMissingReportEvents];
 
   const renderResourceMetric = (
     label: string,
@@ -548,6 +556,34 @@ export default function AdminSystemHealth() {
                     </div>
                   </div>
                 ))}
+                {missingReportEvents.length > MISSING_REPORT_PAGE_SIZE && (
+                  <div className="flex items-center justify-between gap-3 pt-2">
+                    <span className="text-xs text-muted-foreground" aria-live="polite">
+                      Missing-report alerts {missingReportStart + 1}–{Math.min(
+                        missingReportStart + MISSING_REPORT_PAGE_SIZE,
+                        missingReportEvents.length,
+                      )} of {missingReportEvents.length}
+                    </span>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={missingReportPage === 0}
+                        onClick={() => setMissingReportPage((page) => page - 1)}
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={missingReportStart + MISSING_REPORT_PAGE_SIZE >= missingReportEvents.length}
+                        onClick={() => setMissingReportPage((page) => page + 1)}
+                      >
+                        More missing reports
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>

@@ -3418,13 +3418,13 @@ describe('Admin Components Integration Tests', () => {
       });
 
       it('resets the virtualized service list scroll position before refreshing', async () => {
-        mockAgentSystemHealth.mockResolvedValueOnce([{
+        const refreshedEndpoint = {
           id: 'scroll-test-endpoint',
           hostname: 'scroll-test-host',
           osType: 'Ubuntu 24.04',
           lastScan: new Date().toISOString(),
           receivedAt: new Date().toISOString(),
-          runningServices: Array.from({ length: 60 }, (_, index) => `service-${index}`),
+          runningServices: ['sshd.service', ...Array.from({ length: 59 }, (_, index) => `service-${index}`)],
           resourceMetrics: {
             cpu_usage_percent: 0,
             memory_usage_percent: 0,
@@ -3434,7 +3434,10 @@ describe('Admin Components Integration Tests', () => {
             disk_used_bytes: 0,
             disk_total_bytes: 1,
           },
-        }]);
+        };
+        mockAgentSystemHealth
+          .mockResolvedValueOnce([refreshedEndpoint])
+          .mockResolvedValueOnce([refreshedEndpoint]);
         await renderWithAct(<AdminSystemHealth />);
 
         const serviceList = await screen.findByRole('list', { name: 'Reported running services' });
@@ -3442,8 +3445,16 @@ describe('Admin Components Integration Tests', () => {
         fireEvent.scroll(serviceList);
         expect(serviceList.scrollTop).toBe(500);
 
-        await userEvent.click(screen.getByRole('button', { name: /refresh system health/i }));
-        expect(serviceList.scrollTop).toBe(0);
+        const refreshButton = screen.getByRole('button', { name: /refresh system health/i });
+        await waitFor(() => expect(refreshButton).toBeEnabled());
+        const callsBeforeRefresh = mockAgentSystemHealth.mock.calls.length;
+        await userEvent.click(refreshButton);
+        await waitFor(() => {
+          expect(mockAgentSystemHealth).toHaveBeenCalledTimes(callsBeforeRefresh + 1);
+        });
+        const refreshedServiceList = await screen.findByRole('list', { name: 'Reported running services' });
+        expect(refreshedServiceList.scrollTop).toBe(0);
+        expect(within(refreshedServiceList).getByText('sshd.service')).toBeInTheDocument();
       });
     });
 

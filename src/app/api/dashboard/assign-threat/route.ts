@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const SESSION_COOKIE = 'komra_demo_session';
 const validPriorities = ['critical', 'high', 'medium', 'low'];
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -49,25 +49,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid assignment request.' }, { status: 400 });
   }
 
-  const appToken = request.cookies.get(SESSION_COOKIE)?.value;
   const authorization = request.headers.get('authorization');
+  const accessToken = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
   let result;
-  if (appToken) {
-    result = await supabaseAdmin.rpc('assign_agent_threat_with_app_session', {
-      p_token_hash: createHash('sha256').update(appToken).digest('hex'),
-      p_vulnerability_id: vulnerabilityId,
-      p_cve_identifier: cveId,
-      p_endpoint_id: endpointId,
-      p_assignee_id: assignedTo,
-      p_priority: priority,
-      p_notes: notes,
-    });
-  } else {
-    const accessToken = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
-    if (!accessToken) {
-      return NextResponse.json({ error: 'Sign in to assign findings.' }, { status: 401 });
-    }
-
+  if (accessToken) {
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
     if (authError || !user) {
       return NextResponse.json({ error: 'The sign-in session is invalid or expired.' }, { status: 401 });
@@ -82,6 +67,20 @@ export async function POST(request: NextRequest) {
       },
     );
     result = await supabaseUser.rpc('assign_agent_threat', {
+      p_vulnerability_id: vulnerabilityId,
+      p_cve_identifier: cveId,
+      p_endpoint_id: endpointId,
+      p_assignee_id: assignedTo,
+      p_priority: priority,
+      p_notes: notes,
+    });
+  } else {
+    const appToken = request.cookies.get(SESSION_COOKIE)?.value;
+    if (!appToken) {
+      return NextResponse.json({ error: 'Sign in to assign findings.' }, { status: 401 });
+    }
+    result = await supabaseAdmin.rpc('assign_agent_threat_with_app_session', {
+      p_token_hash: createHash('sha256').update(appToken).digest('hex'),
       p_vulnerability_id: vulnerabilityId,
       p_cve_identifier: cveId,
       p_endpoint_id: endpointId,

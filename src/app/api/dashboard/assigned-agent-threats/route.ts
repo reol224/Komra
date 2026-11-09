@@ -4,7 +4,9 @@ import { createClient } from '@supabase/supabase-js';
 import type { AgentThreatAssignment, DashboardVulnerability } from '@/lib/dashboardDataService';
 
 const SESSION_COOKIE = 'komra_demo_session';
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const PAGE_SIZE = 500;
+const BATCH_SIZE = 100;
 
 type AssignmentRecord = {
   id: string;
@@ -38,29 +40,49 @@ function responseForDatabaseError(error: { code?: string; message: string }) {
   return NextResponse.json({ error: 'Unable to load assigned findings.' }, { status: 500 });
 }
 
+async function fetchAllPages<T>(
+  fetchPage: (start: number, end: number) => PromiseLike<{
+    data: T[] | null;
+    count?: number | null;
+    error: { code?: string; message: string } | null;
+  }>,
+): Promise<{ data: T[]; error: { code?: string; message: string } | null }> {
+  const rows: T[] = [];
+  let start = 0;
+  let totalCount: number | null = null;
+  for (;;) {
+    const { data, count, error } = await fetchPage(start, start + PAGE_SIZE - 1);
+    if (error) return { data: rows, error };
+    if (count !== null && count !== undefined) totalCount = count;
+    const page = data ?? [];
+    rows.push(...page);
+    if (totalCount !== null ? rows.length >= totalCount : page.length < PAGE_SIZE) {
+      return { data: rows, error: null };
+    }
+    if (page.length === 0) return { data: rows, error: null };
+    start += page.length;
+  }
+}
+
+function chunks<T>(values: T[], size: number): T[][] {
+  const result: T[][] = [];
+  for (let index = 0; index < values.length; index += size) {
+    result.push(values.slice(index, index + size));
+  }
+  return result;
+}
+
 export async function GET(request: NextRequest) {
   const assigneeId = request.nextUrl.searchParams.get('assigneeId');
   if (assigneeId !== null && !UUID_PATTERN.test(assigneeId)) {
     return NextResponse.json({ error: 'Invalid assignee ID.' }, { status: 400 });
   }
-  const appToken = request.cookies.get(SESSION_COOKIE)?.value;
   const authorization = request.headers.get('authorization');
-  let assignments: AssignmentRecord[] | null;
-  let assignmentError;
+  const accessToken = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
+  let assignments: AssignmentRecord[];
+  let assignmentError: { code?: string; message: string } | null;
 
-  if (appToken) {
-    const result = await supabaseAdmin.rpc('get_app_session_agent_threats', {
-      p_token_hash: hashToken(appToken),
-      p_assignee_id: assigneeId,
-    });
-    assignments = result.data as AssignmentRecord[] | null;
-    assignmentError = result.error;
-  } else {
-    const accessToken = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
-    if (!accessToken) {
-      return NextResponse.json({ error: 'Sign in to view assigned findings.' }, { status: 401 });
-    }
-
+  if (accessToken) {
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
     if (authError || !user) {
       return NextResponse.json({ error: 'The sign-in session is invalid or expired.' }, { status: 401 });
@@ -74,47 +96,92 @@ export async function GET(request: NextRequest) {
         global: { headers: { Authorization: `Bearer ${accessToken}` } },
       },
     );
-    const result = await supabaseUser.rpc('get_authorized_agent_threats', {
-      p_assignee_id: assigneeId,
-    });
-    assignments = result.data as AssignmentRecord[] | null;
+    const result = await fetchAllPages<AssignmentRecord>((start, end) =>
+      supabaseUser.rpc('get_authorized_agent_threats', {
+        p_assignee_id: assigneeId,
+      }, { count: 'exact' }).range(start, end));
+    assignments = result.data;
+    assignmentError = result.error;
+  } else {
+    const appToken = request.cookies.get(SESSION_COOKIE)?.value;
+    if (!appToken) {
+      return NextResponse.json({ error: 'Sign in to view assigned findings.' }, { status: 401 });
+    }
+    const result = await fetchAllPages<AssignmentRecord>((start, end) =>
+      supabaseAdmin.rpc('get_app_session_agent_threats', {
+        p_token_hash: hashToken(appToken),
+        p_assignee_id: assigneeId,
+      }, { count: 'exact' }).range(start, end));
+    assignments = result.data;
     assignmentError = result.error;
   }
 
   if (assignmentError) return responseForDatabaseError(assignmentError);
-  if (!assignments?.length) return NextResponse.json([]);
+  if (!assignments.length) return NextResponse.json([]);
 
   const cveIds = Array.from(new Set(assignments.map((assignment) => assignment.cve_id)));
   const endpointIds = Array.from(new Set(assignments.map((assignment) => assignment.endpoint_id)));
-  const [cveResult, endpointResult] = await Promise.all([
-    supabaseAdmin.from('cves').select('id, cve_id').in('id', cveIds),
-    supabaseAdmin.from('endpoints').select('id, hostname, environment').in('id', endpointIds),
-  ]);
-  if (cveResult.error) return responseForDatabaseError(cveResult.error);
-  if (endpointResult.error) return responseForDatabaseError(endpointResult.error);
+  const cveRecords = (await Promise.all(chunks(cveIds, BATCH_SIZE).map((batch) =>
+    supabaseAdmin.from('cves').select('id, cve_id').in('id', batch),
+  )));
+  const endpointRecords = (await Promise.all(chunks(endpointIds, BATCH_SIZE).map((batch) =>
+    supabaseAdmin.from('endpoints').select('id, hostname, environment').in('id', batch),
+  )));
+  const cveError = cveRecords.find(({ error }) => error)?.error;
+  const endpointError = endpointRecords.find(({ error }) => error)?.error;
+  if (cveError) return responseForDatabaseError(cveError);
+  if (endpointError) return responseForDatabaseError(endpointError);
 
-  const cveIdByRecordId = new Map((cveResult.data ?? []).map((cve) => [cve.id, cve.cve_id]));
-  const endpointById = new Map((endpointResult.data ?? []).map((endpoint) => [endpoint.id, endpoint]));
-  const findingCveIds = Array.from(new Set(cveIdByRecordId.values()));
-  const { data: findings, error: findingError } = await supabaseAdmin
-    .from('vulnerabilities')
-    .select('id, cve_id, description, severity, cvss_score, status, endpoint_id, discovered_date, source_id, reference_urls, affected_packages')
-    .eq('source', 'osv')
-    .in('cve_id', findingCveIds)
-    .in('endpoint_id', endpointIds);
-  if (findingError) return responseForDatabaseError(findingError);
+  const cveIdByRecordId = new Map(cveRecords.flatMap(({ data }) =>
+    (data ?? []).map((cve) => [cve.id, cve.cve_id] as const),
+  ));
+  const endpointById = new Map(endpointRecords.flatMap(({ data }) =>
+    (data ?? []).map((endpoint) => [endpoint.id, endpoint] as const),
+  ));
+  const findingRows: Array<{
+    id: string;
+    cve_id: string;
+    description: string;
+    severity: DashboardVulnerability['severity'];
+    cvss_score: number;
+    status: DashboardVulnerability['status'];
+    endpoint_id: string;
+    discovered_date: string;
+    source_id: string | null;
+    reference_urls: string[] | null;
+    affected_packages: string[] | null;
+  }> = [];
+  for (const assignmentBatch of chunks(assignments, 50)) {
+    const batchCveIds = Array.from(new Set(assignmentBatch
+      .map((assignment) => cveIdByRecordId.get(assignment.cve_id))
+      .filter((id): id is string => Boolean(id))));
+    const batchEndpointIds = Array.from(new Set(assignmentBatch.map((assignment) => assignment.endpoint_id)));
+    const result = await fetchAllPages((start, end) => supabaseAdmin
+      .from('vulnerabilities')
+      .select('id, cve_id, description, severity, cvss_score, status, endpoint_id, discovered_date, source_id, reference_urls, affected_packages', { count: 'exact' })
+      .eq('source', 'osv')
+      .in('cve_id', batchCveIds)
+      .in('endpoint_id', batchEndpointIds)
+      .order('id', { ascending: true })
+      .range(start, end));
+    if (result.error) return responseForDatabaseError(result.error);
+    findingRows.push(...result.data);
+  }
 
   const findingByKey = new Map(
-    (findings ?? []).map((finding) => [`${finding.endpoint_id}:${finding.cve_id}`, finding]),
+    findingRows.map((finding) => [`${finding.endpoint_id}:${finding.cve_id}`, finding]),
   );
   const userIds = Array.from(new Set(assignments.flatMap((assignment) =>
     [assignment.assigned_to, assignment.triaged_by].filter((id): id is string => Boolean(id)),
   )));
-  const { data: users, error: userError } = userIds.length > 0
-    ? await supabaseAdmin.from('users').select('id, email, full_name').in('id', userIds)
-    : { data: [], error: null };
+  const userResults = await Promise.all(chunks(userIds, BATCH_SIZE).map((batch) =>
+    supabaseAdmin.from('users').select('id, email, full_name').in('id', batch),
+  ));
+  const userError = userResults.find(({ error }) => error)?.error;
   if (userError) return responseForDatabaseError(userError);
-  const userById = new Map((users ?? []).map((user) => [user.id, user]));
+  const userById = new Map(userResults.flatMap(({ data }) =>
+    (data ?? []).map((user) => [user.id, user] as const),
+  ));
 
   let result: AgentThreatAssignment[];
   try {
@@ -132,9 +199,14 @@ export async function GET(request: NextRequest) {
       const assignedByUser = assignment.triaged_by
         ? userById.get(assignment.triaged_by)
         : undefined;
-      const status: AgentThreatAssignment['status'] =
+      const assignmentStatus: AgentThreatAssignment['status'] =
         (['open', 'in_progress', 'resolved', 'false_positive'] as const)
           .find((candidate) => candidate === assignment.status) ?? 'open';
+      const status: AgentThreatAssignment['status'] = assignmentStatus === 'false_positive'
+        ? 'false_positive'
+        : finding.status === 'resolved'
+          ? 'resolved'
+          : assignmentStatus;
       const priority: AgentThreatAssignment['priority'] =
         (['critical', 'high', 'medium', 'low'] as const)
           .find((candidate) => candidate === assignment.priority) ?? 'medium';

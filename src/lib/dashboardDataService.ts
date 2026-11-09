@@ -10,18 +10,24 @@ const PAGE_SIZE = 1000;
 async function fetchAllPages<T>(
   fetchPage: (start: number, end: number) => PromiseLike<{
     data: T[] | null;
+    count?: number | null;
     error: { message: string } | null;
   }>,
 ): Promise<T[]> {
   const rows: T[] = [];
+  let totalCount: number | null = null;
+  let start = 0;
 
-  for (let start = 0; ; start += PAGE_SIZE) {
-    const { data, error } = await fetchPage(start, start + PAGE_SIZE - 1);
+  for (;;) {
+    const { data, count, error } = await fetchPage(start, start + PAGE_SIZE - 1);
     if (error) throw new Error(error.message);
 
+    if (typeof count === 'number') totalCount = count;
     const page = data ?? [];
     rows.push(...page);
-    if (page.length < PAGE_SIZE) return rows;
+    if (totalCount !== null ? rows.length >= totalCount : page.length < PAGE_SIZE) return rows;
+    if (page.length === 0) return rows;
+    start += page.length;
   }
 }
 
@@ -166,16 +172,21 @@ export class DashboardDataService {
     try {
       endpoints = await fetchAllPages((start, end) => supabase
         .from('endpoints')
-        .select('id, hostname, os_type, last_scan, updated_at, metadata')
+        .select('id, hostname, os_type, last_scan, updated_at, metadata', { count: 'exact' })
         .filter('metadata->>collection_source', 'eq', 'agent')
-        .order('last_scan', { ascending: false })
         .order('id', { ascending: true })
         .range(start, end));
     } catch (error) {
       throw new Error(`Failed to fetch agent system health: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 
-    return endpoints.map((endpoint) => {
+    return endpoints
+      .sort((left, right) => {
+        const leftTimestamp = left.last_scan ? Date.parse(left.last_scan) : Number.NEGATIVE_INFINITY;
+        const rightTimestamp = right.last_scan ? Date.parse(right.last_scan) : Number.NEGATIVE_INFINITY;
+        return rightTimestamp - leftTimestamp || left.id.localeCompare(right.id);
+      })
+      .map((endpoint) => {
       const metadata = asRecord(endpoint.metadata);
       return {
         id: endpoint.id,
@@ -336,7 +347,7 @@ export class DashboardDataService {
     try {
       endpoints = await fetchAllPages((start, end) => supabase
         .from('endpoints')
-        .select('id, last_scan, metadata')
+        .select('id, last_scan, metadata', { count: 'exact' })
         .filter('metadata->>collection_source', 'eq', 'agent')
         .order('id', { ascending: true })
         .range(start, end));
@@ -393,7 +404,7 @@ export class DashboardDataService {
             id,
             severity
           )
-        `)
+        `, { count: 'exact' })
         .order('id', { ascending: true })
         .range(start, end));
 
@@ -510,7 +521,7 @@ export class DashboardDataService {
             hostname,
             environment
           )
-        `)
+        `, { count: 'exact' })
         .order('discovered_date', { ascending: false })
         .order('id', { ascending: true })
         .range(start, end));
@@ -560,7 +571,7 @@ export class DashboardDataService {
           environment,
           metadata
         )
-      `)
+      `, { count: 'exact' })
       .eq('source', 'osv')
       .filter('endpoints.metadata->>collection_source', 'eq', 'agent')
       .order('discovered_date', { ascending: false })

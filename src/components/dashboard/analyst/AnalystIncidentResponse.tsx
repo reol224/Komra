@@ -82,19 +82,19 @@ export default function AnalystIncidentResponse() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <Card><CardContent className="flex items-center gap-2 pt-6">
           <AlertTriangle className="h-5 w-5 text-red-600" />
-          <div><div className="text-2xl font-bold text-red-600">{isLoading ? '...' : openCount}</div><div className="text-sm text-muted-foreground">Open</div></div>
+          <div><div className="text-2xl font-bold text-red-600">{isLoading ? '...' : loadError ? 'Unavailable' : openCount}</div><div className="text-sm text-muted-foreground">Open</div></div>
         </CardContent></Card>
         <Card><CardContent className="flex items-center gap-2 pt-6">
           <Clock className="h-5 w-5 text-yellow-600" />
-          <div><div className="text-2xl font-bold text-yellow-600">{isLoading ? '...' : investigatingCount}</div><div className="text-sm text-muted-foreground">In Progress</div></div>
+          <div><div className="text-2xl font-bold text-yellow-600">{isLoading ? '...' : loadError ? 'Unavailable' : investigatingCount}</div><div className="text-sm text-muted-foreground">In Progress</div></div>
         </CardContent></Card>
         <Card><CardContent className="flex items-center gap-2 pt-6">
           <Shield className="h-5 w-5 text-blue-600" />
-          <div><div className="text-2xl font-bold">{isLoading ? '...' : resolvedCount}</div><div className="text-sm text-muted-foreground">Resolved</div></div>
+          <div><div className="text-2xl font-bold">{isLoading ? '...' : loadError ? 'Unavailable' : resolvedCount}</div><div className="text-sm text-muted-foreground">Resolved</div></div>
         </CardContent></Card>
         <Card><CardContent className="flex items-center gap-2 pt-6">
           <AlertTriangle className="h-5 w-5 text-red-600" />
-          <div><div className="text-2xl font-bold text-red-600">{isLoading ? '...' : criticalCount}</div><div className="text-sm text-muted-foreground">Critical Findings</div></div>
+          <div><div className="text-2xl font-bold text-red-600">{isLoading ? '...' : loadError ? 'Unavailable' : criticalCount}</div><div className="text-sm text-muted-foreground">Critical Findings</div></div>
         </CardContent></Card>
       </div>
 

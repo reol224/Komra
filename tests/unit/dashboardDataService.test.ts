@@ -269,7 +269,7 @@ describe('DashboardDataService', () => {
         latestCollection: '2025-03-02T12:00:00Z',
       });
       expect(mocks.from).toHaveBeenCalledWith('endpoints');
-      expect(table.select).toHaveBeenCalledWith('id, last_scan, metadata');
+      expect(table.select).toHaveBeenCalledWith('id, last_scan, metadata', { count: 'exact' });
       expect(query.filter).toHaveBeenCalledWith(
         'metadata->>collection_source',
         'eq',
@@ -766,7 +766,7 @@ describe('DashboardDataService', () => {
         },
       ]);
       expect(mocks.from).toHaveBeenCalledWith('vulnerabilities');
-      expect(table.select).toHaveBeenCalledWith(expect.stringContaining('metadata'));
+      expect(table.select).toHaveBeenCalledWith(expect.stringContaining('metadata'), { count: 'exact' });
       expect(query.eq).toHaveBeenCalledWith('source', 'osv');
       expect(query.filter).toHaveBeenCalledWith(
         'endpoints.metadata->>collection_source',
@@ -875,7 +875,7 @@ describe('DashboardDataService', () => {
       ]);
       expect(mocks.from).toHaveBeenCalledWith('endpoints');
       expect(query.filter).toHaveBeenCalledWith('metadata->>collection_source', 'eq', 'agent');
-      expect(query.order).toHaveBeenCalledWith('last_scan', { ascending: false });
+      expect(query.order).toHaveBeenCalledWith('id', { ascending: true });
     });
 
     it('surfaces endpoint query errors', async () => {

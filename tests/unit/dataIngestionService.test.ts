@@ -20,18 +20,22 @@ vi.mock('@/lib/vulnerabilityDetection', () => ({
 // Mock Supabase functions
 interface MockFns {
   from: ReturnType<typeof vi.fn>;
+  rpc: ReturnType<typeof vi.fn>;
 }
 
 vi.mock('@supabase/supabase-js', () => {
   const from = vi.fn();
+  const rpc = vi.fn();
 
   (global as any).__supabaseDataIngestionMocks = {
     from,
+    rpc,
   };
 
   return {
     createClient: () => ({
       from,
+      rpc,
     }),
   };
 });
@@ -99,6 +103,10 @@ describe('DataIngestionService', () => {
   beforeEach(() => {
     mocks = getMocks();
     vi.clearAllMocks();
+    mocks.rpc.mockResolvedValue({
+      data: [{ id: 'endpoint-1', hostname: 'test-server-01' }],
+      error: null,
+    });
     service = new DataIngestionService();
   });
 
@@ -241,36 +249,29 @@ describe('DataIngestionService', () => {
   });
 
   describe('storeSystemData (via collectAndStoreSystemData)', () => {
-    it('preserves agent collection provenance when local data updates the endpoint', async () => {
+    it('merges local metadata atomically without replacing agent metadata', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       mockCollectSystemData.mockResolvedValue({
         ...sampleMachineData,
         packages: [],
       });
-      const upsert = vi.fn().mockReturnValue({
-        select: () => ({
-          single: () => Promise.resolve({
-            data: { id: 'endpoint-1', hostname: 'test-server-01' },
-            error: null,
-          }),
-        }),
-      });
-      mocks.from.mockImplementation((table: string) => {
-        if (table === 'endpoints') {
-          return endpointTable({ upsert }, { collection_source: 'agent' });
-        }
-        return {};
-      });
 
       const result = await service.collectAndStoreSystemData();
 
       expect(result.success).toBe(true);
-      expect(upsert).toHaveBeenCalledWith(
+      expect(mocks.rpc).toHaveBeenCalledWith(
+        'upsert_local_endpoint',
         expect.objectContaining({
-          metadata: expect.objectContaining({ collection_source: 'agent' }),
+          p_hostname: sampleMachineData.endpoint.hostname,
+          p_metadata: expect.objectContaining({
+            architecture: sampleMachineData.endpoint.architecture,
+            running_services: sampleMachineData.endpoint.running_services,
+          }),
         }),
-        { onConflict: 'hostname' },
       );
+      const metadata = mocks.rpc.mock.calls[0][1].p_metadata;
+      expect(metadata).not.toHaveProperty('collection_source');
+      expect(metadata).not.toHaveProperty('reported_package_count');
       consoleSpy.mockRestore();
     });
 
@@ -279,6 +280,10 @@ describe('DataIngestionService', () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       mockCollectSystemData.mockResolvedValue(sampleMachineData);
+      mocks.rpc.mockResolvedValue({
+        data: null,
+        error: { message: 'Database connection failed' },
+      });
 
       mocks.from.mockImplementation((table: string) => {
         if (table === 'endpoints') {

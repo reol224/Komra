@@ -137,9 +137,7 @@ export async function DELETE(request: NextRequest) {
 
     if (error) {
       console.error('Unable to revoke demo application session:', error);
-      return clearSessionCookie(
-        NextResponse.json({ error: 'Unable to end the application session.' }, { status: 500 }),
-      );
+      return NextResponse.json({ error: 'Unable to end the application session.' }, { status: 500 });
     }
   }
 
