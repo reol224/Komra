@@ -41,12 +41,13 @@ const supabaseAdmin = createClient(
 
 type AuthenticatedClient = typeof supabaseAdmin;
 
+/** Resolves a valid bearer session or, only without a bearer header, a demo cookie. */
 async function getAuthenticatedContext(
   request: NextRequest,
 ): Promise<{ userId: string; client: AuthenticatedClient } | null> {
-  const accessToken = request.headers
-    .get('authorization')
-    ?.match(/^Bearer\s+(.+)$/i)?.[1];
+  const authorization = request.headers.get('authorization');
+  const accessToken = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
+  if (authorization && !accessToken) return null;
 
   if (accessToken) {
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
@@ -85,6 +86,7 @@ async function getAuthenticatedContext(
   return session ? { userId: session.user_id, client: supabaseAdmin } : null;
 }
 
+/** Returns saved log-source preferences for the verified user. */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const context = await getAuthenticatedContext(request);
@@ -142,6 +144,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 }
 
+/** Validates and persists a log-source settings action for the verified user. */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const context = await getAuthenticatedContext(request);

@@ -7,8 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { createClient } from '@supabase/supabase-js';
 import Image from 'next/image';
+import { supabase } from '@/lib/supabase';
 import { sanitizeWaitlistForm, sanitizeText, type WaitlistFormData } from '@/lib/sanitization';
 import {
   Shield,
@@ -30,11 +30,6 @@ import {
   Clock,
   Send
 } from "lucide-react";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-);
 
 export default function PreLaunchPage() {
   const [isSubmitted, setIsSubmitted] = useState(false);

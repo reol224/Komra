@@ -9,17 +9,12 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { CheckCircle, Loader2, Key, AlertTriangle, Smartphone, Shield } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
 import { sanitizeEmail, sanitizeText } from '@/lib/sanitization';
+import { supabase } from '@/lib/supabase';
 import { authenticator } from 'otplib';
 import QRCode from 'qrcode';
 import { PasswordStrengthIndicator } from '@/components/PasswordStrengthIndicator';
 import { PasswordValidationResult, PasswordValidationContext } from '@/lib/passwordValidation';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 interface SetupFlowProps {
   licenseKey?: string;

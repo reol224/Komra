@@ -1,12 +1,7 @@
-import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
 import { validatePassword, PasswordValidationContext, PasswordValidationResult } from '@/lib/passwordValidation';
 import { auditLogger } from '@/lib/auditLogger';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { supabase } from './supabase';
 
 function maskEmail(email: string): string {
   const [name, domain] = email.split('@');
