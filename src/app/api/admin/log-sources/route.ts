@@ -50,24 +50,24 @@ async function getAuthenticatedContext(
 
   if (accessToken) {
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
-    if (authError || !user?.email) return null;
+    if (!authError && user?.email) {
+      const client = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          auth: { autoRefreshToken: false, persistSession: false },
+          global: { headers: { Authorization: `Bearer ${accessToken}` } },
+        },
+      );
+      const { data: profile, error: profileError } = await client
+        .from('users')
+        .select('id')
+        .eq('email', user.email)
+        .maybeSingle();
 
-    const client = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        auth: { autoRefreshToken: false, persistSession: false },
-        global: { headers: { Authorization: `Bearer ${accessToken}` } },
-      },
-    );
-    const { data: profile, error: profileError } = await client
-      .from('users')
-      .select('id')
-      .eq('email', user.email)
-      .maybeSingle();
-
-    if (profileError) throw profileError;
-    return profile ? { userId: profile.id, client } : null;
+      if (profileError) throw profileError;
+      if (profile) return { userId: profile.id, client };
+    }
   }
 
   const appToken = request.cookies.get(SESSION_COOKIE)?.value;

@@ -132,13 +132,10 @@ export default function DashboardLayout() {
   /** Sends a same-origin log-source request with the active session credentials. */
   const fetchLogSources = useCallback(async (input: RequestInfo | URL, init?: RequestInit) => {
     const headers = new Headers(init?.headers);
-    const isDemoSession = window.localStorage.getItem("demo_user") !== null;
-    if (!isDemoSession) {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (error) throw error;
-      if (session?.access_token) {
-        headers.set("Authorization", `Bearer ${session.access_token}`);
-      }
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    if (session?.access_token) {
+      headers.set("Authorization", `Bearer ${session.access_token}`);
     }
 
     return fetch(input, {
