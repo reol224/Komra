@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AgentThreatAssignment, DashboardDataService } from '@/lib/dashboardDataService';
+import { getSeverityBadgeClassName, getStatusBadgeClassName } from '@/lib/dashboardBadgeStyles';
 
 const dashboardService = new DashboardDataService();
 
@@ -79,14 +80,7 @@ export default function AnalystThreatFeed() {
   };
 
   const statusLabel = (status: AgentThreatAssignment['status']) => status.replace('_', ' ');
-  const statusColor = (status: AgentThreatAssignment['status']) => {
-    switch (status) {
-      case 'open': return 'destructive';
-      case 'in_progress': return 'secondary';
-      case 'resolved': return 'default';
-      case 'false_positive': return 'outline';
-    }
-  };
+  const statusColor = getStatusBadgeClassName;
 
   return (
     <div className="space-y-6">
@@ -128,7 +122,7 @@ export default function AnalystThreatFeed() {
           <CardContent className="flex items-center gap-2 pt-6">
             <TrendingUp className="h-5 w-5 text-blue-600" />
             <div>
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-bold text-red-600">
                 {isLoading ? '...' : loadError ? 'Unavailable' : assignments.filter(({ finding }) =>
                   finding.severity === 'critical' || finding.severity === 'high'
                 ).length}
@@ -197,10 +191,10 @@ export default function AnalystThreatFeed() {
                   <div className="flex flex-col justify-between gap-4 sm:flex-row">
                     <div className="min-w-0 flex-1">
                       <div className="mb-2 flex flex-wrap items-center gap-2">
-                        <Badge variant={finding.severity === 'critical' || finding.severity === 'high' ? 'destructive' : 'secondary'} className="capitalize">
+                        <Badge className={`${getSeverityBadgeClassName(finding.severity)} capitalize`}>
                           {finding.severity}
                         </Badge>
-                        <Badge variant={statusColor(assignment.status)} className="capitalize">
+                        <Badge className={`${statusColor(assignment.status)} capitalize`}>
                           {statusLabel(assignment.status)}
                         </Badge>
                         <Badge variant="outline" className="capitalize">

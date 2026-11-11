@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ExternalLink, Shield, User, Clock } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { AgentThreatAssignment, DashboardDataService } from '@/lib/dashboardDataService';
+import { getSeverityBadgeClassName, getStatusBadgeClassName } from '@/lib/dashboardBadgeStyles';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -49,23 +50,8 @@ export default function AnalystIncidentResponse() {
   const resolvedCount = assignments.filter(({ status }) => status === 'resolved').length;
   const criticalCount = assignments.filter(({ finding }) => finding.severity === 'critical').length;
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'critical':
-      case 'high': return 'destructive';
-      case 'medium': return 'secondary';
-      default: return 'outline';
-    }
-  };
-
-  const getStatusColor = (status: AgentThreatAssignment['status']) => {
-    switch (status) {
-      case 'open': return 'destructive';
-      case 'in_progress': return 'secondary';
-      case 'resolved': return 'default';
-      case 'false_positive': return 'outline';
-    }
-  };
+  const getSeverityColor = getSeverityBadgeClassName;
+  const getStatusColor = getStatusBadgeClassName;
 
   return (
     <div className="space-y-6">
@@ -121,10 +107,10 @@ export default function AnalystIncidentResponse() {
                       onClick={() => setSelectedAssignmentId(assignment.id)}
                     >
                       <div className="mb-2 flex items-center justify-between gap-2">
-                        <Badge variant={getSeverityColor(assignment.finding.severity)} className="capitalize">
+                        <Badge className={`${getSeverityColor(assignment.finding.severity)} capitalize`}>
                           {assignment.finding.severity}
                         </Badge>
-                        <Badge variant={getStatusColor(assignment.status)} className="capitalize">
+                        <Badge className={`${getStatusColor(assignment.status)} capitalize`}>
                           {assignment.status.replace('_', ' ')}
                         </Badge>
                       </div>
@@ -150,10 +136,10 @@ export default function AnalystIncidentResponse() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <CardTitle>{currentAssignment.finding.cve_id}</CardTitle>
                   <div className="flex gap-2">
-                    <Badge variant={getSeverityColor(currentAssignment.finding.severity)} className="capitalize">
+                    <Badge className={`${getSeverityColor(currentAssignment.finding.severity)} capitalize`}>
                       {currentAssignment.finding.severity}
                     </Badge>
-                    <Badge variant={getStatusColor(currentAssignment.status)} className="capitalize">
+                    <Badge className={`${getStatusColor(currentAssignment.status)} capitalize`}>
                       {currentAssignment.status.replace('_', ' ')}
                     </Badge>
                   </div>

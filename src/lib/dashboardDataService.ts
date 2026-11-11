@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { getSeverityChartColor, getStatusChartColor } from './dashboardBadgeStyles';
 
 const PAGE_SIZE = 1000;
 
@@ -696,22 +697,22 @@ export class DashboardDataService {
         { 
           name: 'Critical', 
           value: vulnerabilities.filter(v => v.severity === 'critical').length,
-          color: '#7C3AED'
+          color: getSeverityChartColor('critical')
         },
         { 
           name: 'High', 
           value: vulnerabilities.filter(v => v.severity === 'high').length,
-          color: '#DC2626'
+          color: getSeverityChartColor('high')
         },
         { 
           name: 'Medium', 
           value: vulnerabilities.filter(v => v.severity === 'medium').length,
-          color: '#F97316'
+          color: getSeverityChartColor('medium')
         },
         { 
           name: 'Low', 
           value: vulnerabilities.filter(v => v.severity === 'low').length,
-          color: '#16A34A'
+          color: getSeverityChartColor('low')
         }
       ];
 
@@ -737,17 +738,17 @@ export class DashboardDataService {
         {
           name: 'Open',
           value: vulnerabilities.filter(v => v.status === 'open').length,
-          color: '#DC2626'
+          color: getStatusChartColor('open')
         },
         {
           name: 'In Progress',
           value: vulnerabilities.filter(v => v.status === 'in_progress').length,
-          color: '#F97316'
+          color: getStatusChartColor('in_progress')
         },
         {
           name: 'Resolved',
           value: vulnerabilities.filter(v => v.status === 'resolved').length,
-          color: '#16A34A'
+          color: getStatusChartColor('resolved')
         }
       ];
 

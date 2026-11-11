@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Search, Filter, Database, Network, FileText, Download, Play } from 'lucide-react';
+import { getSeverityBadgeClassName } from '@/lib/dashboardBadgeStyles';
 
 interface LogEntry {
   id: string;
@@ -137,25 +138,8 @@ export default function AnalystInvestigation() {
     return matchesSearch && matchesSource && matchesLevel;
   });
 
-  const getLevelColor = (level: string) => {
-    switch (level) {
-      case 'critical': return 'destructive';
-      case 'error': return 'destructive';
-      case 'warning': return 'secondary';
-      case 'info': return 'outline';
-      default: return 'outline';
-    }
-  };
-
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'critical': return 'destructive';
-      case 'high': return 'destructive';
-      case 'medium': return 'secondary';
-      case 'low': return 'outline';
-      default: return 'outline';
-    }
-  };
+  const getLevelColor = getSeverityBadgeClassName;
+  const getSeverityColor = getSeverityBadgeClassName;
 
   const handleRunCorrelation = (ruleId: string) => {
     console.log('Running correlation rule:', ruleId);
@@ -285,7 +269,7 @@ export default function AnalystInvestigation() {
                         <Badge variant="outline">{log.source}</Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={getLevelColor(log.level)} className="capitalize">
+                        <Badge className={`${getLevelColor(log.level)} capitalize`}>
                           {log.level}
                         </Badge>
                       </TableCell>
@@ -344,7 +328,7 @@ export default function AnalystInvestigation() {
                     <div className="flex-1">
                       <div className="flex items-center space-x-3 mb-2">
                         <h4 className="font-medium">{rule.name}</h4>
-                        <Badge variant={getSeverityColor(rule.severity)} className="capitalize">
+                        <Badge className={`${getSeverityColor(rule.severity)} capitalize`}>
                           {rule.severity}
                         </Badge>
                         <Badge variant={rule.enabled ? 'default' : 'secondary'}>

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { CheckCircle, AlertTriangle, Shield, FileText, Calendar, TrendingUp } from 'lucide-react';
+import { getSeverityBadgeClassName, getStatusBadgeClassName } from '@/lib/dashboardBadgeStyles';
 
 export default function ViewerCompliance() {
   const complianceOverview = {
@@ -118,26 +119,8 @@ export default function ViewerCompliance() {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'compliant': return 'default';
-      case 'partial': return 'secondary';
-      case 'non-compliant': return 'destructive';
-      case 'open': return 'destructive';
-      case 'in-progress': return 'secondary';
-      case 'resolved': return 'default';
-      default: return 'outline';
-    }
-  };
-
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'high': return 'destructive';
-      case 'medium': return 'secondary';
-      case 'low': return 'outline';
-      default: return 'outline';
-    }
-  };
+  const getStatusColor = getStatusBadgeClassName;
+  const getSeverityColor = getSeverityBadgeClassName;
 
   const getScoreColor = (score: number) => {
     if (score >= 90) return 'text-green-600';
@@ -220,7 +203,7 @@ export default function ViewerCompliance() {
                   <div className="flex items-center space-x-3">
                     {getStatusIcon(framework.status)}
                     <h4 className="font-medium">{framework.name}</h4>
-                    <Badge variant={getStatusColor(framework.status)} className="capitalize">
+                    <Badge className={`${getStatusColor(framework.status)} capitalize`}>
                       {framework.status}
                     </Badge>
                   </div>
@@ -275,10 +258,10 @@ export default function ViewerCompliance() {
                   <div className="flex-1">
                     <div className="flex items-center space-x-3 mb-2">
                       <Badge variant="outline">{finding.framework}</Badge>
-                      <Badge variant={getSeverityColor(finding.severity)} className="capitalize">
+                      <Badge className={`${getSeverityColor(finding.severity)} capitalize`}>
                         {finding.severity}
                       </Badge>
-                      <Badge variant={getStatusColor(finding.status)} className="capitalize">
+                      <Badge className={`${getStatusColor(finding.status)} capitalize`}>
                         {finding.status}
                       </Badge>
                     </div>

@@ -22,6 +22,7 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import SessionManagement from './SessionManagement';
 import { auditLogger } from '@/lib/auditLogger';
+import { getAccountStatusBadgeClassName } from '@/lib/dashboardBadgeStyles';
 
 interface User {
   id: string;
@@ -152,24 +153,6 @@ export default function AdminUserManagement() {
       case 'admin': return '';
       case 'analyst': return '';
       case 'viewer': return 'bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-200';
-      default: return '';
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'default';
-      case 'inactive': return 'secondary';
-      case 'suspended': return 'destructive';
-      default: return 'default';
-    }
-  };
-
-  const getStatusBadgeClassName = (status: string) => {
-    switch (status) {
-      case 'active': return '';
-      case 'inactive': return 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200';
-      case 'suspended': return '';
       default: return '';
     }
   };
@@ -843,8 +826,7 @@ export default function AdminUserManagement() {
                       </TableCell>
                       <TableCell>
                         <Badge
-                          variant={getStatusColor(user.status)}
-                          className={getStatusBadgeClassName(user.status)}>
+                          className={getAccountStatusBadgeClassName(user.status)}>
                           {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
                         </Badge>
                       </TableCell>

@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { auditLogger, AuditLogEntry } from "@/lib/auditLogger";
+import { getSeverityBadgeClassName, getStatusBadgeClassName } from "@/lib/dashboardBadgeStyles";
 import { useAuth } from "@/contexts/AuthContext";
 import { filterAuditLogsBySourcePreferences, getAuditLogCountsBySource } from "@/lib/logSourceHelpers";
 
@@ -253,34 +254,10 @@ export default function AdminAuditTrail() {
   };
 
   /** Returns the badge classes associated with an audit severity. */
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case "critical":
-        return "bg-violet-800 text-white border-violet-900";
-      case "high":
-        return "bg-red-600 text-white border-red-700";
-      case "medium":
-        return "bg-orange-600 text-white border-orange-700";
-      case "low":
-        return "bg-green-600 text-white border-green-700";
-      default:
-        return "";
-    }
-  };
+  const getSeverityColor = getSeverityBadgeClassName;
 
   /** Returns the badge classes associated with an audit result status. */
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "success":
-        return "bg-green-600 text-white border-green-700";
-      case "failure":
-        return "bg-red-600 text-white border-red-700";
-      case "warning":
-        return "bg-orange-600 text-white border-orange-700";
-      default:
-        return "";
-    }
-  };
+  const getStatusColor = getStatusBadgeClassName;
 
   /** Downloads the currently filtered audit events as a CSV file. */
   const exportAuditLogs = () => {

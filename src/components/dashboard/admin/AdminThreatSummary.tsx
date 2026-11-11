@@ -13,6 +13,11 @@ import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/use-toast';
 import { AlertTriangle, Shield, TrendingUp, Clock, Eye, ExternalLink, Users, Calendar, UserCheck, AlertCircle, CheckCircle2, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { DashboardDataService, DashboardVulnerability, ThreatAssignee } from '@/lib/dashboardDataService';
+import {
+  getSeverityBadgeClassName,
+  getSeverityTextClassName,
+  getStatusBadgeClassName,
+} from '@/lib/dashboardBadgeStyles';
 import { auditLogger } from '@/lib/auditLogger';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -255,25 +260,8 @@ export default function AdminThreatSummary() {
     'Other (specify in notes)'
   ];
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'critical': return 'bg-violet-800 text-white border-violet-900';
-      case 'high': return 'bg-red-700 text-white border-red-800';
-      case 'medium': return 'bg-orange-700 text-white border-orange-800';
-      case 'low': return 'bg-green-700 text-white border-green-800';
-      default: return 'bg-gray-700 text-white border-gray-800';
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'open': return 'bg-red-700 text-white border-red-800';
-      case 'in_progress': return 'bg-blue-700 text-white border-blue-800';
-      case 'resolved': return 'bg-green-700 text-white border-green-800';
-      case 'false_positive': return 'bg-gray-700 text-white border-gray-800';
-      default: return 'bg-gray-700 text-white border-gray-800';
-    }
-  };
+  const getSeverityColor = getSeverityBadgeClassName;
+  const getStatusColor = getStatusBadgeClassName;
 
   const handleViewCVE = (threatId: string) => {
     const url = /^CVE-\d{4}-\d{4,}$/i.test(threatId)
@@ -583,7 +571,7 @@ export default function AdminThreatSummary() {
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center p-4 border rounded-lg">
-                <div className="text-3xl font-bold text-red-600">
+                <div className={`text-3xl font-bold ${getSeverityTextClassName('critical')}`}>
                   {isLoading ? '...' : loadError ? '—' : severityCounts.critical}
                 </div>
                 <div className="text-sm text-gray-500">Critical</div>
@@ -592,7 +580,7 @@ export default function AdminThreatSummary() {
                 </div>
               </div>
               <div className="text-center p-4 border rounded-lg">
-                <div className="text-3xl font-bold text-orange-600">
+                <div className={`text-3xl font-bold ${getSeverityTextClassName('high')}`}>
                   {isLoading ? '...' : loadError ? '—' : severityCounts.high}
                 </div>
                 <div className="text-sm text-gray-500">High</div>
@@ -601,7 +589,7 @@ export default function AdminThreatSummary() {
                 </div>
               </div>
               <div className="text-center p-4 border rounded-lg">
-                <div className="text-3xl font-bold text-yellow-600">
+                <div className={`text-3xl font-bold ${getSeverityTextClassName('medium')}`}>
                   {isLoading ? '...' : loadError ? '—' : severityCounts.medium}
                 </div>
                 <div className="text-sm text-gray-500">Medium</div>
@@ -610,7 +598,7 @@ export default function AdminThreatSummary() {
                 </div>
               </div>
               <div className="text-center p-4 border rounded-lg">
-                <div className="text-3xl font-bold text-green-600">
+                <div className={`text-3xl font-bold ${getSeverityTextClassName('low')}`}>
                   {isLoading ? '...' : loadError ? '—' : severityCounts.low}
                 </div>
                 <div className="text-sm text-gray-500">Low</div>
