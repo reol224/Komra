@@ -70,6 +70,10 @@ describe("AuditLogger", () => {
     mocks = getMocks();
     vi.clearAllMocks();
     mockStorage = {};
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ip: "203.0.113.10" }),
+    }));
 
     // Setup default mock behaviors - chainable
     mocks.select.mockReturnThis();
@@ -105,6 +109,7 @@ describe("AuditLogger", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   describe("Singleton Pattern", () => {
@@ -132,6 +137,7 @@ describe("AuditLogger", () => {
           details: { test: "data" },
           user_id: "test-user-id",
           user_email: "test@example.com",
+          ip_address: "203.0.113.10",
           severity: "medium",
           status: "success",
         }),
@@ -776,7 +782,7 @@ describe("AuditLogger", () => {
 
       expect(mocks.insert).toHaveBeenCalledWith([
         expect.objectContaining({
-          ip_address: null,
+          ip_address: "203.0.113.10",
           user_agent: expect.any(String),
         }),
       ]);

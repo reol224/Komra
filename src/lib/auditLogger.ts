@@ -20,6 +20,7 @@ export interface AuditLogEntry {
 export class AuditLogger {
   private static instance: AuditLogger;
   private sessionId: string;
+  private clientIpPromise: Promise<string | null> | null = null;
 
   private constructor() {
     this.sessionId = this.generateSessionId();
@@ -41,10 +42,28 @@ export class AuditLogger {
     return user;
   }
 
-  private getClientInfo() {
+  private async getClientInfo() {
     if (typeof window !== 'undefined') {
+      if (!this.clientIpPromise) {
+        this.clientIpPromise = fetch('/api/auth/get-client-ip')
+          .then(async (response) => {
+            if (!response.ok) {
+              throw new Error(`Client IP lookup failed (${response.status}).`);
+            }
+            const result = await response.json() as { ip?: unknown };
+            return typeof result.ip === 'string' && result.ip !== 'unknown'
+              ? result.ip
+              : null;
+          })
+          .catch((error: unknown) => {
+            console.error('Unable to retrieve client IP for audit log:', error);
+            this.clientIpPromise = null;
+            return null;
+          });
+      }
+
       return {
-        ip_address: null,
+        ip_address: await this.clientIpPromise,
         user_agent: navigator.userAgent,
       };
     }
@@ -69,7 +88,7 @@ export class AuditLogger {
   ): Promise<void> {
     try {
       const user = await this.getCurrentUser();
-      const clientInfo = this.getClientInfo();
+      const clientInfo = await this.getClientInfo();
 
       const logEntry: AuditLogEntry = {
         user_id: options.actorUserId ?? user?.id ?? null,
