@@ -90,7 +90,7 @@ interface CustomLogSource {
 
 /** Renders the role-specific dashboard and its administrator settings. */
 export default function DashboardLayout() {
-  const { signOut, user } = useAuth();
+  const { signOut, user, loading: authLoading } = useAuth();
   const [selectedTab, setSelectedTab] = useState(
     () => user?.role ? DEFAULT_ROLE_TAB[user.role] : DEFAULT_ROLE_TAB.admin,
   );
@@ -132,10 +132,13 @@ export default function DashboardLayout() {
   /** Sends a same-origin log-source request with the active session credentials. */
   const fetchLogSources = useCallback(async (input: RequestInfo | URL, init?: RequestInit) => {
     const headers = new Headers(init?.headers);
-    const { data: { session }, error } = await supabase.auth.getSession();
-    if (error) throw error;
-    if (session?.access_token) {
-      headers.set("Authorization", `Bearer ${session.access_token}`);
+    headers.delete("Authorization");
+    if (user?.authMethod !== "demo") {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      if (session?.access_token) {
+        headers.set("Authorization", `Bearer ${session.access_token}`);
+      }
     }
 
     return fetch(input, {
@@ -143,7 +146,7 @@ export default function DashboardLayout() {
       headers,
       credentials: "same-origin",
     });
-  }, []);
+  }, [user?.authMethod]);
 
   /** Loads persisted log-source preferences and reports retrieval failures. */
   const loadLogSources = useCallback(async () => {
@@ -161,8 +164,9 @@ export default function DashboardLayout() {
   }, [fetchLogSources]);
 
   useEffect(() => {
+    if (authLoading) return;
     void loadLogSources();
-  }, [loadLogSources]);
+  }, [authLoading, loadLogSources, user?.id]);
 
   useEffect(() => {
     if (!user?.role) return;

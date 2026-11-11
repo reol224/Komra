@@ -41,33 +41,34 @@ const supabaseAdmin = createClient(
 
 type AuthenticatedClient = typeof supabaseAdmin;
 
+/** Resolves a valid bearer session or, only without a bearer header, a demo cookie. */
 async function getAuthenticatedContext(
   request: NextRequest,
 ): Promise<{ userId: string; client: AuthenticatedClient } | null> {
-  const accessToken = request.headers
-    .get('authorization')
-    ?.match(/^Bearer\s+(.+)$/i)?.[1];
+  const authorization = request.headers.get('authorization');
+  const accessToken = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
+  if (authorization && !accessToken) return null;
 
   if (accessToken) {
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
-    if (!authError && user?.email) {
-      const client = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-          auth: { autoRefreshToken: false, persistSession: false },
-          global: { headers: { Authorization: `Bearer ${accessToken}` } },
-        },
-      );
-      const { data: profile, error: profileError } = await client
-        .from('users')
-        .select('id')
-        .eq('email', user.email)
-        .maybeSingle();
+    if (authError || !user?.email) return null;
 
-      if (profileError) throw profileError;
-      if (profile) return { userId: profile.id, client };
-    }
+    const client = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${accessToken}` } },
+      },
+    );
+    const { data: profile, error: profileError } = await client
+      .from('users')
+      .select('id')
+      .eq('email', user.email)
+      .maybeSingle();
+
+    if (profileError) throw profileError;
+    return profile ? { userId: profile.id, client } : null;
   }
 
   const appToken = request.cookies.get(SESSION_COOKIE)?.value;
@@ -85,6 +86,7 @@ async function getAuthenticatedContext(
   return session ? { userId: session.user_id, client: supabaseAdmin } : null;
 }
 
+/** Returns saved log-source preferences for the verified user. */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const context = await getAuthenticatedContext(request);
@@ -142,6 +144,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 }
 
+/** Validates and persists a log-source settings action for the verified user. */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const context = await getAuthenticatedContext(request);
