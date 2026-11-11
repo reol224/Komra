@@ -102,7 +102,9 @@ export default function AnalystIncidentResponse() {
                       type="button"
                       key={assignment.id}
                       className={`w-full rounded-lg border p-3 text-left transition-colors ${
-                        currentAssignment?.id === assignment.id ? 'border-blue-300 bg-blue-50' : 'hover:bg-muted/50'
+                        currentAssignment?.id === assignment.id
+                          ? 'border-blue-400 bg-blue-100 text-slate-900'
+                          : 'text-card-foreground hover:bg-muted/50'
                       }`}
                       onClick={() => setSelectedAssignmentId(assignment.id)}
                     >
@@ -114,7 +116,13 @@ export default function AnalystIncidentResponse() {
                           {assignment.status.replace('_', ' ')}
                         </Badge>
                       </div>
-                      <h4 className="text-sm font-medium">{assignment.finding.cve_id}</h4>
+                      <h4
+                        className={`text-sm font-medium ${
+                          currentAssignment?.id === assignment.id ? 'text-black' : 'text-white'
+                        }`}
+                      >
+                        {assignment.finding.cve_id}
+                      </h4>
                       <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                         {assignment.finding.description || 'No description available.'}
                       </p>
@@ -134,7 +142,7 @@ export default function AnalystIncidentResponse() {
             <Card>
               <CardHeader>
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <CardTitle>{currentAssignment.finding.cve_id}</CardTitle>
+                  <CardTitle className="text-white">{currentAssignment.finding.cve_id}</CardTitle>
                   <div className="flex gap-2">
                     <Badge className={`${getSeverityColor(currentAssignment.finding.severity)} capitalize`}>
                       {currentAssignment.finding.severity}
