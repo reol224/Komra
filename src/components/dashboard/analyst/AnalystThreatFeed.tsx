@@ -65,15 +65,6 @@ export default function AnalystThreatFeed() {
     });
   }, [assignments, searchTerm, selectedSeverity, selectedStatus]);
 
-  const openOsvRecord = (sourceId: string | null | undefined, cveId: string) => {
-    const vulnerabilityId = sourceId || cveId;
-    window.open(
-      `https://osv.dev/vulnerability/${encodeURIComponent(vulnerabilityId)}`,
-      '_blank',
-      'noopener,noreferrer',
-    );
-  };
-
   const handleRefresh = () => {
     setIsRefreshing(true);
     void loadAssignments();
@@ -185,6 +176,7 @@ export default function AnalystThreatFeed() {
           {filteredAssignments.map((assignment) => {
             const { finding } = assignment;
             const ownerName = assignment.owner.fullName || assignment.owner.email;
+            const osvUrl = `https://osv.dev/vulnerability/${encodeURIComponent(finding.source_id || finding.cve_id)}`;
             return (
               <Card key={assignment.id} className="hover:shadow-md transition-shadow">
                 <CardContent className="pt-6">
@@ -202,7 +194,16 @@ export default function AnalystThreatFeed() {
                         </Badge>
                         {finding.cvss_score !== null && <span className="text-sm font-bold">CVSS {finding.cvss_score}</span>}
                       </div>
-                      <h4 className="text-lg font-semibold">{finding.cve_id}</h4>
+                      <h4 className="text-lg font-semibold">
+                        <a
+                          href={osvUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline"
+                        >
+                          {finding.cve_id}
+                        </a>
+                      </h4>
                       <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
                         {finding.description || 'No description available.'}
                       </p>
@@ -223,13 +224,19 @@ export default function AnalystThreatFeed() {
                       )}
                     </div>
                     <Button
+                      asChild
                       variant="outline"
                       size="sm"
                       className="shrink-0"
-                      onClick={() => openOsvRecord(finding.source_id, finding.cve_id)}
                     >
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      Open OSV
+                      <a
+                        href={osvUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        Open OSV
+                      </a>
                     </Button>
                   </div>
                 </CardContent>
