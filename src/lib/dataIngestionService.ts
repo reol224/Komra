@@ -1,11 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
 import SystemDataCollector, { MachineData } from '../lib/systemDataCollector';
+import { supabase } from './supabase';
 import { scanEndpointForKnownVulnerabilities } from './vulnerabilityDetection';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 export class DataIngestionService {
   private collector: SystemDataCollector;

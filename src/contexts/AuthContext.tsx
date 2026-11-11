@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { SessionManagementService } from "@/lib/sessionManagementService";
 import { auditLogger } from "@/lib/auditLogger";
@@ -18,6 +18,7 @@ export interface User {
   last_activity?: string;
   session_timeout?: number;
   session_id: string;
+  authMethod: "demo" | "supabase";
 }
 
 interface AuthContextType {
@@ -112,9 +113,39 @@ function logAuthenticationEvent(
   );
 }
 
+/** Provides authenticated user state and restores the correct session flow. */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const signOutRef = useRef<() => Promise<boolean>>(async () => false);
+
+  /** Refreshes profile data while preserving the authentication source and session. */
+  const refreshUserFromDB = useCallback(async (userId: string, sessionUser: User) => {
+    try {
+      const { data, error } = await supabase
+        .from("users")
+        .select("id, email, full_name, role, mfa_enabled, last_activity")
+        .eq("id", userId)
+        .single();
+
+      if (!error && data) {
+        const updatedUser = {
+          ...data,
+          session_timeout: getSessionTimeoutByRole(data.role as UserRole),
+          session_id: sessionUser.session_id,
+          authMethod: sessionUser.authMethod,
+        };
+        setUser(updatedUser);
+        const storageKey = updatedUser.authMethod === "demo" ? "demo_user" : "user";
+        localStorage.setItem(storageKey, JSON.stringify(updatedUser));
+        if (updatedUser.authMethod === "supabase") {
+          localStorage.removeItem("demo_user");
+        }
+      }
+    } catch (error) {
+      console.error("Error refreshing user data:", error);
+    }
+  }, []);
 
   // Real-time session monitoring only (no polling)
   useEffect(() => {
@@ -143,7 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // If session is terminated, log out immediately
           if (!newSession.is_active) {
             console.log("Session terminated by admin, logging out...");
-            signOut();
+            void signOutRef.current();
           }
         },
       )
@@ -158,50 +189,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user?.session_id]);
 
   useEffect(() => {
-    // Check for demo user in localStorage
-    const demoUser = localStorage.getItem("demo_user");
-    if (demoUser) {
-      try {
-        const userData = JSON.parse(demoUser);
-        setUser(userData);
-        // Refresh user data from database to get latest MFA status
-        refreshUserFromDB(userData.id);
-      } catch (error) {
-        console.error("Error parsing demo user:", error);
-        localStorage.removeItem("demo_user");
-      }
-    }
-    setLoading(false);
-  }, []);
+    let isMounted = true;
+    /** Restores the cached user and identifies its matching authentication session. */
+    const restoreUser = async () => {
+      const demoUser = localStorage.getItem("demo_user");
+      if (demoUser) {
+        let userData: User;
+        try {
+          userData = JSON.parse(demoUser) as User;
+        } catch (error) {
+          console.error("Error parsing demo user:", error);
+          localStorage.removeItem("demo_user");
+          if (isMounted) setLoading(false);
+          return;
+        }
 
-  const refreshUserFromDB = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from("users")
-        .select("id, email, full_name, role, mfa_enabled, last_activity")
-        .eq("id", userId)
-        .single();
-
-      if (!error && data) {
-        const updatedUser = {
-          ...data,
-          session_timeout: getSessionTimeoutByRole(data.role as UserRole),
-          session_id: user?.session_id || "", // Preserve existing session_id
+        let authMethod = userData.authMethod;
+        if (authMethod !== "demo" && authMethod !== "supabase") {
+          const { data: { session }, error } = await supabase.auth.getSession();
+          if (error) {
+            console.error("Unable to identify the restored authentication session:", error);
+            if (isMounted) setLoading(false);
+            return;
+          }
+          const isSupabaseUser =
+            session?.user.email?.toLowerCase() === userData.email.toLowerCase();
+          authMethod = isSupabaseUser ? "supabase" : "demo";
+        }
+        const restoredUser: User = {
+          ...userData,
+          authMethod,
         };
-        setUser(updatedUser);
-        localStorage.setItem("demo_user", JSON.stringify(updatedUser));
+        if (isMounted) setUser(restoredUser);
+
+        const storageKey = restoredUser.authMethod === "demo" ? "demo_user" : "user";
+        localStorage.setItem(storageKey, JSON.stringify(restoredUser));
+        if (restoredUser.authMethod === "supabase") {
+          localStorage.removeItem("demo_user");
+        }
+        void refreshUserFromDB(restoredUser.id, restoredUser);
       }
-    } catch (error) {
-      console.error("Error refreshing user data:", error);
-    }
-  };
+
+      if (isMounted) setLoading(false);
+    };
+    void restoreUser().catch((error) => {
+      console.error("Unable to restore the saved user session:", error);
+      if (isMounted) setLoading(false);
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [refreshUserFromDB]);
 
   const refreshUser = async () => {
     if (user?.id) {
-      await refreshUserFromDB(user.id);
+      await refreshUserFromDB(user.id, user);
     }
   };
 
+  /** Signs in through the demo application session or Supabase Auth. */
   const signIn = async (email: string, password: string) => {
     // Check if it's a demo user
     const demoUser = DEMO_USERS[email as keyof typeof DEMO_USERS];
@@ -266,9 +312,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         mfa_enabled: dbUser.mfa_enabled,
         session_timeout: getSessionTimeoutByRole(dbUser.role as UserRole),
         session_id: sessionId || "", // Ensure it's never null
+        authMethod: "demo" as const,
       };
 
       setUser(userData);
+      localStorage.removeItem("user");
       localStorage.setItem("demo_user", JSON.stringify(userData));
       logAuthenticationEvent("USER_LOGIN", dbUser.email, "success", {
         id: dbUser.id,
@@ -333,9 +381,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mfa_enabled: dbUser.mfa_enabled,
       session_timeout: getSessionTimeoutByRole(dbUser.role as UserRole),
       session_id: sessionId || "",
+      authMethod: "supabase" as const,
     };
 
     setUser(userData);
+    localStorage.removeItem("demo_user");
     localStorage.setItem("user", JSON.stringify(userData));
     
     await recordSuccessfulLogin(dbUser.id);
@@ -345,6 +395,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  /** Revokes the application session and clears locally persisted identity state. */
   const signOut = async () => {
     console.log("🔴 SignOut called, user session_id:", user?.session_id);
 
@@ -384,6 +435,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Clear demo user
     localStorage.removeItem("demo_user");
+    localStorage.removeItem("user");
     setUser(null);
 
     // Also sign out from Supabase if there's a session
@@ -398,6 +450,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     return true;
   };
+  signOutRef.current = signOut;
 
   const recordSuccessfulLogin = async (userId: string) => {
     const loginTime = new Date().toISOString();
@@ -449,6 +502,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+/** Returns the authentication context for the current component tree. */
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
