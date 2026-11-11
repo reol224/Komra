@@ -671,7 +671,7 @@ export default function AdminAuditTrail() {
                             <Eye className="h-4 w-4" />
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-2xl">
+                        <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-2xl overflow-y-auto">
                           <DialogHeader>
                             <DialogTitle>Audit Log Details</DialogTitle>
                           </DialogHeader>
