@@ -338,8 +338,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(userData);
     localStorage.setItem("user", JSON.stringify(userData));
     
-    // Update last activity
-    await updateLastActivity();
+    await recordSuccessfulLogin(dbUser.id);
     logAuthenticationEvent("USER_LOGIN", dbUser.email, "success", {
       id: dbUser.id,
       email: dbUser.email,
@@ -400,16 +399,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
-  const updateLastActivity = async () => {
-    if (!user) return;
-
-    try {
-      await supabase
+  const recordSuccessfulLogin = async (userId: string) => {
+    const loginTime = new Date().toISOString();
+    const { error } = await supabase
         .from("users")
-        .update({ last_activity: new Date().toISOString() })
-        .eq("id", user.id);
-    } catch (error) {
-      console.error("Error updating last activity:", error);
+        .update({ last_login: loginTime, last_activity: loginTime })
+        .eq("id", userId);
+
+    if (error) {
+      console.error("Error recording successful login:", error);
     }
   };
 

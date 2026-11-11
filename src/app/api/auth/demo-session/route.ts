@@ -76,6 +76,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid login credentials.' }, { status: 401 });
   }
 
+  const loginTime = new Date().toISOString();
+  const { error: loginUpdateError } = await supabase
+    .from('users')
+    .update({ last_login: loginTime, last_activity: loginTime })
+    .eq('id', user.id);
+  if (loginUpdateError) {
+    console.error('Unable to record demo user login:', loginUpdateError);
+    return NextResponse.json({ error: 'Unable to sign in right now.' }, { status: 500 });
+  }
+
   const duration = sessionDurations[user.role];
   const token = randomBytes(32).toString('base64url');
   const tokenHash = hashToken(token);
