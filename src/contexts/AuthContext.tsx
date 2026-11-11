@@ -113,6 +113,11 @@ function logAuthenticationEvent(
   );
 }
 
+function persistUser(key: "demo_user" | "user", user: User) {
+  const { mfa_enabled: _mfaEnabled, ...persistedUser } = user;
+  localStorage.setItem(key, JSON.stringify(persistedUser));
+}
+
 /** Provides authenticated user state and restores the correct session flow. */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -137,7 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
         setUser(updatedUser);
         const storageKey = updatedUser.authMethod === "demo" ? "demo_user" : "user";
-        localStorage.setItem(storageKey, JSON.stringify(updatedUser));
+        persistUser(storageKey, updatedUser);
         if (updatedUser.authMethod === "supabase") {
           localStorage.removeItem("demo_user");
         }
@@ -223,7 +228,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (isMounted) setUser(restoredUser);
 
         const storageKey = restoredUser.authMethod === "demo" ? "demo_user" : "user";
-        localStorage.setItem(storageKey, JSON.stringify(restoredUser));
+        persistUser(storageKey, restoredUser);
         if (restoredUser.authMethod === "supabase") {
           localStorage.removeItem("demo_user");
         }
@@ -317,7 +322,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setUser(userData);
       localStorage.removeItem("user");
-      localStorage.setItem("demo_user", JSON.stringify(userData));
+      persistUser("demo_user", userData);
       logAuthenticationEvent("USER_LOGIN", dbUser.email, "success", {
         id: dbUser.id,
         email: dbUser.email,
@@ -386,7 +391,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setUser(userData);
     localStorage.removeItem("demo_user");
-    localStorage.setItem("user", JSON.stringify(userData));
+    persistUser("user", userData);
     
     await recordSuccessfulLogin(dbUser.id);
     logAuthenticationEvent("USER_LOGIN", dbUser.email, "success", {
