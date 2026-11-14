@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Search, Database, Network, FileText, Download, Play, RefreshCw } from 'lucide-react';
 import { getSeverityBadgeClassName } from '@/lib/dashboardBadgeStyles';
 import { auditLogger, AuditLogEntry } from '@/lib/auditLogger';
+import { runCorrelationQuery, CorrelationResult } from '@/lib/correlationEngine';
 
 interface LogEntry {
   id: string;
@@ -32,9 +33,51 @@ interface CorrelationRule {
   description: string;
   query: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
-  enabled: boolean;
-  matches: number;
+  enabledByDefault: boolean;
 }
+
+const CORRELATION_RULES: CorrelationRule[] = [
+  {
+    id: 'brute-force',
+    name: 'Brute Force Detection',
+    description: 'IP addresses with 3 or more failed login events',
+    query: 'level:error AND message:*login* | stats count by ip_address | where count >= 3',
+    severity: 'high',
+    enabledByDefault: true,
+  },
+  {
+    id: 'sql-injection',
+    name: 'SQL Injection Pattern',
+    description: 'Events containing SQL keywords commonly used in injection attempts',
+    query: 'message:*UNION* OR message:*DROP TABLE* OR message:*SELECT * FROM* OR message:*OR 1=1*',
+    severity: 'critical',
+    enabledByDefault: true,
+  },
+  {
+    id: 'privilege-escalation',
+    name: 'Privilege Escalation',
+    description: 'Failed or denied events touching admin resources, grouped by user',
+    query: 'endpoint:*admin* AND level:error | stats count by user_email',
+    severity: 'medium',
+    enabledByDefault: true,
+  },
+  {
+    id: 'critical-activity',
+    name: 'Critical Event Sources',
+    description: 'Sources producing critical-severity events',
+    query: 'level:critical | stats count by source',
+    severity: 'high',
+    enabledByDefault: true,
+  },
+  {
+    id: 'bulk-access',
+    name: 'Data Exfiltration',
+    description: 'Users generating 20 or more export/download/bulk events',
+    query: 'message:*export* OR message:*download* OR message:*bulk* | stats count by user_email | where count >= 20',
+    severity: 'high',
+    enabledByDefault: false,
+  },
+];
 
 const LOG_PAGE_SIZE = 1000;
 
@@ -111,44 +154,8 @@ export default function AnalystInvestigation() {
   const [logLoadError, setLogLoadError] = useState<string | null>(null);
   const [refreshVersion, setRefreshVersion] = useState(0);
 
-  const correlationRules: CorrelationRule[] = [
-    {
-      id: '1',
-      name: 'Brute Force Detection',
-      description: 'Detects multiple failed login attempts from same IP',
-      query: 'source:auth-service AND level:error AND message:*failed*login* | stats count by ip_address | where count > 5',
-      severity: 'high',
-      enabled: true,
-      matches: 3
-    },
-    {
-      id: '2',
-      name: 'SQL Injection Pattern',
-      description: 'Identifies potential SQL injection attempts',
-      query: 'message:*SELECT* OR message:*UNION* OR message:*DROP* | where status_code >= 400',
-      severity: 'critical',
-      enabled: true,
-      matches: 1
-    },
-    {
-      id: '3',
-      name: 'Privilege Escalation',
-      description: 'Detects attempts to access admin resources',
-      query: 'endpoint:*/admin/* AND status_code:401 | stats count by ip_address',
-      severity: 'medium',
-      enabled: true,
-      matches: 2
-    },
-    {
-      id: '4',
-      name: 'Data Exfiltration',
-      description: 'Large data transfers or bulk queries',
-      query: 'source:database* AND message:*SELECT* | where response_size > 1MB',
-      severity: 'high',
-      enabled: false,
-      matches: 0
-    }
-  ];
+  const [enabledRules, setEnabledRules] = useState<Record<string, boolean>>({});
+  const [correlationRun, setCorrelationRun] = useState<{ label: string; query: string; result?: CorrelationResult; error?: string } | null>(null);
 
   useEffect(() => {
     let isCurrentRequest = true;
@@ -215,13 +222,51 @@ export default function AnalystInvestigation() {
     });
   }, [logEntries, searchQuery, selectedSource, selectedLevel]);
 
+  const topIps = useMemo(() => {
+    const byIp = new Map<string, { address: string; events: number; errors: number; lastSeen: string }>();
+    for (const log of logEntries) {
+      if (!log.ip_address) continue;
+      const row = byIp.get(log.ip_address) ?? { address: log.ip_address, events: 0, errors: 0, lastSeen: log.timestamp };
+      row.events += 1;
+      if (log.level === 'error' || log.level === 'critical') row.errors += 1;
+      if (log.timestamp > row.lastSeen) row.lastSeen = log.timestamp;
+      byIp.set(log.ip_address, row);
+    }
+    return Array.from(byIp.values())
+      .map((row) => ({ ...row, errorRate: Math.round((row.errors / row.events) * 100) }))
+      .sort((x, y) => y.events - x.events)
+      .slice(0, 10);
+  }, [logEntries]);
+
   const getLevelColor = getSeverityBadgeClassName;
   const getSeverityColor = getSeverityBadgeClassName;
 
-  /** Reports the selected predefined rule until correlation execution is implemented. */
-  const handleRunCorrelation = (ruleId: string) => {
-    console.log('Running correlation rule:', ruleId);
+  /** Evaluates a correlation query against the loaded logs and stores the outcome. */
+  const executeCorrelation = (label: string, query: string) => {
+    try {
+      setCorrelationRun({ label, query, result: runCorrelationQuery(logEntries, query) });
+    } catch (error) {
+      setCorrelationRun({ label, query, error: error instanceof Error ? error.message : 'Invalid query.' });
+    }
   };
+
+  const isRuleEnabled = (rule: CorrelationRule) => enabledRules[rule.id] ?? rule.enabledByDefault;
+
+  /** Match counts for each enabled rule, computed from the loaded logs. */
+  const ruleMatches = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const rule of CORRELATION_RULES) {
+      try {
+        counts[rule.id] = runCorrelationQuery(logEntries, rule.query).matches;
+      } catch {
+        counts[rule.id] = 0;
+      }
+    }
+    return counts;
+  }, [logEntries]);
+
+  /** Runs a predefined rule. */
+  const handleRunCorrelation = (rule: CorrelationRule) => executeCorrelation(rule.name, rule.query);
 
   /** Downloads the currently filtered log results as a formula-safe CSV file. */
   const handleExportLogs = () => {
@@ -246,10 +291,8 @@ export default function AnalystInvestigation() {
     URL.revokeObjectURL(objectUrl);
   };
 
-  /** Reports a custom query until correlation execution is implemented. */
-  const handleRunCustomQuery = () => {
-    console.log('Running custom correlation query:', correlationQuery);
-  };
+  /** Runs the user-entered correlation query. */
+  const handleRunCustomQuery = () => executeCorrelation('Custom query', correlationQuery.trim());
 
   return (
     <div className="space-y-6">
@@ -440,13 +483,79 @@ export default function AnalystInvestigation() {
                   onChange={(e) => setCorrelationQuery(e.target.value)}
                   className="font-mono"
                 />
-                <Button onClick={handleRunCustomQuery} disabled={!correlationQuery.trim()}>
+                <Button onClick={handleRunCustomQuery} disabled={!correlationQuery.trim() || isLoadingLogs}>
                   <Play className="h-4 w-4 mr-2" />
                   Run Query
                 </Button>
+                <p className="text-xs text-gray-500">
+                  Syntax: field:value (wildcards *) joined by AND/OR, then optional
+                  {' '}| where field &gt;= N, | stats count by field, | where count &gt; N. Runs on the logs loaded for the selected time range ({logEntries.length}).
+                </p>
               </div>
             </CardContent>
           </Card>
+
+          {correlationRun && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Results: {correlationRun.label}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {correlationRun.error ? (
+                  <p className="text-sm text-red-600">{correlationRun.error}</p>
+                ) : correlationRun.result?.matches === 0 ? (
+                  <p className="text-sm text-gray-500">No matches in the selected time range.</p>
+                ) : correlationRun.result?.kind === 'groups' ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Value</TableHead>
+                        <TableHead>Events</TableHead>
+                        <TableHead>Last Seen</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {correlationRun.result.groups.map((group) => (
+                        <TableRow key={group.key}>
+                          <TableCell className="font-mono">{group.key}</TableCell>
+                          <TableCell>{group.count}</TableCell>
+                          <TableCell>{new Date(group.lastSeen).toLocaleString()}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Timestamp</TableHead>
+                        <TableHead>Source</TableHead>
+                        <TableHead>Level</TableHead>
+                        <TableHead>IP</TableHead>
+                        <TableHead>Message</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {correlationRun.result?.events.slice(0, 100).map((event) => (
+                        <TableRow key={event.id}>
+                          <TableCell className="whitespace-nowrap">{new Date(event.timestamp).toLocaleString()}</TableCell>
+                          <TableCell>{event.source}</TableCell>
+                          <TableCell>
+                            <Badge className={`${getLevelColor(event.level)} capitalize`}>{event.level}</Badge>
+                          </TableCell>
+                          <TableCell className="font-mono">{event.ip_address || '-'}</TableCell>
+                          <TableCell className="max-w-md truncate" title={event.message}>{event.message}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+                {correlationRun.result?.kind === 'events' && correlationRun.result.matches > 100 && (
+                  <p className="text-xs text-gray-500">Showing first 100 of {correlationRun.result.matches} matches.</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Predefined Rules */}
           <Card>
@@ -455,7 +564,7 @@ export default function AnalystInvestigation() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {correlationRules.map((rule) => (
+                {CORRELATION_RULES.map((rule) => (
                   <div key={rule.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="flex-1">
                       <div className="flex items-center space-x-3 mb-2">
@@ -463,8 +572,8 @@ export default function AnalystInvestigation() {
                         <Badge className={`${getSeverityColor(rule.severity)} capitalize`}>
                           {rule.severity}
                         </Badge>
-                        <Badge variant={rule.enabled ? 'default' : 'secondary'}>
-                          {rule.enabled ? 'Enabled' : 'Disabled'}
+                        <Badge variant={isRuleEnabled(rule) ? 'default' : 'secondary'}>
+                          {isRuleEnabled(rule) ? 'Enabled' : 'Disabled'}
                         </Badge>
                       </div>
                       <p className="text-sm text-gray-600 mb-2">{rule.description}</p>
@@ -474,14 +583,22 @@ export default function AnalystInvestigation() {
                     </div>
                     <div className="flex items-center space-x-3 ml-4">
                       <div className="text-center">
-                        <div className="text-lg font-bold">{rule.matches}</div>
+                        <div className="text-lg font-bold">{isRuleEnabled(rule) ? ruleMatches[rule.id] ?? 0 : '-'}</div>
                         <div className="text-xs text-gray-500">Matches</div>
                       </div>
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleRunCorrelation(rule.id)}
-                        disabled={!rule.enabled}
+                        onClick={() => setEnabledRules((current) => ({ ...current, [rule.id]: !isRuleEnabled(rule) }))}
+                      >
+                        {isRuleEnabled(rule) ? 'Disable' : 'Enable'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        aria-label={`Run ${rule.name}`}
+                        onClick={() => handleRunCorrelation(rule)}
+                        disabled={!isRuleEnabled(rule) || isLoadingLogs}
                       >
                         <Play className="h-4 w-4" />
                       </Button>
@@ -538,18 +655,18 @@ export default function AnalystInvestigation() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TableRow>
-                    <TableCell className="font-mono">203.0.113.42</TableCell>
-                    <TableCell>4</TableCell>
-                    <TableCell className="text-red-600">75%</TableCell>
-                    <TableCell>2024-03-22 15:45:32</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-mono">192.168.1.105</TableCell>
-                    <TableCell>1</TableCell>
-                    <TableCell className="text-yellow-600">0%</TableCell>
-                    <TableCell>2024-03-22 15:44:18</TableCell>
-                  </TableRow>
+                  {topIps.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-gray-500">No IP addresses recorded in this range.</TableCell>
+                    </TableRow>
+                  ) : topIps.map((ip) => (
+                    <TableRow key={ip.address}>
+                      <TableCell className="font-mono">{ip.address}</TableCell>
+                      <TableCell>{ip.events}</TableCell>
+                      <TableCell className={ip.errorRate >= 50 ? 'text-red-600' : ip.errorRate > 0 ? 'text-yellow-600' : 'text-green-600'}>{ip.errorRate}%</TableCell>
+                      <TableCell>{new Date(ip.lastSeen).toLocaleString()}</TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </CardContent>
