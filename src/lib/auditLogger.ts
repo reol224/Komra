@@ -102,7 +102,7 @@ export class AuditLogger {
             const result = await response.json() as { ip?: unknown };
             return typeof result.ip === 'string' && isPostgresInetAddress(result.ip)
               ? result.ip
-              : 'unknown';
+              : null;
           })
           .catch((error: unknown) => {
             console.error('Unable to retrieve client IP for audit log:', error);
