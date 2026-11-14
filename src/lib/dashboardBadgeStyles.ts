@@ -31,7 +31,7 @@ const severityChartColors: Record<string, string> = {
 
 const redStatusClasses = "border-red-700 bg-red-600 text-white";
 const amberStatusClasses = "border-yellow-600 bg-yellow-300 text-yellow-950";
-const greenStatusClasses = "border-green-700 bg-green-600 text-white";
+const greenStatusClasses = "border-green-700 bg-green-600 text-black";
 const slateStatusClasses = "border-slate-600 bg-slate-500 text-white";
 
 const statusBadgeClasses: Record<string, string> = {
