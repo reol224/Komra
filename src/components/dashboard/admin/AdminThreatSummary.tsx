@@ -13,6 +13,11 @@ import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/use-toast';
 import { AlertTriangle, Shield, TrendingUp, Clock, Eye, ExternalLink, Users, Calendar, UserCheck, AlertCircle, CheckCircle2, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { DashboardDataService, DashboardVulnerability, ThreatAssignee } from '@/lib/dashboardDataService';
+import {
+  getSeverityBadgeClassName,
+  getSeverityTextClassName,
+  getStatusBadgeClassName,
+} from '@/lib/dashboardBadgeStyles';
 import { auditLogger } from '@/lib/auditLogger';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -73,6 +78,11 @@ export default function AdminThreatSummary() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [recentThreatsSearch, setRecentThreatsSearch] = useState('');
+  const [recentThreatsSeverity, setRecentThreatsSeverity] = useState('all');
+  const [recentThreatsStatus, setRecentThreatsStatus] = useState('all');
+  const [recentThreatsPage, setRecentThreatsPage] = useState(0);
+  const [recentThreatsPageSize, setRecentThreatsPageSize] = useState(10);
   const [findingsSearch, setFindingsSearch] = useState('');
   const [findingsSeverity, setFindingsSeverity] = useState('all');
   const [findingsStatus, setFindingsStatus] = useState('all');
@@ -160,8 +170,35 @@ export default function AdminThreatSummary() {
     return !Number.isNaN(timestamp) && timestamp >= Date.now() - days * 24 * 60 * 60 * 1000;
   };
   const recentThreats = activeFindings
-    .filter((vulnerability) => vulnerability.severity === 'critical' || vulnerability.severity === 'high')
-    .slice(0, 10);
+    .filter((vulnerability) => vulnerability.severity === 'critical' || vulnerability.severity === 'high');
+  const filteredRecentThreats = recentThreats.filter((vulnerability) => {
+    const search = recentThreatsSearch.trim().toLocaleLowerCase();
+    const matchesSearch = !search || [
+      vulnerability.cve_id,
+      vulnerability.description,
+      vulnerability.endpoint_name,
+      vulnerability.environment,
+      ...vulnerability.affected_packages,
+    ].some((value) => value.toLocaleLowerCase().includes(search));
+    const matchesSeverity = recentThreatsSeverity === 'all' || vulnerability.severity === recentThreatsSeverity;
+    const matchesStatus = recentThreatsStatus === 'all' || vulnerability.status === recentThreatsStatus;
+    return matchesSearch && matchesSeverity && matchesStatus;
+  });
+  const recentThreatsPageCount = Math.ceil(filteredRecentThreats.length / recentThreatsPageSize);
+  useEffect(() => {
+    setRecentThreatsPage((page) => Math.min(page, Math.max(0, recentThreatsPageCount - 1)));
+  }, [recentThreatsPageCount]);
+  const paginatedRecentThreats = filteredRecentThreats.slice(
+    recentThreatsPage * recentThreatsPageSize,
+    (recentThreatsPage + 1) * recentThreatsPageSize
+  );
+  const recentThreatsStart = filteredRecentThreats.length === 0
+    ? 0
+    : recentThreatsPage * recentThreatsPageSize + 1;
+  const recentThreatsEnd = Math.min(
+    (recentThreatsPage + 1) * recentThreatsPageSize,
+    filteredRecentThreats.length
+  );
   const threatTrends = [7, 30, 90].map((days) => ({
     period: `Last ${days} days`,
     detected: vulnerabilities.filter((vulnerability) =>
@@ -223,25 +260,8 @@ export default function AdminThreatSummary() {
     'Other (specify in notes)'
   ];
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'critical': return 'bg-violet-800 text-white border-violet-900';
-      case 'high': return 'bg-red-700 text-white border-red-800';
-      case 'medium': return 'bg-orange-700 text-white border-orange-800';
-      case 'low': return 'bg-green-700 text-white border-green-800';
-      default: return 'bg-gray-700 text-white border-gray-800';
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'open': return 'bg-red-700 text-white border-red-800';
-      case 'in_progress': return 'bg-blue-700 text-white border-blue-800';
-      case 'resolved': return 'bg-green-700 text-white border-green-800';
-      case 'false_positive': return 'bg-gray-700 text-white border-gray-800';
-      default: return 'bg-gray-700 text-white border-gray-800';
-    }
-  };
+  const getSeverityColor = getSeverityBadgeClassName;
+  const getStatusColor = getStatusBadgeClassName;
 
   const handleViewCVE = (threatId: string) => {
     const url = /^CVE-\d{4}-\d{4,}$/i.test(threatId)
@@ -551,7 +571,7 @@ export default function AdminThreatSummary() {
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center p-4 border rounded-lg">
-                <div className="text-3xl font-bold text-red-600">
+                <div className={`text-3xl font-bold ${getSeverityTextClassName('critical')}`}>
                   {isLoading ? '...' : loadError ? '—' : severityCounts.critical}
                 </div>
                 <div className="text-sm text-gray-500">Critical</div>
@@ -560,7 +580,7 @@ export default function AdminThreatSummary() {
                 </div>
               </div>
               <div className="text-center p-4 border rounded-lg">
-                <div className="text-3xl font-bold text-orange-600">
+                <div className={`text-3xl font-bold ${getSeverityTextClassName('high')}`}>
                   {isLoading ? '...' : loadError ? '—' : severityCounts.high}
                 </div>
                 <div className="text-sm text-gray-500">High</div>
@@ -569,7 +589,7 @@ export default function AdminThreatSummary() {
                 </div>
               </div>
               <div className="text-center p-4 border rounded-lg">
-                <div className="text-3xl font-bold text-yellow-600">
+                <div className={`text-3xl font-bold ${getSeverityTextClassName('medium')}`}>
                   {isLoading ? '...' : loadError ? '—' : severityCounts.medium}
                 </div>
                 <div className="text-sm text-gray-500">Medium</div>
@@ -578,7 +598,7 @@ export default function AdminThreatSummary() {
                 </div>
               </div>
               <div className="text-center p-4 border rounded-lg">
-                <div className="text-3xl font-bold text-green-600">
+                <div className={`text-3xl font-bold ${getSeverityTextClassName('low')}`}>
                   {isLoading ? '...' : loadError ? '—' : severityCounts.low}
                 </div>
                 <div className="text-sm text-gray-500">Low</div>
@@ -595,19 +615,65 @@ export default function AdminThreatSummary() {
           <CardHeader>
             <CardTitle>Recent High-Priority Threats</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_180px]">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  aria-label="Search recent high-priority threats"
+                  placeholder="Search CVE, package, endpoint..."
+                  className="pl-9"
+                  value={recentThreatsSearch}
+                  onChange={(event) => {
+                    setRecentThreatsSearch(event.target.value);
+                    setRecentThreatsPage(0);
+                  }}
+                />
+              </div>
+              <Select value={recentThreatsSeverity} onValueChange={(value) => {
+                setRecentThreatsSeverity(value);
+                setRecentThreatsPage(0);
+              }}>
+                <SelectTrigger aria-label="Filter recent threats by severity">
+                  <SelectValue placeholder="All severities" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All severities</SelectItem>
+                  <SelectItem value="critical">Critical</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={recentThreatsStatus} onValueChange={(value) => {
+                setRecentThreatsStatus(value);
+                setRecentThreatsPage(0);
+              }}>
+                <SelectTrigger aria-label="Filter recent threats by status">
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="open">Open</SelectItem>
+                  <SelectItem value="in_progress">In progress</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             {isLoading ? (
               <div className="text-center py-8 text-gray-500">Loading threat data...</div>
             ) : loadError ? (
               <div className="text-center py-8 text-gray-500">Vulnerability findings are unavailable.</div>
-            ) : recentThreats.length === 0 ? (
+            ) : filteredRecentThreats.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <Shield className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <p>No open high-priority CVE matches on agent-reported endpoints.</p>
+                <p>
+                  {recentThreats.length === 0
+                    ? 'No open high-priority CVE matches on agent-reported endpoints.'
+                    : 'No high-priority threats match these filters.'}
+                </p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {recentThreats.map((threat) => (
+              <>
+                <div className="space-y-4">
+                {paginatedRecentThreats.map((threat) => (
                   <div key={threat.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="flex items-start space-x-3">
                       <AlertTriangle className={`h-5 w-5 mt-0.5 ${
@@ -647,7 +713,7 @@ export default function AdminThreatSummary() {
                             <Eye className="h-4 w-4" />
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-2xl">
+                        <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-2xl overflow-y-auto">
                           <DialogHeader>
                             <DialogTitle className="flex items-center space-x-2">
                               <AlertTriangle className={`h-5 w-5 ${
@@ -655,7 +721,7 @@ export default function AdminThreatSummary() {
                                 threat.severity === 'high' ? 'text-orange-600' : 
                                 'text-yellow-600'
                               }`} />
-                              <span>{threat.description || threat.cve_id}</span>
+                              <span className="min-w-0 break-words">{threat.description || threat.cve_id}</span>
                             </DialogTitle>
                           </DialogHeader>
                           <div className="space-y-4">
@@ -671,7 +737,7 @@ export default function AdminThreatSummary() {
                             
                             <div>
                               <h4 className="font-semibold mb-2">Description</h4>
-                              <p className="text-sm text-gray-600">{threat.description || 'No description is available in the CVE catalog.'}</p>
+                              <p className="break-words text-sm text-gray-600">{threat.description || 'No description is available in the CVE catalog.'}</p>
                             </div>
 
                             {threat.cvss_score !== null && (
@@ -693,7 +759,7 @@ export default function AdminThreatSummary() {
                                 {nvdDetails && (
                                   <>
                                     {nvdDetails.description && (
-                                      <p className="text-sm text-gray-600">{nvdDetails.description}</p>
+                                      <p className="break-words text-sm text-gray-600">{nvdDetails.description}</p>
                                     )}
                                     <p className="text-sm text-gray-600">
                                       CVSS {nvdDetails.cvssScore ?? 'not available'}
@@ -782,7 +848,59 @@ export default function AdminThreatSummary() {
                     </div>
                   </div>
                 ))}
-              </div>
+                </div>
+                <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+                    <p className="text-sm text-muted-foreground">
+                      Showing {recentThreatsStart}–{recentThreatsEnd} of {filteredRecentThreats.length} threats
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="recent-threats-page-size" className="whitespace-nowrap text-sm text-muted-foreground">
+                        Per page
+                      </Label>
+                      <select
+                        id="recent-threats-page-size"
+                        aria-label="Recent threats per page"
+                        value={recentThreatsPageSize}
+                        onChange={(event) => {
+                          setRecentThreatsPageSize(Number(event.target.value));
+                          setRecentThreatsPage(0);
+                        }}
+                        className="h-9 w-20 rounded-md border border-input bg-background px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      >
+                        {[5, 10, 25, 50, 100].map((pageSize) => (
+                          <option key={pageSize} value={pageSize}>{pageSize}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setRecentThreatsPage((page) => Math.max(0, page - 1))}
+                      disabled={recentThreatsPage === 0}
+                      aria-label="Previous recent threats page"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Previous
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      Page {recentThreatsPage + 1} of {recentThreatsPageCount}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setRecentThreatsPage((page) => Math.min(recentThreatsPageCount - 1, page + 1))}
+                      disabled={recentThreatsPage >= recentThreatsPageCount - 1}
+                      aria-label="Next recent threats page"
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>

@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ExternalLink, Shield, User, Clock } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { AgentThreatAssignment, DashboardDataService } from '@/lib/dashboardDataService';
+import { getSeverityBadgeClassName, getStatusBadgeClassName } from '@/lib/dashboardBadgeStyles';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -49,23 +50,8 @@ export default function AnalystIncidentResponse() {
   const resolvedCount = assignments.filter(({ status }) => status === 'resolved').length;
   const criticalCount = assignments.filter(({ finding }) => finding.severity === 'critical').length;
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'critical':
-      case 'high': return 'destructive';
-      case 'medium': return 'secondary';
-      default: return 'outline';
-    }
-  };
-
-  const getStatusColor = (status: AgentThreatAssignment['status']) => {
-    switch (status) {
-      case 'open': return 'destructive';
-      case 'in_progress': return 'secondary';
-      case 'resolved': return 'default';
-      case 'false_positive': return 'outline';
-    }
-  };
+  const getSeverityColor = getSeverityBadgeClassName;
+  const getStatusColor = getStatusBadgeClassName;
 
   return (
     <div className="space-y-6">
@@ -116,19 +102,27 @@ export default function AnalystIncidentResponse() {
                       type="button"
                       key={assignment.id}
                       className={`w-full rounded-lg border p-3 text-left transition-colors ${
-                        currentAssignment?.id === assignment.id ? 'border-blue-300 bg-blue-50' : 'hover:bg-muted/50'
+                        currentAssignment?.id === assignment.id
+                          ? 'border-blue-400 bg-blue-100 text-slate-900'
+                          : 'text-card-foreground hover:bg-muted/50'
                       }`}
                       onClick={() => setSelectedAssignmentId(assignment.id)}
                     >
                       <div className="mb-2 flex items-center justify-between gap-2">
-                        <Badge variant={getSeverityColor(assignment.finding.severity)} className="capitalize">
+                        <Badge className={`${getSeverityColor(assignment.finding.severity)} capitalize`}>
                           {assignment.finding.severity}
                         </Badge>
-                        <Badge variant={getStatusColor(assignment.status)} className="capitalize">
+                        <Badge className={`${getStatusColor(assignment.status)} capitalize`}>
                           {assignment.status.replace('_', ' ')}
                         </Badge>
                       </div>
-                      <h4 className="text-sm font-medium">{assignment.finding.cve_id}</h4>
+                      <h4
+                        className={`text-sm font-medium ${
+                          currentAssignment?.id === assignment.id ? 'text-black' : 'text-white'
+                        }`}
+                      >
+                        {assignment.finding.cve_id}
+                      </h4>
                       <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                         {assignment.finding.description || 'No description available.'}
                       </p>
@@ -148,12 +142,12 @@ export default function AnalystIncidentResponse() {
             <Card>
               <CardHeader>
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <CardTitle>{currentAssignment.finding.cve_id}</CardTitle>
+                  <CardTitle className="text-white">{currentAssignment.finding.cve_id}</CardTitle>
                   <div className="flex gap-2">
-                    <Badge variant={getSeverityColor(currentAssignment.finding.severity)} className="capitalize">
+                    <Badge className={`${getSeverityColor(currentAssignment.finding.severity)} capitalize`}>
                       {currentAssignment.finding.severity}
                     </Badge>
-                    <Badge variant={getStatusColor(currentAssignment.status)} className="capitalize">
+                    <Badge className={`${getStatusColor(currentAssignment.status)} capitalize`}>
                       {currentAssignment.status.replace('_', ' ')}
                     </Badge>
                   </div>

@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FileText, Download, Mail, Calendar, Filter, TrendingUp } from 'lucide-react';
+import { getStatusBadgeClassName } from '@/lib/dashboardBadgeStyles';
 
 interface Report {
   id: string;
@@ -103,14 +104,7 @@ export default function AnalystReports() {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'draft': return 'secondary';
-      case 'ready': return 'default';
-      case 'published': return 'default';
-      default: return 'outline';
-    }
-  };
+  const getStatusColor = getStatusBadgeClassName;
 
   const handleGenerateReport = () => {
     console.log('Generating new report...');
@@ -270,7 +264,7 @@ export default function AnalystReports() {
                             <Badge variant={getTypeColor(report.type)} className="capitalize text-xs">
                               {report.type.replace('-', ' ')}
                             </Badge>
-                            <Badge variant={getStatusColor(report.status)} className="capitalize text-xs">
+                            <Badge className={`${getStatusColor(report.status)} capitalize text-xs`}>
                               {report.status}
                             </Badge>
                           </div>
@@ -300,7 +294,7 @@ export default function AnalystReports() {
                           <Badge variant={getTypeColor(currentReport.type)} className="capitalize">
                             {currentReport.type.replace('-', ' ')}
                           </Badge>
-                          <Badge variant={getStatusColor(currentReport.status)} className="capitalize">
+                          <Badge className={`${getStatusColor(currentReport.status)} capitalize`}>
                             {currentReport.status}
                           </Badge>
                         </div>

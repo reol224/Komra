@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AgentThreatAssignment, DashboardDataService } from '@/lib/dashboardDataService';
+import { getSeverityBadgeClassName, getStatusBadgeClassName } from '@/lib/dashboardBadgeStyles';
 
 const dashboardService = new DashboardDataService();
 
@@ -64,29 +65,13 @@ export default function AnalystThreatFeed() {
     });
   }, [assignments, searchTerm, selectedSeverity, selectedStatus]);
 
-  const openOsvRecord = (sourceId: string | null | undefined, cveId: string) => {
-    const vulnerabilityId = sourceId || cveId;
-    window.open(
-      `https://osv.dev/vulnerability/${encodeURIComponent(vulnerabilityId)}`,
-      '_blank',
-      'noopener,noreferrer',
-    );
-  };
-
   const handleRefresh = () => {
     setIsRefreshing(true);
     void loadAssignments();
   };
 
   const statusLabel = (status: AgentThreatAssignment['status']) => status.replace('_', ' ');
-  const statusColor = (status: AgentThreatAssignment['status']) => {
-    switch (status) {
-      case 'open': return 'destructive';
-      case 'in_progress': return 'secondary';
-      case 'resolved': return 'default';
-      case 'false_positive': return 'outline';
-    }
-  };
+  const statusColor = getStatusBadgeClassName;
 
   return (
     <div className="space-y-6">
@@ -128,7 +113,7 @@ export default function AnalystThreatFeed() {
           <CardContent className="flex items-center gap-2 pt-6">
             <TrendingUp className="h-5 w-5 text-blue-600" />
             <div>
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-bold text-red-600">
                 {isLoading ? '...' : loadError ? 'Unavailable' : assignments.filter(({ finding }) =>
                   finding.severity === 'critical' || finding.severity === 'high'
                 ).length}
@@ -191,16 +176,17 @@ export default function AnalystThreatFeed() {
           {filteredAssignments.map((assignment) => {
             const { finding } = assignment;
             const ownerName = assignment.owner.fullName || assignment.owner.email;
+            const osvUrl = `https://osv.dev/vulnerability/${encodeURIComponent(finding.source_id || finding.cve_id)}`;
             return (
               <Card key={assignment.id} className="hover:shadow-md transition-shadow">
                 <CardContent className="pt-6">
                   <div className="flex flex-col justify-between gap-4 sm:flex-row">
                     <div className="min-w-0 flex-1">
                       <div className="mb-2 flex flex-wrap items-center gap-2">
-                        <Badge variant={finding.severity === 'critical' || finding.severity === 'high' ? 'destructive' : 'secondary'} className="capitalize">
+                        <Badge className={`${getSeverityBadgeClassName(finding.severity)} capitalize`}>
                           {finding.severity}
                         </Badge>
-                        <Badge variant={statusColor(assignment.status)} className="capitalize">
+                        <Badge className={`${statusColor(assignment.status)} capitalize`}>
                           {statusLabel(assignment.status)}
                         </Badge>
                         <Badge variant="outline" className="capitalize">
@@ -208,7 +194,16 @@ export default function AnalystThreatFeed() {
                         </Badge>
                         {finding.cvss_score !== null && <span className="text-sm font-bold">CVSS {finding.cvss_score}</span>}
                       </div>
-                      <h4 className="text-lg font-semibold">{finding.cve_id}</h4>
+                      <h4 className="text-lg font-semibold">
+                        <a
+                          href={osvUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline"
+                        >
+                          {finding.cve_id}
+                        </a>
+                      </h4>
                       <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
                         {finding.description || 'No description available.'}
                       </p>
@@ -229,13 +224,19 @@ export default function AnalystThreatFeed() {
                       )}
                     </div>
                     <Button
+                      asChild
                       variant="outline"
                       size="sm"
                       className="shrink-0"
-                      onClick={() => openOsvRecord(finding.source_id, finding.cve_id)}
                     >
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      Open OSV
+                      <a
+                        href={osvUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        Open OSV
+                      </a>
                     </Button>
                   </div>
                 </CardContent>

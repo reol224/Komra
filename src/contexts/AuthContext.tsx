@@ -113,6 +113,11 @@ function logAuthenticationEvent(
   );
 }
 
+function persistUser(key: "demo_user" | "user", user: User) {
+  const { mfa_enabled: _mfaEnabled, ...persistedUser } = user;
+  localStorage.setItem(key, JSON.stringify(persistedUser));
+}
+
 /** Provides authenticated user state and restores the correct session flow. */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -137,7 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
         setUser(updatedUser);
         const storageKey = updatedUser.authMethod === "demo" ? "demo_user" : "user";
-        localStorage.setItem(storageKey, JSON.stringify(updatedUser));
+        persistUser(storageKey, updatedUser);
         if (updatedUser.authMethod === "supabase") {
           localStorage.removeItem("demo_user");
         }
@@ -193,10 +198,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     /** Restores the cached user and identifies its matching authentication session. */
     const restoreUser = async () => {
       const demoUser = localStorage.getItem("demo_user");
-      if (demoUser) {
+      const storedUser = demoUser ?? localStorage.getItem("user");
+      if (storedUser) {
         let userData: User;
         try {
-          userData = JSON.parse(demoUser) as User;
+          userData = JSON.parse(storedUser) as User;
         } catch (error) {
           console.error("Error parsing demo user:", error);
           localStorage.removeItem("demo_user");
@@ -223,7 +229,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (isMounted) setUser(restoredUser);
 
         const storageKey = restoredUser.authMethod === "demo" ? "demo_user" : "user";
-        localStorage.setItem(storageKey, JSON.stringify(restoredUser));
+        persistUser(storageKey, restoredUser);
         if (restoredUser.authMethod === "supabase") {
           localStorage.removeItem("demo_user");
         }
@@ -317,7 +323,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setUser(userData);
       localStorage.removeItem("user");
-      localStorage.setItem("demo_user", JSON.stringify(userData));
+      persistUser("demo_user", userData);
       logAuthenticationEvent("USER_LOGIN", dbUser.email, "success", {
         id: dbUser.id,
         email: dbUser.email,
@@ -386,10 +392,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setUser(userData);
     localStorage.removeItem("demo_user");
-    localStorage.setItem("user", JSON.stringify(userData));
+    persistUser("user", userData);
     
-    // Update last activity
-    await updateLastActivity();
+    await recordSuccessfulLogin(dbUser.id);
     logAuthenticationEvent("USER_LOGIN", dbUser.email, "success", {
       id: dbUser.id,
       email: dbUser.email,
@@ -453,16 +458,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
   signOutRef.current = signOut;
 
-  const updateLastActivity = async () => {
-    if (!user) return;
-
-    try {
-      await supabase
+  const recordSuccessfulLogin = async (userId: string) => {
+    const loginTime = new Date().toISOString();
+    const { error } = await supabase
         .from("users")
-        .update({ last_activity: new Date().toISOString() })
-        .eq("id", user.id);
-    } catch (error) {
-      console.error("Error updating last activity:", error);
+        .update({ last_login: loginTime, last_activity: loginTime })
+        .eq("id", userId);
+
+    if (error) {
+      console.error("Error recording successful login:", error);
     }
   };
 

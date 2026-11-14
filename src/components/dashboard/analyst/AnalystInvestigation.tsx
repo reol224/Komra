@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Search, Filter, Database, Network, FileText, Download, Play } from 'lucide-react';
+import { Search, Database, Network, FileText, Download, Play, RefreshCw } from 'lucide-react';
+import { getSeverityBadgeClassName } from '@/lib/dashboardBadgeStyles';
+import { auditLogger, AuditLogEntry } from '@/lib/auditLogger';
 
 interface LogEntry {
   id: string;
@@ -17,6 +19,7 @@ interface LogEntry {
   source: string;
   level: 'info' | 'warning' | 'error' | 'critical';
   message: string;
+  user_email?: string;
   ip_address?: string;
   user_agent?: string;
   endpoint?: string;
@@ -33,60 +36,80 @@ interface CorrelationRule {
   matches: number;
 }
 
+const LOG_PAGE_SIZE = 1000;
+
+/** Escapes a CSV cell and prevents spreadsheet formula evaluation. */
+export function escapeCsvValue(value: string | number | undefined): string {
+  const stringValue = String(value ?? '');
+  const safeValue = /^[=+\-@\t\r]/.test(stringValue) ? `'${stringValue}` : stringValue;
+  return `"${safeValue.replace(/"/g, '""')}"`;
+}
+
+/** Returns the inclusive start timestamp for a supported log-search range. */
+function getLogSearchStartDate(timeRange: string): string {
+  const rangeMilliseconds: Record<string, number> = {
+    '15m': 15 * 60 * 1000,
+    '1h': 60 * 60 * 1000,
+    '6h': 6 * 60 * 60 * 1000,
+    '24h': 24 * 60 * 60 * 1000,
+    '7d': 7 * 24 * 60 * 60 * 1000,
+  };
+  return new Date(Date.now() - (rangeMilliseconds[timeRange] ?? rangeMilliseconds['1h'])).toISOString();
+}
+
+/** Converts a persisted audit entry into the fields used by Log Search. */
+function mapAuditLogEntry(entry: AuditLogEntry): LogEntry {
+  const sourceCandidate =
+    entry.metadata?.log_source_type
+    || entry.metadata?.source_type
+    || entry.resource_type;
+  const source = typeof sourceCandidate === 'string' && sourceCandidate
+    ? sourceCandidate
+    : 'application';
+  const detailMessage = Object.entries(entry.details || {})
+    .map(([key, value]) => {
+      const readableValue = typeof value === 'string'
+        ? value
+        : JSON.stringify(value) ?? String(value);
+      return `${key.replace(/_/g, ' ')}: ${readableValue}`;
+    })
+    .join(' · ');
+  const level: LogEntry['level'] = entry.severity === 'critical'
+    ? 'critical'
+    : entry.status === 'failure' || entry.severity === 'high'
+      ? 'error'
+      : entry.status === 'warning' || entry.severity === 'medium'
+        ? 'warning'
+        : 'info';
+  const endpoint = entry.details?.endpoint;
+  const statusCode = entry.details?.status_code;
+  const ipAddress = entry.ip_address || entry.details?.ip_address || entry.metadata?.ip_address;
+
+  return {
+    id: entry.id || `${entry.timestamp}:${entry.action}:${entry.user_id || entry.user_email}`,
+    timestamp: entry.timestamp,
+    source,
+    level,
+    message: detailMessage ? `${entry.action}: ${detailMessage}` : entry.action,
+    user_email: entry.user_email,
+    ip_address: typeof ipAddress === 'string' ? ipAddress : undefined,
+    user_agent: entry.user_agent,
+    endpoint: typeof endpoint === 'string' ? endpoint : entry.resource_id,
+    status_code: typeof statusCode === 'number' ? statusCode : undefined,
+  };
+}
+
+/** Renders persisted audit logs and investigation tools for analysts. */
 export default function AnalystInvestigation() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTimeRange, setSelectedTimeRange] = useState('1h');
   const [selectedSource, setSelectedSource] = useState('all');
   const [selectedLevel, setSelectedLevel] = useState('all');
   const [correlationQuery, setCorrelationQuery] = useState('');
-
-  const logEntries: LogEntry[] = [
-    {
-      id: '1',
-      timestamp: '2024-03-22T15:45:32Z',
-      source: 'web-server-01',
-      level: 'error',
-      message: 'Failed authentication attempt for user admin',
-      ip_address: '203.0.113.42',
-      user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-      endpoint: '/admin/login',
-      status_code: 401
-    },
-    {
-      id: '2',
-      timestamp: '2024-03-22T15:44:18Z',
-      source: 'database-01',
-      level: 'warning',
-      message: 'Unusual query pattern detected: SELECT * FROM users WHERE role = admin',
-      ip_address: '192.168.1.105'
-    },
-    {
-      id: '3',
-      timestamp: '2024-03-22T15:43:55Z',
-      source: 'firewall-01',
-      level: 'info',
-      message: 'Connection blocked from suspicious IP range',
-      ip_address: '203.0.113.42'
-    },
-    {
-      id: '4',
-      timestamp: '2024-03-22T15:42:12Z',
-      source: 'web-server-01',
-      level: 'critical',
-      message: 'Potential SQL injection attempt detected in parameter user_id',
-      ip_address: '203.0.113.42',
-      endpoint: '/api/users',
-      status_code: 500
-    },
-    {
-      id: '5',
-      timestamp: '2024-03-22T15:41:33Z',
-      source: 'auth-service',
-      level: 'warning',
-      message: 'Multiple failed login attempts from same IP within 5 minutes',
-      ip_address: '203.0.113.42'
-    }
-  ];
+  const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
+  const [isLoadingLogs, setIsLoadingLogs] = useState(true);
+  const [logLoadError, setLogLoadError] = useState<string | null>(null);
+  const [refreshVersion, setRefreshVersion] = useState(0);
 
   const correlationRules: CorrelationRule[] = [
     {
@@ -127,44 +150,103 @@ export default function AnalystInvestigation() {
     }
   ];
 
-  const filteredLogs = logEntries.filter(log => {
-    const matchesSearch = searchQuery === '' || 
-      log.message.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.source.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (log.ip_address && log.ip_address.includes(searchQuery));
-    const matchesSource = selectedSource === 'all' || log.source.includes(selectedSource);
-    const matchesLevel = selectedLevel === 'all' || log.level === selectedLevel;
-    return matchesSearch && matchesSource && matchesLevel;
-  });
+  useEffect(() => {
+    let isCurrentRequest = true;
 
-  const getLevelColor = (level: string) => {
-    switch (level) {
-      case 'critical': return 'destructive';
-      case 'error': return 'destructive';
-      case 'warning': return 'secondary';
-      case 'info': return 'outline';
-      default: return 'outline';
-    }
-  };
+    const loadLogs = async () => {
+      setIsLoadingLogs(true);
+      setLogLoadError(null);
+      try {
+        const startDate = getLogSearchStartDate(selectedTimeRange);
+        const entries: AuditLogEntry[] = [];
+        let offset = 0;
+        while (isCurrentRequest) {
+          const page = await auditLogger.getAuditLogs({
+            startDate,
+            limit: LOG_PAGE_SIZE,
+            offset,
+            throwOnError: true,
+          });
+          if (!isCurrentRequest) return;
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'critical': return 'destructive';
-      case 'high': return 'destructive';
-      case 'medium': return 'secondary';
-      case 'low': return 'outline';
-      default: return 'outline';
-    }
-  };
+          entries.push(...page);
+          if (page.length < LOG_PAGE_SIZE) break;
+          offset += page.length;
+        }
+        if (isCurrentRequest) {
+          setLogEntries(entries.map(mapAuditLogEntry));
+        }
+      } catch (error) {
+        if (isCurrentRequest) {
+          console.error('Unable to load persisted logs for Analyst Investigation:', error);
+          setLogEntries([]);
+          setLogLoadError(error instanceof Error ? error.message : 'Unable to load logs.');
+        }
+      } finally {
+        if (isCurrentRequest) setIsLoadingLogs(false);
+      }
+    };
 
+    void loadLogs();
+    return () => {
+      isCurrentRequest = false;
+    };
+  }, [selectedTimeRange, refreshVersion]);
+
+  const availableSources = useMemo(
+    () => Array.from(new Set(logEntries.map(({ source }) => source))).sort(),
+    [logEntries],
+  );
+
+  const filteredLogs = useMemo(() => {
+    const search = searchQuery.trim().toLowerCase();
+    return logEntries.filter((log) => {
+      const matchesSearch = !search || [
+        log.message,
+        log.source,
+        log.ip_address || '',
+        log.user_email || '',
+        log.user_agent || '',
+        log.endpoint || '',
+      ].some((value) => value.toLowerCase().includes(search));
+      const matchesSource = selectedSource === 'all' || log.source === selectedSource;
+      const matchesLevel = selectedLevel === 'all' || log.level === selectedLevel;
+      return matchesSearch && matchesSource && matchesLevel;
+    });
+  }, [logEntries, searchQuery, selectedSource, selectedLevel]);
+
+  const getLevelColor = getSeverityBadgeClassName;
+  const getSeverityColor = getSeverityBadgeClassName;
+
+  /** Reports the selected predefined rule until correlation execution is implemented. */
   const handleRunCorrelation = (ruleId: string) => {
     console.log('Running correlation rule:', ruleId);
   };
 
+  /** Downloads the currently filtered log results as a formula-safe CSV file. */
   const handleExportLogs = () => {
-    console.log('Exporting filtered logs...');
+    const columns = ['timestamp', 'source', 'level', 'message', 'user_email', 'ip_address', 'user_agent', 'endpoint', 'status_code'];
+    const rows = filteredLogs.map((log) => [
+      log.timestamp,
+      log.source,
+      log.level,
+      log.message,
+      log.user_email,
+      log.ip_address,
+      log.user_agent,
+      log.endpoint,
+      log.status_code,
+    ].map(escapeCsvValue).join(','));
+    const csv = [columns.map(escapeCsvValue).join(','), ...rows].join('\r\n');
+    const objectUrl = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const downloadLink = document.createElement('a');
+    downloadLink.href = objectUrl;
+    downloadLink.download = `audit-logs-${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
+    downloadLink.click();
+    URL.revokeObjectURL(objectUrl);
   };
 
+  /** Reports a custom query until correlation execution is implemented. */
   const handleRunCustomQuery = () => {
     console.log('Running custom correlation query:', correlationQuery);
   };
@@ -177,7 +259,11 @@ export default function AnalystInvestigation() {
           <Search className="h-5 w-5" />
           <h3 className="text-lg font-semibold">Investigation Workspace</h3>
         </div>
-        <Button onClick={handleExportLogs} className="flex items-center space-x-2">
+        <Button
+          onClick={handleExportLogs}
+          disabled={isLoadingLogs || filteredLogs.length === 0}
+          className="flex items-center space-x-2"
+        >
           <Download className="h-4 w-4" />
           <span>Export Results</span>
         </Button>
@@ -213,7 +299,13 @@ export default function AnalystInvestigation() {
                     className="pl-10"
                   />
                 </div>
-                <Select value={selectedTimeRange} onValueChange={setSelectedTimeRange}>
+                <Select
+                  value={selectedTimeRange}
+                  onValueChange={(value) => {
+                    setSelectedTimeRange(value);
+                    setSelectedSource('all');
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -231,10 +323,11 @@ export default function AnalystInvestigation() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Sources</SelectItem>
-                    <SelectItem value="web-server">Web Servers</SelectItem>
-                    <SelectItem value="database">Databases</SelectItem>
-                    <SelectItem value="firewall">Firewalls</SelectItem>
-                    <SelectItem value="auth">Authentication</SelectItem>
+                    {availableSources.map((source) => (
+                      <SelectItem key={source} value={source}>
+                        {source.replace(/[_-]/g, ' ')}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <Select value={selectedLevel} onValueChange={setSelectedLevel}>
@@ -256,56 +349,79 @@ export default function AnalystInvestigation() {
           {/* Log Results */}
           <Card>
             <CardHeader>
-              <CardTitle>Log Entries ({filteredLogs.length})</CardTitle>
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle>Log Entries ({filteredLogs.length})</CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setRefreshVersion((version) => version + 1)}
+                  disabled={isLoadingLogs}
+                >
+                  <RefreshCw className={`mr-2 h-4 w-4 ${isLoadingLogs ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Timestamp</TableHead>
-                    <TableHead>Source</TableHead>
-                    <TableHead>Level</TableHead>
-                    <TableHead>Message</TableHead>
-                    <TableHead>IP Address</TableHead>
-                    <TableHead>Details</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredLogs.map((log) => (
-                    <TableRow key={log.id}>
-                      <TableCell>
-                        <div className="text-sm">
-                          {new Date(log.timestamp).toLocaleDateString()}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {new Date(log.timestamp).toLocaleTimeString()}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{log.source}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={getLevelColor(log.level)} className="capitalize">
-                          {log.level}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="max-w-md truncate">{log.message}</div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-mono text-sm">{log.ip_address || '-'}</div>
-                      </TableCell>
-                      <TableCell>
-                        {log.endpoint && (
-                          <div className="text-xs text-gray-500">
-                            {log.endpoint} {log.status_code && `(${log.status_code})`}
-                          </div>
-                        )}
-                      </TableCell>
+              {isLoadingLogs ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">Loading persisted audit logs...</p>
+              ) : logLoadError ? (
+                <p role="alert" className="py-8 text-center text-sm text-destructive">{logLoadError}</p>
+              ) : filteredLogs.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  {logEntries.length === 0
+                    ? 'No audit logs were recorded in this time range.'
+                    : 'No logs match the selected search and filters.'}
+                </p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Timestamp</TableHead>
+                      <TableHead>Source</TableHead>
+                      <TableHead>Level</TableHead>
+                      <TableHead>Message</TableHead>
+                      <TableHead>IP Address</TableHead>
+                      <TableHead>Details</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredLogs.map((log) => (
+                      <TableRow key={log.id}>
+                        <TableCell>
+                          <div className="text-sm">
+                            {new Date(log.timestamp).toLocaleDateString()}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {new Date(log.timestamp).toLocaleTimeString()}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{log.source.replace(/[_-]/g, ' ')}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={`${getLevelColor(log.level)} capitalize`}>
+                            {log.level}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="max-w-md truncate" title={log.message}>{log.message}</div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-mono text-sm">{log.ip_address || '-'}</div>
+                        </TableCell>
+                        <TableCell>
+                          {log.endpoint && (
+                            <div className="text-xs text-gray-500">
+                              {log.endpoint} {log.status_code && `(${log.status_code})`}
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -344,7 +460,7 @@ export default function AnalystInvestigation() {
                     <div className="flex-1">
                       <div className="flex items-center space-x-3 mb-2">
                         <h4 className="font-medium">{rule.name}</h4>
-                        <Badge variant={getSeverityColor(rule.severity)} className="capitalize">
+                        <Badge className={`${getSeverityColor(rule.severity)} capitalize`}>
                           {rule.severity}
                         </Badge>
                         <Badge variant={rule.enabled ? 'default' : 'secondary'}>

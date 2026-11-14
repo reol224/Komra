@@ -29,6 +29,7 @@ import {
 import { auditLogger } from "@/lib/auditLogger";
 import AuditLogViewer from "./AuditLogViewer";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
+import { getSeverityBadgeClassName, getStatusBadgeClassName } from "@/lib/dashboardBadgeStyles";
 
 interface ReportData {
   metadata: {
@@ -439,18 +440,7 @@ export default function ReportGenerator({ isOpen, onClose }: ReportGeneratorProp
   };
 
   const getRiskBadge = (risk: string) => {
-    switch (risk) {
-      case "Critical":
-        return <Badge className="bg-red-600">Critical</Badge>;
-      case "High":
-        return <Badge className="bg-orange-500">High</Badge>;
-      case "Medium":
-        return <Badge className="bg-yellow-500">Medium</Badge>;
-      case "Low":
-        return <Badge className="bg-blue-500">Low</Badge>;
-      default:
-        return <Badge>{risk}</Badge>;
-    }
+    return <Badge className={getSeverityBadgeClassName(risk)}>{risk}</Badge>;
   };
 
   const getStatusIcon = (status: string) => {
@@ -680,19 +670,19 @@ export default function ReportGenerator({ isOpen, onClose }: ReportGeneratorProp
                           <div className="space-y-2">
                             <div className="flex justify-between">
                               <span>Critical:</span>
-                              <Badge className="bg-red-600">{mockReportData.vulnerabilitySummary.bySeverity.critical}</Badge>
+                              <Badge className={getSeverityBadgeClassName("critical")}>{mockReportData.vulnerabilitySummary.bySeverity.critical}</Badge>
                             </div>
                             <div className="flex justify-between">
                               <span>High:</span>
-                              <Badge className="bg-orange-500">{mockReportData.vulnerabilitySummary.bySeverity.high}</Badge>
+                              <Badge className={getSeverityBadgeClassName("high")}>{mockReportData.vulnerabilitySummary.bySeverity.high}</Badge>
                             </div>
                             <div className="flex justify-between">
                               <span>Medium:</span>
-                              <Badge className="bg-yellow-500">{mockReportData.vulnerabilitySummary.bySeverity.medium}</Badge>
+                              <Badge className={getSeverityBadgeClassName("medium")}>{mockReportData.vulnerabilitySummary.bySeverity.medium}</Badge>
                             </div>
                             <div className="flex justify-between">
                               <span>Low:</span>
-                              <Badge className="bg-blue-500">{mockReportData.vulnerabilitySummary.bySeverity.low}</Badge>
+                              <Badge className={getSeverityBadgeClassName("low")}>{mockReportData.vulnerabilitySummary.bySeverity.low}</Badge>
                             </div>
                           </div>
                         </div>
@@ -718,15 +708,15 @@ export default function ReportGenerator({ isOpen, onClose }: ReportGeneratorProp
                           <div className="space-y-2">
                             <div className="flex justify-between">
                               <span>Open:</span>
-                              <Badge variant="destructive">{mockReportData.vulnerabilitySummary.byStatus.open}</Badge>
+                              <Badge className={getStatusBadgeClassName("open")}>{mockReportData.vulnerabilitySummary.byStatus.open}</Badge>
                             </div>
                             <div className="flex justify-between">
                               <span>In Progress:</span>
-                              <Badge className="bg-yellow-500">{mockReportData.vulnerabilitySummary.byStatus.inProgress}</Badge>
+                              <Badge className={getStatusBadgeClassName("in_progress")}>{mockReportData.vulnerabilitySummary.byStatus.inProgress}</Badge>
                             </div>
                             <div className="flex justify-between">
                               <span>Resolved:</span>
-                              <Badge className="bg-green-500">{mockReportData.vulnerabilitySummary.byStatus.resolved}</Badge>
+                              <Badge className={getStatusBadgeClassName("resolved")}>{mockReportData.vulnerabilitySummary.byStatus.resolved}</Badge>
                             </div>
                           </div>
                         </div>
@@ -749,7 +739,7 @@ export default function ReportGenerator({ isOpen, onClose }: ReportGeneratorProp
                             <div className="flex justify-between items-start mb-2">
                               <div className="flex items-center gap-2">
                                 <h4 className="font-semibold">{finding.cveId}</h4>
-                                <Badge className={finding.severityScore >= 9 ? "bg-red-600" : "bg-orange-500"}>
+                                <Badge className={getSeverityBadgeClassName(finding.severityScore >= 9 ? "critical" : "high")}>
                                   CVSS {finding.severityScore}
                                 </Badge>
                                 <div className="flex items-center gap-1">
@@ -839,11 +829,12 @@ export default function ReportGenerator({ isOpen, onClose }: ReportGeneratorProp
                               <div key={index} className="flex justify-between items-center">
                                 <span>{item.endpoint}</span>
                                 <div className="flex items-center gap-2">
-                                  <Badge className={
-                                    item.riskScore >= 8 ? "bg-red-600" :
-                                    item.riskScore >= 6 ? "bg-orange-500" :
-                                    item.riskScore >= 4 ? "bg-yellow-500" : "bg-green-500"
-                                  }>
+                                  <Badge className={item.riskScore < 4
+                                    ? "border-green-700 bg-green-600 text-white"
+                                    : getSeverityBadgeClassName(
+                                      item.riskScore >= 8 ? "critical" :
+                                      item.riskScore >= 6 ? "high" : "medium"
+                                    )}>
                                     {item.riskScore.toFixed(1)}
                                   </Badge>
                                   <span className="text-sm text-muted-foreground">

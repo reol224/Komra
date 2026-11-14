@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Bell, AlertTriangle, Info, CheckCircle, Clock, Filter } from 'lucide-react';
+import { getSeverityBadgeClassName, getStatusBadgeClassName } from '@/lib/dashboardBadgeStyles';
 
 interface Alert {
   id: string;
@@ -124,15 +125,7 @@ export default function ViewerAlerts() {
     }
   };
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'critical': return 'destructive';
-      case 'error': return 'destructive';
-      case 'warning': return 'secondary';
-      case 'info': return 'outline';
-      default: return 'outline';
-    }
-  };
+  const getSeverityColor = getSeverityBadgeClassName;
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -143,14 +136,7 @@ export default function ViewerAlerts() {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'destructive';
-      case 'acknowledged': return 'secondary';
-      case 'resolved': return 'default';
-      default: return 'outline';
-    }
-  };
+  const getStatusColor = getStatusBadgeClassName;
 
   const getCategoryColor = (category: string) => {
     switch (category) {
@@ -288,13 +274,13 @@ export default function ViewerAlerts() {
                     <div className="flex-1">
                       <div className="flex items-center space-x-3 mb-2">
                         <h4 className="font-semibold">{alert.title}</h4>
-                        <Badge variant={getSeverityColor(alert.severity)} className="capitalize">
+                        <Badge className={`${getSeverityColor(alert.severity)} capitalize`}>
                           {alert.severity}
                         </Badge>
                         <Badge variant={getCategoryColor(alert.category)} className="capitalize">
                           {alert.category}
                         </Badge>
-                        <Badge variant={getStatusColor(alert.status)} className="capitalize">
+                        <Badge className={`${getStatusColor(alert.status)} capitalize`}>
                           {alert.status}
                         </Badge>
                       </div>

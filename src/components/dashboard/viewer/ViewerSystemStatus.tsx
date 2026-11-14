@@ -5,6 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Activity, Server, Shield, AlertTriangle, CheckCircle, Clock, TrendingUp } from 'lucide-react';
+import {
+  getSeverityTextClassName,
+  getStatusBadgeClassName,
+  getStatusTextClassName,
+} from '@/lib/dashboardBadgeStyles';
 
 export default function ViewerSystemStatus() {
   const systemOverview = {
@@ -54,14 +59,7 @@ export default function ViewerSystemStatus() {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'healthy': return 'default';
-      case 'warning': return 'secondary';
-      case 'critical': return 'destructive';
-      default: return 'outline';
-    }
-  };
+  const getStatusColor = getStatusBadgeClassName;
 
   const getActivityIcon = (type: string) => {
     switch (type) {
@@ -174,7 +172,7 @@ export default function ViewerSystemStatus() {
                     <div className="text-sm font-medium">{service.uptime}</div>
                     <div className="text-xs text-gray-500">Uptime</div>
                   </div>
-                  <Badge variant={getStatusColor(service.status)} className="capitalize">
+                  <Badge className={`${getStatusColor(service.status)} capitalize`}>
                     {service.status}
                   </Badge>
                 </div>
@@ -192,34 +190,34 @@ export default function ViewerSystemStatus() {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="text-center p-3 border rounded-lg">
-              <div className="text-2xl font-bold text-red-600">{vulnerabilityOverview.critical}</div>
+              <div className={`text-2xl font-bold ${getSeverityTextClassName('critical')}`}>{vulnerabilityOverview.critical}</div>
               <div className="text-sm text-gray-500">Critical</div>
             </div>
             <div className="text-center p-3 border rounded-lg">
-              <div className="text-2xl font-bold text-orange-600">{vulnerabilityOverview.high}</div>
+              <div className={`text-2xl font-bold ${getSeverityTextClassName('high')}`}>{vulnerabilityOverview.high}</div>
               <div className="text-sm text-gray-500">High</div>
             </div>
             <div className="text-center p-3 border rounded-lg">
-              <div className="text-2xl font-bold text-yellow-600">{vulnerabilityOverview.medium}</div>
+              <div className={`text-2xl font-bold ${getSeverityTextClassName('medium')}`}>{vulnerabilityOverview.medium}</div>
               <div className="text-sm text-gray-500">Medium</div>
             </div>
             <div className="text-center p-3 border rounded-lg">
-              <div className="text-2xl font-bold text-green-600">{vulnerabilityOverview.low}</div>
+              <div className={`text-2xl font-bold ${getSeverityTextClassName('low')}`}>{vulnerabilityOverview.low}</div>
               <div className="text-sm text-gray-500">Low</div>
             </div>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="text-center p-3 bg-green-50 border border-green-200 rounded-lg">
-              <div className="text-xl font-bold text-green-600">{vulnerabilityOverview.resolved}</div>
+              <div className={`text-xl font-bold ${getStatusTextClassName('resolved')}`}>{vulnerabilityOverview.resolved}</div>
               <div className="text-sm text-gray-600">Resolved</div>
             </div>
-            <div className="text-center p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="text-xl font-bold text-blue-600">{vulnerabilityOverview.inProgress}</div>
+            <div className="text-center p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className={`text-xl font-bold ${getStatusTextClassName('in_progress')}`}>{vulnerabilityOverview.inProgress}</div>
               <div className="text-sm text-gray-600">In Progress</div>
             </div>
             <div className="text-center p-3 bg-red-50 border border-red-200 rounded-lg">
-              <div className="text-xl font-bold text-red-600">{vulnerabilityOverview.open}</div>
+              <div className={`text-xl font-bold ${getStatusTextClassName('open')}`}>{vulnerabilityOverview.open}</div>
               <div className="text-sm text-gray-600">Open</div>
             </div>
           </div>

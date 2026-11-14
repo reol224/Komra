@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { getSeverityBadgeClassName, getStatusBadgeClassName } from "@/lib/dashboardBadgeStyles";
 import {
   Table,
   TableBody,
@@ -151,21 +152,7 @@ const EndpointInventory = () => {
     }
   };
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case "critical":
-        return "bg-violet-800 text-white";
-      case "high":
-        return "bg-red-600 text-white";
-      case "medium":
-        return "bg-orange-600 text-white";
-      case "low":
-        return "bg-green-600 text-white";
-      case "none":
-      default:
-        return "bg-slate-600 text-white";
-    }
-  };
+  const getSeverityColor = getSeverityBadgeClassName;
 
   const formatLastScan = (dateString: string) => {
     return new Date(dateString).toLocaleString();
@@ -384,11 +371,7 @@ const EndpointInventory = () => {
                     </CardDescription>
                   </div>
                   <Badge
-                    className={`
-                      ${selectedEndpoint.status === "healthy" ? "bg-green-600 text-white border-green-700" : ""}
-                      ${selectedEndpoint.status === "vulnerable" ? "bg-orange-600 text-white border-orange-700" : ""}
-                      ${selectedEndpoint.status === "critical" ? "bg-violet-800 text-white border-violet-900" : ""}
-                    `}
+                    className={getStatusBadgeClassName(selectedEndpoint.status)}
                   >
                     {selectedEndpoint.status.charAt(0).toUpperCase() + selectedEndpoint.status.slice(1)}
                   </Badge>

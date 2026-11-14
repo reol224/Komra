@@ -43,6 +43,7 @@ import {
   Settings,
 } from "lucide-react";
 import { auditLogger, AuditLogEntry } from "@/lib/auditLogger";
+import { getSeverityBadgeClassName } from "@/lib/dashboardBadgeStyles";
 
 interface AuditLogViewerProps {
   isOpen: boolean;
@@ -141,18 +142,7 @@ export default function AuditLogViewer({ isOpen, onClose }: AuditLogViewerProps)
   };
 
   const getSeverityBadge = (severity: string) => {
-    switch (severity) {
-      case "critical":
-        return <Badge className="bg-red-600">Critical</Badge>;
-      case "high":
-        return <Badge className="bg-orange-500">High</Badge>;
-      case "medium":
-        return <Badge className="bg-yellow-500">Medium</Badge>;
-      case "low":
-        return <Badge className="bg-blue-500">Low</Badge>;
-      default:
-        return <Badge variant="outline">{severity}</Badge>;
-    }
+    return <Badge className={getSeverityBadgeClassName(severity)}>{severity}</Badge>;
   };
 
   const getStatusIcon = (status: string) => {

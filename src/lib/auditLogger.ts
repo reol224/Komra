@@ -1,5 +1,51 @@
 import { supabase } from './supabase';
 
+/** Checks whether a value uses PostgreSQL-compatible IPv4 or IPv6 inet syntax. */
+export function isPostgresInetAddress(value: string): boolean {
+  const [address, mask, extra] = value.split('/');
+  if (!address || extra !== undefined) return false;
+
+  const isIpv4 = !address.includes(':');
+  if (isIpv4) {
+    const octets = address.split('.');
+    if (
+      octets.length !== 4
+      || octets.some((octet) => !/^\d{1,3}$/.test(octet) || Number(octet) > 255)
+    ) {
+      return false;
+    }
+  } else {
+    const compressionCount = (address.match(/::/g) || []).length;
+    if (compressionCount > 1 || address.includes(':::') || !/^[\da-f:.]+$/i.test(address)) {
+      return false;
+    }
+
+    let ipv6Address = address;
+    if (address.includes('.')) {
+      const embeddedIpv4 = /^(.*:)([\d.]+)$/.exec(address);
+      if (!embeddedIpv4 || !isPostgresInetAddress(embeddedIpv4[2])) return false;
+      ipv6Address = `${embeddedIpv4[1]}0:0`;
+    }
+
+    const compressed = ipv6Address.includes('::');
+    const [left, right = ''] = compressed ? ipv6Address.split('::') : [ipv6Address, ''];
+    const groups = [...left.split(':').filter(Boolean), ...right.split(':').filter(Boolean)];
+    if (
+      groups.some((group) => group.length > 4 || !/^[\da-f]+$/i.test(group))
+      || (!compressed && ipv6Address.split(':').some((group) => !group))
+      || (compressed ? groups.length >= 8 : groups.length !== 8)
+    ) {
+      return false;
+    }
+  }
+
+  if (mask !== undefined) {
+    const prefixLength = Number(mask);
+    if (!/^\d+$/.test(mask) || prefixLength > (isIpv4 ? 32 : 128)) return false;
+  }
+  return true;
+}
+
 export interface AuditLogEntry {
   id?: string;
   user_id: string | null;
@@ -20,6 +66,7 @@ export interface AuditLogEntry {
 export class AuditLogger {
   private static instance: AuditLogger;
   private sessionId: string;
+  private clientIpPromise: Promise<string | null> | null = null;
 
   private constructor() {
     this.sessionId = this.generateSessionId();
@@ -41,10 +88,32 @@ export class AuditLogger {
     return user;
   }
 
-  private getClientInfo() {
+  /** Resolves client metadata and caches a bounded client-IP lookup. */
+  private async getClientInfo() {
     if (typeof window !== 'undefined') {
+      if (!this.clientIpPromise) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        this.clientIpPromise = fetch('/api/auth/get-client-ip', { signal: controller.signal })
+          .then(async (response) => {
+            if (!response.ok) {
+              throw new Error(`Client IP lookup failed (${response.status}).`);
+            }
+            const result = await response.json() as { ip?: unknown };
+            return typeof result.ip === 'string' && isPostgresInetAddress(result.ip)
+              ? result.ip
+              : null;
+          })
+          .catch((error: unknown) => {
+            console.error('Unable to retrieve client IP for audit log:', error);
+            this.clientIpPromise = null;
+            return null;
+          })
+          .finally(() => clearTimeout(timeoutId));
+      }
+
       return {
-        ip_address: null,
+        ip_address: (await this.clientIpPromise) || null,
         user_agent: navigator.userAgent,
       };
     }
@@ -69,7 +138,7 @@ export class AuditLogger {
   ): Promise<void> {
     try {
       const user = await this.getCurrentUser();
-      const clientInfo = this.getClientInfo();
+      const clientInfo = await this.getClientInfo();
 
       const logEntry: AuditLogEntry = {
         user_id: options.actorUserId ?? user?.id ?? null,
@@ -362,6 +431,7 @@ export class AuditLogger {
           : query.limit(filters.limit);
       }
 
+      query = query.order('id', { ascending: false });
       const { data, error } = await query;
 
       if (error) {
