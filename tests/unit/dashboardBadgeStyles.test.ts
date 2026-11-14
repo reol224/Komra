@@ -24,7 +24,9 @@ describe("dashboard badge styles", () => {
     expect(getStatusBadgeClassName("in-progress")).toContain("bg-yellow-300");
     expect(getStatusBadgeClassName("resolved")).toContain("bg-green-600");
     expect(getStatusBadgeClassName("open")).toContain("bg-red-600");
+    expect(getStatusBadgeClassName("critical")).toContain("bg-red-600");
     expect(getStatusTextClassName("In Progress")).toBe("text-yellow-600");
+    expect(getStatusTextClassName("critical")).toBe("text-red-600");
     expect(getStatusChartColor("resolved")).toBe("#16a34a");
   });
 

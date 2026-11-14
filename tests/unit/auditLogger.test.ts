@@ -58,7 +58,12 @@ vi.mock("@supabase/supabase-js", () => {
 });
 
 // Import after mocking
-import { AuditLogger, auditLogger, AuditLogEntry } from "@/lib/auditLogger";
+import {
+  AuditLogger,
+  auditLogger,
+  AuditLogEntry,
+  isPostgresInetAddress,
+} from "@/lib/auditLogger";
 
 // Helper to get mocks
 const getMocks = () => (global as any).__supabaseMocks as MockFns;
@@ -110,6 +115,18 @@ describe("AuditLogger", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  describe("PostgreSQL inet validation", () => {
+    it("accepts valid IPv4 and IPv6 values and rejects malformed addresses", () => {
+      expect(isPostgresInetAddress("203.0.113.10")).toBe(true);
+      expect(isPostgresInetAddress("203.0.113.10/24")).toBe(true);
+      expect(isPostgresInetAddress("2001:db8::1")).toBe(true);
+      expect(isPostgresInetAddress("::ffff:192.0.2.1")).toBe(true);
+      expect(isPostgresInetAddress("256.0.0.1")).toBe(false);
+      expect(isPostgresInetAddress("2001:::1")).toBe(false);
+      expect(isPostgresInetAddress("unknown")).toBe(false);
+    });
   });
 
   describe("Singleton Pattern", () => {

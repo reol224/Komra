@@ -35,6 +35,7 @@ const greenStatusClasses = "border-green-700 bg-green-600 text-white";
 const slateStatusClasses = "border-slate-600 bg-slate-500 text-white";
 
 const statusBadgeClasses: Record<string, string> = {
+  critical: redStatusClasses,
   open: redStatusClasses,
   active: redStatusClasses,
   failure: redStatusClasses,
@@ -68,6 +69,7 @@ const statusBadgeClasses: Record<string, string> = {
 };
 
 const statusTextClasses: Record<string, string> = {
+  critical: "text-red-600",
   open: "text-red-600",
   active: "text-red-600",
   failure: "text-red-600",

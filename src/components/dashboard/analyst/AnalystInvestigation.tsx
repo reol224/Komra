@@ -36,6 +36,13 @@ interface CorrelationRule {
   matches: number;
 }
 
+/** Escapes a CSV cell and prevents spreadsheet formula evaluation. */
+export function escapeCsvValue(value: string | number | undefined): string {
+  const stringValue = String(value ?? '');
+  const safeValue = /^[=+\-@\t\r]/.test(stringValue) ? `'${stringValue}` : stringValue;
+  return `"${safeValue.replace(/"/g, '""')}"`;
+}
+
 /** Returns the inclusive start timestamp for a supported log-search range. */
 function getLogSearchStartDate(timeRange: string): string {
   const rangeMilliseconds: Record<string, number> = {
@@ -90,6 +97,7 @@ function mapAuditLogEntry(entry: AuditLogEntry): LogEntry {
   };
 }
 
+/** Renders persisted audit logs and investigation tools for analysts. */
 export default function AnalystInvestigation() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTimeRange, setSelectedTimeRange] = useState('1h');
@@ -197,13 +205,14 @@ export default function AnalystInvestigation() {
   const getLevelColor = getSeverityBadgeClassName;
   const getSeverityColor = getSeverityBadgeClassName;
 
+  /** Reports the selected predefined rule until correlation execution is implemented. */
   const handleRunCorrelation = (ruleId: string) => {
     console.log('Running correlation rule:', ruleId);
   };
 
+  /** Downloads the currently filtered log results as a formula-safe CSV file. */
   const handleExportLogs = () => {
     const columns = ['timestamp', 'source', 'level', 'message', 'user_email', 'ip_address', 'user_agent', 'endpoint', 'status_code'];
-    const escapeCsv = (value: string | number | undefined) => `"${String(value ?? '').replace(/"/g, '""')}"`;
     const rows = filteredLogs.map((log) => [
       log.timestamp,
       log.source,
@@ -214,8 +223,8 @@ export default function AnalystInvestigation() {
       log.user_agent,
       log.endpoint,
       log.status_code,
-    ].map(escapeCsv).join(','));
-    const csv = [columns.map(escapeCsv).join(','), ...rows].join('\r\n');
+    ].map(escapeCsvValue).join(','));
+    const csv = [columns.map(escapeCsvValue).join(','), ...rows].join('\r\n');
     const objectUrl = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const downloadLink = document.createElement('a');
     downloadLink.href = objectUrl;
@@ -224,6 +233,7 @@ export default function AnalystInvestigation() {
     URL.revokeObjectURL(objectUrl);
   };
 
+  /** Reports a custom query until correlation execution is implemented. */
   const handleRunCustomQuery = () => {
     console.log('Running custom correlation query:', correlationQuery);
   };

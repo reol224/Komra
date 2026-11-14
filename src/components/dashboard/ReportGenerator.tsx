@@ -829,11 +829,12 @@ export default function ReportGenerator({ isOpen, onClose }: ReportGeneratorProp
                               <div key={index} className="flex justify-between items-center">
                                 <span>{item.endpoint}</span>
                                 <div className="flex items-center gap-2">
-                                  <Badge className={getSeverityBadgeClassName(
-                                    item.riskScore >= 8 ? "critical" :
-                                    item.riskScore >= 6 ? "high" :
-                                    item.riskScore >= 4 ? "medium" : "low"
-                                  )}>
+                                  <Badge className={item.riskScore < 4
+                                    ? "border-green-700 bg-green-600 text-white"
+                                    : getSeverityBadgeClassName(
+                                      item.riskScore >= 8 ? "critical" :
+                                      item.riskScore >= 6 ? "high" : "medium"
+                                    )}>
                                     {item.riskScore.toFixed(1)}
                                   </Badge>
                                   <span className="text-sm text-muted-foreground">

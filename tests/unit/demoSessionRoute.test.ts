@@ -89,6 +89,9 @@ describe('demo session API', () => {
       token_hash: expect.stringMatching(/^[0-9a-f]{64}$/),
       expires_at: expect.any(String),
     }));
+    expect(userUpdate.mock.invocationCallOrder[0]).toBeGreaterThan(
+      insert.mock.invocationCallOrder[0],
+    );
     expect(response.headers.get('set-cookie')).toContain('HttpOnly');
     expect(response.headers.get('set-cookie')).toContain('komra_demo_session=');
   });
@@ -106,6 +109,58 @@ describe('demo session API', () => {
     expect(response.status).toBe(401);
     expect(insert).not.toHaveBeenCalled();
     expect(userUpdate).not.toHaveBeenCalled();
+  });
+
+  it('does not update login timestamps when the previous session cannot be revoked', async () => {
+    sessionUpdate.is.mockResolvedValueOnce({ error: { message: 'database unavailable' } });
+    const request = new NextRequest('http://localhost/api/auth/demo-session', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: 'komra_demo_session=previous-session',
+      },
+      body: JSON.stringify({ email: 'analyst@komra.security', password: 'valid-password' }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(500);
+    expect(insert).not.toHaveBeenCalled();
+    expect(userUpdate).not.toHaveBeenCalled();
+  });
+
+  it('does not update login timestamps when creating the session fails', async () => {
+    insert.mockResolvedValueOnce({ error: { message: 'database unavailable' } });
+    const request = new NextRequest('http://localhost/api/auth/demo-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'analyst@komra.security', password: 'valid-password' }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(500);
+    expect(userUpdate).not.toHaveBeenCalled();
+  });
+
+  it('returns the created session when the login timestamp update fails', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    userUpdateQuery.eq.mockResolvedValueOnce({ error: { message: 'column unavailable' } });
+    const request = new NextRequest('http://localhost/api/auth/demo-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'analyst@komra.security', password: 'valid-password' }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('set-cookie')).toContain('komra_demo_session=');
+    expect(consoleError).toHaveBeenCalledWith(
+      'Unable to record demo user login:',
+      { message: 'column unavailable' },
+    );
+    consoleError.mockRestore();
   });
 
   it('preserves the browser cookie when revocation fails so the caller can retry', async () => {

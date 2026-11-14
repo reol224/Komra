@@ -15,10 +15,12 @@ const supabase = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } },
 );
 
+/** Hashes an opaque demo-session token before it is stored or queried. */
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
+/** Expires the demo-session cookie on a response. */
 function clearSessionCookie(response: NextResponse): NextResponse {
   response.cookies.set(SESSION_COOKIE, '', {
     httpOnly: true,
@@ -30,6 +32,7 @@ function clearSessionCookie(response: NextResponse): NextResponse {
   return response;
 }
 
+/** Verifies demo credentials, creates a session, and best-effort records login time. */
 export async function POST(request: NextRequest) {
   let credentials: unknown;
   try {
@@ -76,16 +79,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid login credentials.' }, { status: 401 });
   }
 
-  const loginTime = new Date().toISOString();
-  const { error: loginUpdateError } = await supabase
-    .from('users')
-    .update({ last_login: loginTime, last_activity: loginTime })
-    .eq('id', user.id);
-  if (loginUpdateError) {
-    console.error('Unable to record demo user login:', loginUpdateError);
-    return NextResponse.json({ error: 'Unable to sign in right now.' }, { status: 500 });
-  }
-
   const duration = sessionDurations[user.role];
   const token = randomBytes(32).toString('base64url');
   const tokenHash = hashToken(token);
@@ -116,6 +109,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unable to sign in right now.' }, { status: 500 });
   }
 
+  const loginTime = new Date().toISOString();
+  const { error: loginUpdateError } = await supabase
+    .from('users')
+    .update({ last_login: loginTime, last_activity: loginTime })
+    .eq('id', user.id);
+  if (loginUpdateError) {
+    console.error('Unable to record demo user login:', loginUpdateError);
+  }
+
   const response = NextResponse.json({
     user: {
       id: user.id,
@@ -136,6 +138,7 @@ export async function POST(request: NextRequest) {
   return response;
 }
 
+/** Revokes the presented demo session before clearing its cookie. */
 export async function DELETE(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   if (token) {
