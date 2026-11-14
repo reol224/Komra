@@ -620,9 +620,22 @@ describe("AuditLogger", () => {
   });
 
   describe("getAuditLogs", () => {
+    const resolveAuditQuery = (result: { data: unknown; error: Error | null }) => {
+      const queryBuilder = {
+        order: mocks.order,
+        eq: mocks.eq,
+        gte: mocks.gte,
+        lte: mocks.lte,
+        limit: mocks.limit,
+      };
+      mocks.order.mockReset();
+      mocks.order.mockReturnValueOnce(queryBuilder);
+      mocks.order.mockResolvedValueOnce(result);
+    };
+
     beforeEach(() => {
       // Setup chainable mock to return data at the end
-      mocks.order.mockResolvedValue({
+      resolveAuditQuery({
         data: [
           {
             id: "1",
@@ -643,7 +656,7 @@ describe("AuditLogger", () => {
     });
 
     it("should return empty array on error", async () => {
-      mocks.order.mockResolvedValue({
+      resolveAuditQuery({
         data: null,
         error: new Error("Query failed"),
       });
@@ -662,7 +675,15 @@ describe("AuditLogger", () => {
     });
 
     it("should handle exceptions and return empty array", async () => {
-      mocks.order.mockRejectedValue(new Error("Connection failed"));
+      mocks.order.mockReset();
+      mocks.order.mockReturnValueOnce({
+        order: mocks.order,
+        eq: mocks.eq,
+        gte: mocks.gte,
+        lte: mocks.lte,
+        limit: mocks.limit,
+      });
+      mocks.order.mockRejectedValueOnce(new Error("Connection failed"));
       const consoleErrorSpy = vi
         .spyOn(console, "error")
         .mockImplementation(() => {});
@@ -678,7 +699,7 @@ describe("AuditLogger", () => {
     });
 
     it("should propagate retrieval errors when strict handling is requested", async () => {
-      mocks.order.mockResolvedValue({
+      resolveAuditQuery({
         data: null,
         error: new Error("Query failed"),
       });

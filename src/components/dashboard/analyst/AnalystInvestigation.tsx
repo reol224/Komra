@@ -36,6 +36,8 @@ interface CorrelationRule {
   matches: number;
 }
 
+const LOG_PAGE_SIZE = 1000;
+
 /** Escapes a CSV cell and prevents spreadsheet formula evaluation. */
 export function escapeCsvValue(value: string | number | undefined): string {
   const stringValue = String(value ?? '');
@@ -155,11 +157,22 @@ export default function AnalystInvestigation() {
       setIsLoadingLogs(true);
       setLogLoadError(null);
       try {
-        const entries = await auditLogger.getAuditLogs({
-          startDate: getLogSearchStartDate(selectedTimeRange),
-          limit: 1000,
-          throwOnError: true,
-        });
+        const startDate = getLogSearchStartDate(selectedTimeRange);
+        const entries: AuditLogEntry[] = [];
+        let offset = 0;
+        while (isCurrentRequest) {
+          const page = await auditLogger.getAuditLogs({
+            startDate,
+            limit: LOG_PAGE_SIZE,
+            offset,
+            throwOnError: true,
+          });
+          if (!isCurrentRequest) return;
+
+          entries.push(...page);
+          if (page.length < LOG_PAGE_SIZE) break;
+          offset += page.length;
+        }
         if (isCurrentRequest) {
           setLogEntries(entries.map(mapAuditLogEntry));
         }

@@ -431,6 +431,7 @@ export class AuditLogger {
           : query.limit(filters.limit);
       }
 
+      query = query.order('id', { ascending: false });
       const { data, error } = await query;
 
       if (error) {

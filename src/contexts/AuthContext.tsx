@@ -198,10 +198,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     /** Restores the cached user and identifies its matching authentication session. */
     const restoreUser = async () => {
       const demoUser = localStorage.getItem("demo_user");
-      if (demoUser) {
+      const storedUser = demoUser ?? localStorage.getItem("user");
+      if (storedUser) {
         let userData: User;
         try {
-          userData = JSON.parse(demoUser) as User;
+          userData = JSON.parse(storedUser) as User;
         } catch (error) {
           console.error("Error parsing demo user:", error);
           localStorage.removeItem("demo_user");
