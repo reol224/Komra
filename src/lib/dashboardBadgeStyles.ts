@@ -65,6 +65,7 @@ const statusBadgeClasses: Record<string, string> = {
   disabled: slateStatusClasses,
   cancelled: slateStatusClasses,
   false_positive: slateStatusClasses,
+  critical: redStatusClasses,
   vulnerable: amberStatusClasses,
 };
 
