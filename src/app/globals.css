@@ -57,6 +57,34 @@
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
   }
+
+  /* Include portalled dialogs and menus in the dashboard theme. */
+  body:has(.dashboard-theme) {
+    --background: 220 20% 94%;
+    --foreground: 220 20% 16%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 16%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 16%;
+    --primary: 258 58% 47%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 16% 95%;
+    --secondary-foreground: 220 20% 20%;
+    --muted: 220 16% 95%;
+    --muted-foreground: 220 10% 40%;
+    --accent: 257 48% 94%;
+    --accent-foreground: 258 58% 35%;
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 15% 87%;
+    --input: 220 15% 82%;
+    --ring: 258 58% 47%;
+    --chart-1: 258 58% 47%;
+    --chart-2: 210 70% 48%;
+    --chart-3: 170 55% 40%;
+    --chart-4: 38 85% 50%;
+    --chart-5: 0 70% 55%;
+  }
 }
 
 @layer base {

@@ -384,7 +384,7 @@ export default function AdminAuditTrail() {
         <div className="space-y-6">
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
-              <p className="text-slate-300">
+              <p className="text-muted-foreground">
                 You don't have permission to view audit trail data.
               </p>
             </div>

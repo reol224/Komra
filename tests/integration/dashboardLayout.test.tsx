@@ -1,5 +1,5 @@
 import React from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -85,6 +85,18 @@ afterEach(() => {
 });
 
 describe('DashboardLayout role tabs', () => {
+  it('navigates between role-specific panels from the dashboard navigation', async () => {
+    const user = userEvent.setup();
+    render(<DashboardLayout />);
+
+    const navigation = screen.getByRole('navigation', { name: 'Dashboard navigation' });
+    await user.click(within(navigation).getByRole('tab', { name: 'User Management' }));
+
+    expect(screen.getByRole('tab', { name: 'User Management' })).toHaveAttribute('data-state', 'active');
+    expect(screen.getByText('Admin user management panel')).toBeInTheDocument();
+    expect(screen.queryByText('Admin threat summary panel')).not.toBeInTheDocument();
+  });
+
   it.each([
     ['analyst', 'Threat Feed', 'Analyst threat feed panel'],
     ['viewer', 'System Status', 'Viewer system status panel'],

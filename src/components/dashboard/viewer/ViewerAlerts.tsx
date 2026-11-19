@@ -160,7 +160,7 @@ export default function ViewerAlerts() {
       <div className="space-y-6">
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
-            <p className="text-slate-300">You don't have permission to view alerts.</p>
+            <p className="text-muted-foreground">You don't have permission to view alerts.</p>
           </div>
         </div>
       </div>

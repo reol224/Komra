@@ -116,11 +116,7 @@ export default function AnalystIncidentResponse() {
                           {assignment.status.replace('_', ' ')}
                         </Badge>
                       </div>
-                      <h4
-                        className={`text-sm font-medium ${
-                          currentAssignment?.id === assignment.id ? 'text-black' : 'text-white'
-                        }`}
-                      >
+                      <h4 className="text-sm font-medium">
                         {assignment.finding.cve_id}
                       </h4>
                       <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
@@ -142,7 +138,7 @@ export default function AnalystIncidentResponse() {
             <Card>
               <CardHeader>
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <CardTitle className="text-white">{currentAssignment.finding.cve_id}</CardTitle>
+                  <CardTitle>{currentAssignment.finding.cve_id}</CardTitle>
                   <div className="flex gap-2">
                     <Badge className={`${getSeverityColor(currentAssignment.finding.severity)} capitalize`}>
                       {currentAssignment.finding.severity}
