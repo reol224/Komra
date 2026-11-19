@@ -390,11 +390,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       authMethod: "supabase" as const,
     };
 
+    await recordSuccessfulLogin(dbUser.id);
     setUser(userData);
     localStorage.removeItem("demo_user");
     persistUser("user", userData);
-    
-    await recordSuccessfulLogin(dbUser.id);
+
     logAuthenticationEvent("USER_LOGIN", dbUser.email, "success", {
       id: dbUser.id,
       email: dbUser.email,
@@ -459,14 +459,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   signOutRef.current = signOut;
 
   const recordSuccessfulLogin = async (userId: string) => {
-    const loginTime = new Date().toISOString();
-    const { error } = await supabase
+    try {
+      const loginTime = new Date().toISOString();
+      const { data, error } = await supabase
         .from("users")
         .update({ last_login: loginTime, last_activity: loginTime })
-        .eq("id", userId);
+        .eq("id", userId)
+        .select("id")
+        .maybeSingle();
 
-    if (error) {
+      if (error) throw error;
+      if (!data) throw new Error("No user record was updated.");
+    } catch (error) {
       console.error("Error recording successful login:", error);
+      toast({
+        title: "Login timestamp not recorded",
+        description: "You are signed in, but your last login could not be updated.",
+        variant: "destructive",
+      });
     }
   };
 
