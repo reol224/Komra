@@ -144,7 +144,7 @@ export default function NotificationSettings() {
 
   if (!isSupported) {
     return (
-      <Card className="bg-white">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BellOff className="h-5 w-5" />
@@ -161,8 +161,8 @@ export default function NotificationSettings() {
   }
 
   return (
-    <div className="space-y-6 bg-white p-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold">Notification Settings</h2>
           <p className="text-muted-foreground">
@@ -184,7 +184,7 @@ export default function NotificationSettings() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-1">
               <Label className="text-base font-medium">Browser Notifications</Label>
               <p className="text-sm text-muted-foreground">
@@ -218,7 +218,6 @@ export default function NotificationSettings() {
                 <Button 
                   onClick={handleEnableNotifications}
                   disabled={isLoading}
-                  className="bg-blue-600 hover:bg-blue-700"
                 >
                   {isLoading ? 'Enabling...' : 'Enable Notifications'}
                 </Button>
@@ -257,6 +256,7 @@ export default function NotificationSettings() {
                 </div>
               </div>
               <Switch
+                aria-label="Critical Vulnerabilities"
                 checked={settings.criticalVulnerabilities}
                 onCheckedChange={(checked) => handleToggleSetting('criticalVulnerabilities', checked)}
               />
@@ -273,6 +273,7 @@ export default function NotificationSettings() {
                 </div>
               </div>
               <Switch
+                aria-label="System Offline"
                 checked={settings.systemOffline}
                 onCheckedChange={(checked) => handleToggleSetting('systemOffline', checked)}
               />
@@ -289,6 +290,7 @@ export default function NotificationSettings() {
                 </div>
               </div>
               <Switch
+                aria-label="Security Breaches"
                 checked={settings.securityBreaches}
                 onCheckedChange={(checked) => handleToggleSetting('securityBreaches', checked)}
               />
@@ -319,6 +321,7 @@ export default function NotificationSettings() {
                 </div>
               </div>
               <Switch
+                aria-label="High Severity Threats"
                 checked={settings.highSeverityThreats}
                 onCheckedChange={(checked) => handleToggleSetting('highSeverityThreats', checked)}
               />
@@ -335,6 +338,7 @@ export default function NotificationSettings() {
                 </div>
               </div>
               <Switch
+                aria-label="New Endpoints"
                 checked={settings.newEndpoints}
                 onCheckedChange={(checked) => handleToggleSetting('newEndpoints', checked)}
               />
@@ -351,6 +355,7 @@ export default function NotificationSettings() {
                 </div>
               </div>
               <Switch
+                aria-label="Compliance Alerts"
                 checked={settings.complianceAlerts}
                 onCheckedChange={(checked) => handleToggleSetting('complianceAlerts', checked)}
               />
@@ -370,7 +375,7 @@ export default function NotificationSettings() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label>Notification Frequency</Label>
+              <Label htmlFor="notification-frequency">Notification Frequency</Label>
               <Select
                 value={settings.frequency}
                 onValueChange={(value: 'immediate' | 'hourly' | 'daily') => {
@@ -378,7 +383,7 @@ export default function NotificationSettings() {
                   saveSettings(newSettings);
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger id="notification-frequency">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -390,8 +395,9 @@ export default function NotificationSettings() {
             </div>
             
             <div className="space-y-2">
-              <Label>Quiet Hours Start</Label>
+              <Label htmlFor="quiet-hours-start">Quiet Hours Start</Label>
               <Input 
+                id="quiet-hours-start"
                 type="time" 
                 value={settings.quietHours.start}
                 onChange={(e) => {
@@ -405,8 +411,9 @@ export default function NotificationSettings() {
             </div>
             
             <div className="space-y-2">
-              <Label>Quiet Hours End</Label>
+              <Label htmlFor="quiet-hours-end">Quiet Hours End</Label>
               <Input 
+                id="quiet-hours-end"
                 type="time" 
                 value={settings.quietHours.end}
                 onChange={(e) => {
@@ -426,6 +433,7 @@ export default function NotificationSettings() {
               <p className="text-xs text-muted-foreground">Suppress non-critical notifications during specified hours</p>
             </div>
             <Switch
+              aria-label="Enable Quiet Hours"
               checked={settings.quietHours.enabled}
               onCheckedChange={(checked) => {
                 const newSettings = {
@@ -458,6 +466,7 @@ export default function NotificationSettings() {
               </div>
             </div>
             <Switch
+              aria-label="Sound Notifications"
               checked={settings.soundEnabled}
               onCheckedChange={(checked) => handleToggleSetting('soundEnabled', checked)}
             />

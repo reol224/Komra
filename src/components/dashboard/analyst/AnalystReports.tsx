@@ -152,7 +152,7 @@ export default function AnalystReports() {
       <div className="space-y-6">
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
-            <p className="text-slate-300">You don&apos;t have permission to view reports.</p>
+            <p className="text-muted-foreground">You don&apos;t have permission to view reports.</p>
           </div>
         </div>
       </div>
@@ -172,7 +172,7 @@ export default function AnalystReports() {
         </div>
 
         {message && (
-          <p className={`text-sm ${message.kind === 'error' ? 'text-red-400' : 'text-slate-300'}`} role="alert">{message.text}</p>
+          <p className={`text-sm ${message.kind === 'error' ? 'text-destructive' : 'text-muted-foreground'}`} role="alert">{message.text}</p>
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

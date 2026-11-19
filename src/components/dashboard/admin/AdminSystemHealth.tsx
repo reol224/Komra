@@ -270,7 +270,7 @@ export default function AdminSystemHealth() {
   return (
     <PermissionGuard permission="system.health_monitoring" fallback={
       <div className="flex h-64 items-center justify-center">
-        <p className="text-slate-300">You don't have permission to view system health data.</p>
+        <p className="text-muted-foreground">You don't have permission to view system health data.</p>
       </div>
     }>
       <div className="space-y-6">

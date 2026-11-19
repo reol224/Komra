@@ -63,14 +63,32 @@ import AnalystReports from "./analyst/AnalystReports";
 import ViewerSystemStatus from "./viewer/ViewerSystemStatus";
 import ViewerAlerts from "./viewer/ViewerAlerts";
 import ViewerCompliance from "./viewer/ViewerCompliance";
+import DashboardSidebar from "./DashboardSidebar";
 
-const ROLE_TABS: Record<UserRole, string[]> = {
+const DASHBOARD_NAV = {
+  overview: { label: "Overview", icon: Shield },
+  users: { label: "User Management", icon: Users },
+  system: { label: "System Health", icon: Activity },
+  audit: { label: "Audit Trail", icon: FileText },
+  notifications: { label: "Notifications", icon: Bell },
+  threats: { label: "Threat Feed", icon: Shield },
+  incidents: { label: "Incident Response", icon: Activity },
+  investigation: { label: "Investigation", icon: Search },
+  reports: { label: "Reports", icon: FileText },
+  status: { label: "System Status", icon: Activity },
+  alerts: { label: "Alerts", icon: Bell },
+  compliance: { label: "Compliance", icon: Shield },
+} as const;
+
+type DashboardTab = keyof typeof DASHBOARD_NAV;
+
+const ROLE_TABS: Record<UserRole, DashboardTab[]> = {
   admin: ["overview", "users", "system", "audit", "notifications"],
   analyst: ["threats", "incidents", "investigation", "reports"],
   viewer: ["status", "alerts", "compliance"],
 };
 
-const DEFAULT_ROLE_TAB: Record<UserRole, string> = {
+const DEFAULT_ROLE_TAB: Record<UserRole, DashboardTab> = {
   admin: "overview",
   analyst: "threats",
   viewer: "status",
@@ -91,7 +109,7 @@ interface CustomLogSource {
 /** Renders the role-specific dashboard and its administrator settings. */
 export default function DashboardLayout() {
   const { signOut, user, loading: authLoading } = useAuth();
-  const [selectedTab, setSelectedTab] = useState(
+  const [selectedTab, setSelectedTab] = useState<string>(
     () => user?.role ? DEFAULT_ROLE_TAB[user.role] : DEFAULT_ROLE_TAB.admin,
   );
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -171,7 +189,7 @@ export default function DashboardLayout() {
   useEffect(() => {
     if (!user?.role) return;
     setSelectedTab((currentTab) =>
-      ROLE_TABS[user.role].includes(currentTab)
+      ROLE_TABS[user.role].some((tab) => tab === currentTab)
         ? currentTab
         : DEFAULT_ROLE_TAB[user.role],
     );
@@ -449,16 +467,6 @@ export default function DashboardLayout() {
     <div className="space-y-6">
       {renderInventoryOverview()}
 
-      {/* Admin Tabs */}
-      <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="users">User Management</TabsTrigger>
-          <TabsTrigger value="system">System Health</TabsTrigger>
-          <TabsTrigger value="audit">Audit Trail</TabsTrigger>
-          <TabsTrigger value="notifications">Notifications</TabsTrigger>
-        </TabsList>
-
         <TabsContent value="overview" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <AdminThreatSummary />
@@ -613,7 +621,6 @@ export default function DashboardLayout() {
             </Card>
           </div>
         </TabsContent>
-      </Tabs>
     </div>
   );
 
@@ -621,15 +628,6 @@ export default function DashboardLayout() {
   const renderAnalystDashboard = () => (
     <div className="space-y-6">
       {renderInventoryOverview()}
-
-      {/* Analyst Tabs */}
-      <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="threats">Threat Feed</TabsTrigger>
-          <TabsTrigger value="incidents">Incident Response</TabsTrigger>
-          <TabsTrigger value="investigation">Investigation</TabsTrigger>
-          <TabsTrigger value="reports">Reports</TabsTrigger>
-        </TabsList>
 
         <TabsContent value="threats">
           <AnalystThreatFeed />
@@ -646,7 +644,6 @@ export default function DashboardLayout() {
         <TabsContent value="reports">
           <AnalystReports />
         </TabsContent>
-      </Tabs>
     </div>
   );
 
@@ -654,14 +651,6 @@ export default function DashboardLayout() {
   const renderViewerDashboard = () => (
     <div className="space-y-6">
       {renderInventoryOverview()}
-
-      {/* Viewer Tabs - Read-only views */}
-      <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="status">System Status</TabsTrigger>
-          <TabsTrigger value="alerts">Alerts</TabsTrigger>
-          <TabsTrigger value="compliance">Compliance</TabsTrigger>
-        </TabsList>
 
         <TabsContent value="status">
           <ViewerSystemStatus />
@@ -674,7 +663,6 @@ export default function DashboardLayout() {
         <TabsContent value="compliance">
           <ViewerCompliance />
         </TabsContent>
-      </Tabs>
     </div>
   );
 
@@ -685,7 +673,7 @@ export default function DashboardLayout() {
         return (
           <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
             <DialogTrigger asChild>
-              <Button variant="ghost" size="sm" className="p-1">
+              <Button variant="ghost" size="sm" className="p-1" aria-label="Dashboard settings">
                 <Settings className="h-4 w-4" />
               </Button>
             </DialogTrigger>
@@ -897,25 +885,38 @@ export default function DashboardLayout() {
   };
 
   return (
-    <div className="bg-background p-6 min-h-screen w-full">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">Komra Dashboard</h1>
-          <p className="text-muted-foreground">
-            Welcome back, {user?.full_name || user?.email || "there"}!
+    <Tabs value={selectedTab} onValueChange={setSelectedTab} className="dashboard-theme min-h-screen bg-background text-foreground md:flex">
+      <DashboardSidebar>
+        <nav aria-label="Dashboard navigation" className="py-4">
+          <p className="px-6 pb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            Main navigation
           </p>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex flex-col items-end gap-2">
-            <div className="text-right">
-              <p className="text-sm font-medium">
-                {user?.full_name || user?.email}
-              </p>
-              <p className="text-xs text-muted-foreground">{user?.email}</p>
-            </div>
+          <TabsList aria-label="Dashboard sections" className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-none bg-transparent p-0 md:flex-col md:items-stretch">
+            {user && ROLE_TABS[user.role].map((tab) => {
+              const { label, icon: Icon } = DASHBOARD_NAV[tab];
+              return (
+                <TabsTrigger
+                  key={tab}
+                  value={tab}
+                  className="justify-start gap-3 rounded-none border-l-2 border-transparent px-6 py-3 text-slate-300 hover:bg-white/5 hover:text-white data-[state=active]:border-violet-400 data-[state=active]:bg-[#292052] data-[state=active]:text-white data-[state=active]:shadow-none"
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {label}
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+        </nav>
+      </DashboardSidebar>
+      <div className="min-w-0 flex-1">
+        <header className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b bg-card px-4 py-3 sm:px-6">
+          <div>
+            <h1 className="text-xl font-semibold">Komra Dashboard</h1>
+            <p className="text-xs text-muted-foreground">
+              Welcome back, {user?.full_name || user?.email || "there"}!
+            </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {user && getRoleIcon(user.role)}
             {user && getRoleBadge(user.role)}
             <Button
@@ -930,28 +931,28 @@ export default function DashboardLayout() {
               Logout
             </Button>
           </div>
-        </div>
+        </header>
+        <main className="p-4 sm:p-6">
+          {user?.role === "admin" && renderAdminDashboard()}
+          {user?.role === "analyst" && renderAnalystDashboard()}
+          {user?.role === "viewer" && renderViewerDashboard()}
+          <div className="mt-8 rounded border bg-card p-4">
+            <div className="flex items-center gap-2 text-sm">
+              <Lock className="h-4 w-4 text-muted-foreground" />
+              <span className="font-medium">Role-Based Access Control Active</span>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Dashboard content is customized based on your role permissions.
+              {user?.role === "admin" &&
+                " You have full administrative access to all features."}
+              {user?.role === "analyst" &&
+                " You have access to investigation and analysis tools."}
+              {user?.role === "viewer" &&
+                " You have read-only access to system status and reports."}
+            </p>
+          </div>
+        </main>
       </div>
-      {/* Role-based Dashboard Content */}
-      {user?.role === "admin" && renderAdminDashboard()}
-      {user?.role === "analyst" && renderAnalystDashboard()}
-      {user?.role === "viewer" && renderViewerDashboard()}
-      {/* Role Access Notice */}
-      <div className="mt-8 p-4 bg-muted/50 rounded-lg border">
-        <div className="flex items-center gap-2 text-sm">
-          <Lock className="h-4 w-4 text-muted-foreground" />
-          <span className="font-medium">Role-Based Access Control Active</span>
-        </div>
-        <p className="text-xs text-muted-foreground mt-1">
-          Dashboard content is customized based on your role permissions.
-          {user?.role === "admin" &&
-            " You have full administrative access to all features."}
-          {user?.role === "analyst" &&
-            " You have access to investigation and analysis tools."}
-          {user?.role === "viewer" &&
-            " You have read-only access to system status and reports."}
-        </p>
-      </div>
-    </div>
+    </Tabs>
   );
 }
