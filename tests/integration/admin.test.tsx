@@ -4572,6 +4572,8 @@ describe('Admin Components Integration Tests', () => {
       await waitFor(() => {
         expect(screen.getByText('User Management')).toBeInTheDocument();
       });
+      expect(screen.getByRole('alert')).toHaveTextContent('Unable to load users');
+      expect(screen.queryByText('admin@koma.security')).not.toBeInTheDocument();
       
       consoleErrorSpy.mockRestore();
       testLogger.pass('AdminUserManagement API error handling');

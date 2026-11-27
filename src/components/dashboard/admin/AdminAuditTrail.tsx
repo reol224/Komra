@@ -711,8 +711,7 @@ export default function AdminAuditTrail() {
                                     Resource
                                   </label>
                                   <div
-                                    className="font-mono text-sm p-2 rounded"
-                                    style={{ backgroundColor: "#344256" }}
+                                    className="rounded bg-muted p-2 font-mono text-sm text-foreground"
                                   >
                                     {selectedLog.resource}
                                   </div>
@@ -722,8 +721,7 @@ export default function AdminAuditTrail() {
                                     Details
                                   </label>
                                   <div
-                                    className="text-sm p-3 rounded"
-                                    style={{ backgroundColor: "#344256" }}
+                                    className="rounded bg-muted p-3 text-sm text-foreground"
                                   >
                                     {selectedLog.details}
                                   </div>
@@ -777,8 +775,7 @@ export default function AdminAuditTrail() {
                                     User Agent
                                   </label>
                                   <div
-                                    className="text-sm p-2 rounded break-all"
-                                    style={{ backgroundColor: "#344256" }}
+                                    className="break-all rounded bg-muted p-2 text-sm text-foreground"
                                   >
                                     {selectedLog.user_agent}
                                   </div>
@@ -795,7 +792,7 @@ export default function AdminAuditTrail() {
                                   <label className="text-sm font-medium text-gray-500">
                                     Metadata
                                   </label>
-                                  <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded p-3 text-xs" style={{ backgroundColor: "#344256" }}>
+                                  <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-3 text-xs text-foreground">
                                     {JSON.stringify(selectedLog.metadata || {}, null, 2)}
                                   </pre>
                                 </div>

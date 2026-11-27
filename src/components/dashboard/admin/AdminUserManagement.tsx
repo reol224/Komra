@@ -49,6 +49,7 @@ export default function AdminUserManagement() {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState<string>('all');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -89,40 +90,19 @@ export default function AdminUserManagement() {
   }), [currentUser?.id, currentUser?.email]);
 
   const loadUsers = useCallback(async () => {
+    setLoadError(null);
     try {
       const { data, error } = await supabase
         .from('users')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error loading users:', error);
-        // Fallback to mock data if database fails
-        setUsers([
-          {
-            id: '1',
-            email: 'admin@koma.security',
-            full_name: 'System Administrator',
-            role: 'admin',
-            created_at: '2024-01-15T10:00:00Z',
-            last_login: '2024-03-22T14:30:00Z',
-            status: 'active'
-          },
-          {
-            id: '2',
-            email: 'analyst@koma.security',
-            full_name: 'Security Analyst',
-            role: 'analyst',
-            created_at: '2024-02-01T09:00:00Z',
-            last_login: '2024-03-22T13:45:00Z',
-            status: 'active'
-          }
-        ]);
-      } else {
-        setUsers(data || []);
-      }
+      if (error) throw error;
+      setUsers(data || []);
     } catch (error) {
       console.error('Error loading users:', error);
+      setUsers([]);
+      setLoadError('Unable to load users. Check the database connection and try again.');
     } finally {
       setLoading(false);
     }
@@ -658,6 +638,14 @@ export default function AdminUserManagement() {
           <Users className="h-5 w-5" />
           <h3 className="text-lg font-semibold">User Management</h3>
         </div>
+        {loadError && (
+          <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-destructive">
+            <span>{loadError}</span>
+            <Button variant="outline" size="sm" onClick={() => void loadUsers()}>
+              Retry
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Tabs for User Management and Permission Matrix */}
